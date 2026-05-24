@@ -267,6 +267,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
+  <button class="ntab" data-p="elections">🗳 Elections</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
 </div>
 
@@ -446,7 +447,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div>
       <div class="sh"><h2>✈ Live Flight Radar — SoCal</h2></div>
       <div class="mapwrap">
-        <iframe src="https://www.flightradar24.com/simple?lat=33.7&lon=-117.8&z=9" loading="lazy" title="FlightRadar SoCal" allowfullscreen></iframe>
+        <iframe src="https://globe.adsbexchange.com/?lat=33.7&lon=-117.8&zoom=9&hideButtons&hideIdent&hideSideBar" loading="lazy" title="ADS-B Exchange SoCal" allowfullscreen></iframe>
       </div>
       <div class="pills" style="margin-top:8px">
         <a class="pill" href="https://www.flightradar24.com/" target="_blank">FlightRadar24 →</a>
@@ -458,7 +459,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div>
       <div class="sh"><h2>🚦 SoCal Traffic</h2></div>
       <div class="mapwrap">
-        <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d423286.27405117827!2d-117.8311!3d33.7175!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sus!4v1610000000000!5m2!1sen!2sus&layer=t" loading="lazy" title="OC Traffic" allowfullscreen></iframe>
+        <iframe src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=9&overlay=traffic&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true" loading="lazy" title="SoCal Traffic" allowfullscreen></iframe>
       </div>
       <div class="pills" style="margin-top:8px">
         <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Caltrans QuickMap →</a>
