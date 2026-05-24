@@ -93,7 +93,31 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .add-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,180,255,.04)}
 .add-btn .plus{font-size:2rem;line-height:1}
 
-/* GROUP BAR */
+/* TICKER */
+.ticker-wrap{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:6px;height:38px}
+.ticker-label{background:var(--accent);color:#000;font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase}
+.ticker-track{flex:1;overflow:hidden;display:flex;align-items:center;position:relative}
+.ticker-inner{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 120s linear infinite;will-change:transform}
+.ticker-inner:hover{animation-play-state:paused}
+.ticker-item{display:inline-flex;align-items:center;gap:10px;padding:0 28px;font-family:var(--fm);font-size:.78rem;color:var(--text);cursor:pointer;transition:color .15s;text-decoration:none}
+.ticker-item:hover{color:var(--accent)}
+.ticker-item .tsrc{color:var(--accent);font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.ticker-item .tsep{color:var(--muted);margin:0 4px}
+.ticker-sep{color:var(--border2);font-size:1.2rem;flex-shrink:0;user-select:none}
+@keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* MARKET TICKER */
+.market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
+.market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
+.market-track{flex:1;overflow:hidden;display:flex;align-items:center;position:relative}
+.market-inner{display:flex;align-items:center;white-space:nowrap;animation:ticker-scroll 80s linear infinite;will-change:transform}
+.market-inner:hover{animation-play-state:paused}
+.mkt-item{display:inline-flex;align-items:center;gap:6px;padding:0 18px;font-family:var(--fm);font-size:.78rem;border-right:1px solid rgba(0,180,255,.08)}
+.mkt-sym{color:var(--text);font-weight:700;letter-spacing:.04em}
+.mkt-price{color:var(--text2)}
+.mkt-chg.up{color:var(--accent3)}
+.mkt-chg.dn{color:var(--danger)}
+.mkt-chg.flat{color:var(--muted)}
 .gbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .gpill{padding:5px 14px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--fu);font-size:.8rem;font-weight:500;cursor:pointer;transition:all .2s}
 .gpill.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
@@ -273,6 +297,27 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 
 <!-- ══════════════════ STREAMS ══════════════════ -->
 <div id="panel-streams" class="panel active">
+
+  <!-- NEWS TICKER -->
+  <div class="ticker-wrap">
+    <div class="ticker-label">⚡ LIVE</div>
+    <div class="ticker-track">
+      <div class="ticker-inner" id="ticker-inner">
+        <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading headlines…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MARKET TICKER -->
+  <div class="market-ticker-wrap">
+    <div class="market-ticker-label">📈 MARKETS</div>
+    <div class="market-track">
+      <div class="market-inner" id="market-inner">
+        <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading market data…</span>
+      </div>
+    </div>
+  </div>
+
   <div class="gbar" id="gbar"></div>
   <div id="sg"></div>
 </div>
@@ -401,40 +446,41 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
   </div>
 
-  <!-- NASA FIRMS Map -->
+  <!-- Fire Maps -->
   <div style="margin-top:18px">
-    <div class="sh"><h2>🛰 NASA FIRMS — Live Satellite Fire Detection</h2><span class="ltag">LIVE</span></div>
+    <div class="sh"><h2>🔥 SoCal Fire & Smoke Map — RainViewer</h2><span class="ltag">LIVE</span></div>
     <div style="width:100%;height:500px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000">
       <iframe
-        src="https://firms.modaps.eosdis.nasa.gov/usfs/map/#d:24hrs;@-117.8,33.7,7z"
+        src="https://www.rainviewer.com/map.html?loc=33.7175,-117.8311,7&oFa=1&oC=1&oU=0&oCS=1&oF=0&oAP=1&rmt=4&c=1&o=83&lm=0&layer=fire&sm=1&sn=1"
         loading="lazy"
-        title="NASA FIRMS Fire Map"
+        title="RainViewer Fire Map SoCal"
         style="width:100%;height:100%;border:0"
         allowfullscreen>
       </iframe>
     </div>
     <div class="pills" style="margin-top:8px">
-      <a class="pill" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank">Full FIRMS Map →</a>
-      <a class="pill" href="https://firms.modaps.eosdis.nasa.gov/usfs/" target="_blank">FIRMS USFS →</a>
+      <a class="pill" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank">NASA FIRMS →</a>
       <a class="pill" href="https://www.fire.ca.gov/" target="_blank">CAL FIRE →</a>
+      <a class="pill" href="https://inciweb.nwcg.gov/" target="_blank">InciWeb →</a>
+      <a class="pill" href="https://www.rainviewer.com/map.html" target="_blank">Full RainViewer →</a>
     </div>
   </div>
 
-  <!-- InciWeb Map -->
   <div style="margin-top:18px">
-    <div class="sh"><h2>📍 InciWeb — Active Incidents</h2><span class="mtag">MONITORING</span></div>
+    <div class="sh"><h2>💨 Air Quality & Smoke Map — AirNow</h2><span class="mtag">MONITORING</span></div>
     <div style="width:100%;height:500px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000">
       <iframe
-        src="https://inciweb.nwcg.gov/accessible-view/"
+        src="https://gispub.epa.gov/airnow/?showgreencontours=false&lat=33.7175&lng=-117.8311&zoom=8"
         loading="lazy"
-        title="InciWeb Active Incidents"
+        title="AirNow Air Quality Map SoCal"
         style="width:100%;height:100%;border:0"
         allowfullscreen>
       </iframe>
     </div>
     <div class="pills" style="margin-top:8px">
-      <a class="pill" href="https://inciweb.nwcg.gov/" target="_blank">Full InciWeb Site →</a>
-      <a class="pill" href="https://inciweb.nwcg.gov/incident-information/" target="_blank">All Active Incidents →</a>
+      <a class="pill" href="https://www.airnow.gov/" target="_blank">AirNow Full Map →</a>
+      <a class="pill" href="https://www.aqmd.gov/" target="_blank">South Coast AQMD →</a>
+      <a class="pill" href="https://www.purpleair.com/map" target="_blank">PurpleAir Sensors →</a>
     </div>
   </div>
 
@@ -1198,6 +1244,135 @@ function setNextElection(){
   el.textContent=next.label+' ('+days+' days)';
 }
 
+/* ── MARKET TICKER ── */
+const CRYPTO_IDS = 'bitcoin,dogecoin,ethereum,solana';
+const STOCK_SYMBOLS = ['TSLA','AAPL','NVDA','MSFT','META','JPM','XOM','SPY','GLD','SLV'];
+
+// Labels for display
+const SYMBOL_LABELS = {
+  bitcoin:'BTC', dogecoin:'DOGE', ethereum:'ETH', solana:'SOL',
+  TSLA:'TSLA', AAPL:'AAPL', NVDA:'NVDA', MSFT:'MSFT',
+  META:'META', JPM:'JPM', XOM:'XOM', SPY:'S&P500', GLD:'GOLD', SLV:'SILVER'
+};
+
+function fmtPrice(p) {
+  if (p >= 1000) return '$' + p.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (p >= 1) return '$' + p.toFixed(2);
+  return '$' + p.toFixed(4);
+}
+function fmtChg(c) {
+  const sign = c >= 0 ? '▲' : '▼';
+  return sign + Math.abs(c).toFixed(2) + '%';
+}
+function chgClass(c) { return c > 0 ? 'up' : c < 0 ? 'dn' : 'flat'; }
+
+function buildMarketItem(sym, price, chg) {
+  const cls = chgClass(chg);
+  return `<div class="mkt-item">
+    <span class="mkt-sym">${sym}</span>
+    <span class="mkt-price">${fmtPrice(price)}</span>
+    <span class="mkt-chg ${cls}">${fmtChg(chg)}</span>
+  </div>`;
+}
+
+async function loadMarketTicker() {
+  const el = document.getElementById('market-inner');
+  const items = [];
+
+  // Crypto — CoinGecko free, no key needed
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${CRYPTO_IDS}&vs_currencies=usd&include_24hr_change=true`);
+    const d = await r.json();
+    for (const [id, data] of Object.entries(d)) {
+      const sym = SYMBOL_LABELS[id] || id.toUpperCase();
+      items.push({ sym, price: data.usd, chg: data.usd_24h_change || 0, order: 0 });
+    }
+  } catch(e) {}
+
+  // Stocks — Yahoo Finance via allorigins proxy (no key needed)
+  try {
+    const syms = STOCK_SYMBOLS.join('%2C');
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`;
+    const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+    const d = await r.json();
+    const parsed = JSON.parse(d.contents);
+    const quotes = parsed?.quoteResponse?.result || [];
+    quotes.forEach(q => {
+      const sym = SYMBOL_LABELS[q.symbol] || q.symbol;
+      items.push({ sym, price: q.regularMarketPrice, chg: q.regularMarketChangePercent || 0, order: 1 });
+    });
+  } catch(e) {}
+
+  if (!items.length) {
+    el.innerHTML = '<span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Market data unavailable</span>';
+    return;
+  }
+
+  // Sort: crypto first, then stocks
+  items.sort((a,b) => a.order - b.order);
+  const html = items.map(it => buildMarketItem(it.sym, it.price, it.chg)).join('');
+  // Duplicate for seamless scroll
+  el.innerHTML = html + html;
+}
+
+/* ── STREAMS TICKER ── */
+const TICKER_FEEDS = [
+  {n:'Fox News',    u:'https://feeds.foxnews.com/foxnews/latest'},
+  {n:'Breitbart',   u:'https://feeds.feedburner.com/breitbart'},
+  {n:'AP News',     u:'https://rsshub.app/apnews/topics/politics'},
+  {n:'The Hill',    u:'https://thehill.com/feed'},
+  {n:'Fox World',   u:'https://feeds.foxnews.com/foxnews/world'},
+  {n:'Wash. Examiner', u:'https://www.washingtonexaminer.com/feed'},
+  {n:'Military Times', u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
+  {n:'OC Register', u:'https://www.ocregister.com/feed/'},
+  {n:'Breitbart Border', u:'https://www.breitbart.com/immigration/feed/'},
+  {n:'Just the News', u:'https://justthenews.com/feeds/all-stories'},
+];
+
+async function loadTicker() {
+  const items = [];
+  const seen = new Set();
+  await Promise.allSettled(TICKER_FEEDS.map(async f => {
+    try {
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
+      const d = await r.json();
+      const xml = new DOMParser().parseFromString(d.contents, 'text/xml');
+      Array.from(xml.querySelectorAll('item')).slice(0, 6).forEach(it => {
+        const title = it.querySelector('title')?.textContent?.trim() || '';
+        const link  = it.querySelector('link')?.textContent?.trim() || '#';
+        const pub   = it.querySelector('pubDate')?.textContent || '';
+        const key   = title.slice(0, 50);
+        if (!title || seen.has(key)) return;
+        seen.add(key);
+        items.push({ src: f.n, title, link, pub: pub ? new Date(pub) : new Date(0) });
+      });
+    } catch(e) {}
+  }));
+
+  items.sort((a, b) => b.pub - a.pub);
+  if (!items.length) return;
+
+  // Build ticker — duplicate items for seamless loop
+  const inner = document.getElementById('ticker-inner');
+  if (!inner) return;
+
+  const buildItems = () => items.map(it =>
+    `<a class="ticker-item" href="${it.link}" target="_blank" rel="noopener">
+      <span class="tsrc">${it.src}</span>
+      <span class="tsep">▸</span>
+      <span>${it.title}</span>
+    </a><span class="ticker-sep">◆</span>`
+  ).join('');
+
+  // Duplicate for seamless infinite scroll
+  inner.innerHTML = buildItems() + buildItems();
+
+  // Adjust animation speed based on content width
+  const totalWidth = inner.scrollWidth / 2;
+  const speed = Math.max(60, totalWidth / 80); // ~80px per second
+  inner.style.animationDuration = speed + 's';
+}
+
 /* ── NAV ── */
 document.querySelectorAll('.ntab').forEach(t=>{
   t.addEventListener('click',()=>{
@@ -1218,6 +1393,8 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 loadQuakes();loadFires();loadFEMA();
+loadTicker();setInterval(loadTicker, 10*60*1000);
+loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
 loadElectionNews();setInterval(loadElectionNews,15*60*1000);
 setNextElection();
