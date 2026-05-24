@@ -97,7 +97,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .ticker-wrap{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:6px;height:38px}
 .ticker-label{background:var(--accent);color:#000;font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase}
 .ticker-track{flex:1;overflow:hidden;display:flex;align-items:center;position:relative}
-.ticker-inner{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 120s linear infinite;will-change:transform}
+.ticker-inner{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 180s linear infinite;will-change:transform}
 .ticker-inner:hover{animation-play-state:paused}
 .ticker-item{display:inline-flex;align-items:center;gap:10px;padding:0 28px;font-family:var(--fm);font-size:.78rem;color:var(--text);cursor:pointer;transition:color .15s;text-decoration:none}
 .ticker-item:hover{color:var(--accent)}
@@ -1289,19 +1289,24 @@ async function loadMarketTicker() {
     }
   } catch(e) {}
 
-  // Stocks — Yahoo Finance via allorigins proxy (no key needed)
-  try {
-    const syms = STOCK_SYMBOLS.join('%2C');
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`;
-    const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
-    const d = await r.json();
-    const parsed = JSON.parse(d.contents);
-    const quotes = parsed?.quoteResponse?.result || [];
-    quotes.forEach(q => {
-      const sym = SYMBOL_LABELS[q.symbol] || q.symbol;
-      items.push({ sym, price: q.regularMarketPrice, chg: q.regularMarketChangePercent || 0, order: 1 });
-    });
-  } catch(e) {}
+  // Stocks — fetch each symbol via Yahoo Finance v8 through allorigins
+  const stockResults = await Promise.allSettled(
+    STOCK_SYMBOLS.map(async sym => {
+      const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+      const d = await r.json();
+      const parsed = JSON.parse(d.contents);
+      const meta = parsed?.chart?.result?.[0]?.meta;
+      if (!meta) return null;
+      const price = meta.regularMarketPrice;
+      const prev  = meta.previousClose || meta.chartPreviousClose;
+      const chg   = prev ? ((price - prev) / prev) * 100 : 0;
+      return { sym: SYMBOL_LABELS[sym] || sym, price, chg, order: 1 };
+    })
+  );
+  stockResults.forEach(r => {
+    if (r.status === 'fulfilled' && r.value) items.push(r.value);
+  });
 
   if (!items.length) {
     el.innerHTML = '<span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Market data unavailable</span>';
