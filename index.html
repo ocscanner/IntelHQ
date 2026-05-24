@@ -12,23 +12,23 @@
   --bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#111d28;
   --border:rgba(0,180,255,.10);--border2:rgba(0,180,255,.22);
   --accent:#00b4ff;--accent2:#ff4d2e;--accent3:#00ff9d;
-  --muted:#5a7a8a;--text:#d0e8f0;--text2:#8ab0c0;
+  --muted:#7a9aaa;--text:#eef4f8;--text2:#b8d0dc;
   --warn:#ffb700;--danger:#ff3b30;
   --fm:'Share Tech Mono',monospace;--fu:'Barlow Condensed',sans-serif;--fh:'Rajdhani',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow-x:hidden}
-body{font-family:var(--fu);background:var(--bg);color:var(--text);font-size:17px;line-height:1.4}
+body{font-family:var(--fu);background:var(--bg);color:var(--text);font-size:17px;line-height:1.6}
 body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);pointer-events:none;z-index:9999}
 
 /* STATUS BAR */
-#sb{background:linear-gradient(90deg,#020d14,#040f1a);border-bottom:1px solid var(--border2);padding:5px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-family:var(--fm);font-size:.75rem;position:sticky;top:0;z-index:1000;min-height:32px}
-.sbi{display:flex;align-items:center;gap:5px;color:var(--text2)}
-.sbi .lbl{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em}
-.sbi .val{color:var(--accent);font-weight:600}
+#sb{background:linear-gradient(90deg,#020d14,#040f1a);border-bottom:2px solid var(--border2);padding:10px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:var(--fm);font-size:.95rem;position:sticky;top:0;z-index:1000;min-height:48px;width:100%}
+.sbi{display:flex;align-items:center;gap:7px;color:var(--text2)}
+.sbi .lbl{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.07em}
+.sbi .val{color:var(--accent);font-weight:700;font-size:1rem}
 .sbi.alrt .val{color:var(--warn);animation:blink 1.2s step-end infinite}
-.sdiv{width:1px;height:14px;background:var(--border2);flex-shrink:0}
-.pdot{width:7px;height:7px;border-radius:50%;background:var(--accent3);animation:pulse 1.6s ease-in-out infinite;flex-shrink:0}
+.sdiv{width:1px;height:20px;background:var(--border2);flex-shrink:0}
+.pdot{width:9px;height:9px;border-radius:50%;background:var(--accent3);animation:pulse 1.6s ease-in-out infinite;flex-shrink:0}
 .pdot.y{background:var(--warn)}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,255,157,.4)}50%{opacity:.6;box-shadow:0 0 8px 4px rgba(0,255,157,.15)}}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -400,6 +400,44 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       </div>
     </div>
   </div>
+
+  <!-- NASA FIRMS Map -->
+  <div style="margin-top:18px">
+    <div class="sh"><h2>🛰 NASA FIRMS — Live Satellite Fire Detection</h2><span class="ltag">LIVE</span></div>
+    <div style="width:100%;height:500px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000">
+      <iframe
+        src="https://firms.modaps.eosdis.nasa.gov/usfs/map/#d:24hrs;@-117.8,33.7,7z"
+        loading="lazy"
+        title="NASA FIRMS Fire Map"
+        style="width:100%;height:100%;border:0"
+        allowfullscreen>
+      </iframe>
+    </div>
+    <div class="pills" style="margin-top:8px">
+      <a class="pill" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank">Full FIRMS Map →</a>
+      <a class="pill" href="https://firms.modaps.eosdis.nasa.gov/usfs/" target="_blank">FIRMS USFS →</a>
+      <a class="pill" href="https://www.fire.ca.gov/" target="_blank">CAL FIRE →</a>
+    </div>
+  </div>
+
+  <!-- InciWeb Map -->
+  <div style="margin-top:18px">
+    <div class="sh"><h2>📍 InciWeb — Active Incidents</h2><span class="mtag">MONITORING</span></div>
+    <div style="width:100%;height:500px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000">
+      <iframe
+        src="https://inciweb.nwcg.gov/accessible-view/"
+        loading="lazy"
+        title="InciWeb Active Incidents"
+        style="width:100%;height:100%;border:0"
+        allowfullscreen>
+      </iframe>
+    </div>
+    <div class="pills" style="margin-top:8px">
+      <a class="pill" href="https://inciweb.nwcg.gov/" target="_blank">Full InciWeb Site →</a>
+      <a class="pill" href="https://inciweb.nwcg.gov/incident-information/" target="_blank">All Active Incidents →</a>
+    </div>
+  </div>
+
 </div>
 
 <!-- ══════════════════ WEATHER ══════════════════ -->
@@ -697,13 +735,12 @@ window.CHANNEL_GROUPS = {
     {name:"NBC News NOW",      type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg&autoplay=1&mute=1"},
     {name:"ABC News Live",     type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q&autoplay=1&mute=1"},
     {name:"FOX Weather",       type:"youtube", url:"https://www.youtube.com/embed/wt6SIE7BXS8?autoplay=1&mute=1&playsinline=1"},
-    {name:"Newsmax TV",        type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UCnlwkMHVqMxPSGKNQD8R0Bw&autoplay=1&mute=1"},
-    {name:"Newsmax2 Live",     type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UC3gwhL87Sdhon0h4G0TfiSQ&autoplay=1&mute=1"},
+    {name:"Newsmax2 Live",     type:"youtube", url:"https://www.youtube.com/embed/oPtapPqfO_0?autoplay=1&mute=1&playsinline=1"},
   ]},
   aviation: { label:"Aviation / Space", channels:[
     {name:"LAX Runway Cam A",   type:"youtube", url:"https://www.youtube.com/embed/9wRUrnqFo8A?autoplay=1&mute=1&playsinline=1"},
     {name:"LAX Runway Cam B",   type:"youtube", url:"https://www.youtube.com/embed/12KqO5IBLeY?autoplay=1&mute=1&playsinline=1"},
-    {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/euH5-K8dzZ0?autoplay=1&mute=1&playsinline=1"},
+    {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/_-Qg5jD-PfA?autoplay=1&mute=1&playsinline=1"},
     {name:"Space / Launch Cam", type:"youtube", url:"https://www.youtube.com/embed/mhJRzQsLZGg?autoplay=1&mute=1&playsinline=1"},
     {name:"Space Live Feed",    type:"youtube", url:"https://www.youtube.com/embed/Jm8wRjD3xVA?autoplay=1&mute=1&playsinline=1"},
   ]}
@@ -721,7 +758,7 @@ const AVIATION_CHANNELS = [
 /* News streams rendered in News tab */
 const NEWS_LIVE_STREAMS = [
   {name:"FOX News Live",      url:"https://www.youtube.com/embed/live_stream?channel=UCXIJgqnII2ZOINSWNf17yeA&autoplay=1&mute=1"},
-  {name:"Newsmax Live",       url:"https://www.youtube.com/embed/live_stream?channel=UCnlwkMHVqMxPSGKNQD8R0Bw&autoplay=1&mute=1"},
+  {name:"Newsmax2 Live",      url:"https://www.youtube.com/embed/oPtapPqfO_0?autoplay=1&mute=1&playsinline=1"},
   {name:"NewsNation Live",    url:"https://www.youtube.com/embed/live_stream?channel=UCG7P3nP5Lrh6OTfCVUI-rTg&autoplay=1&mute=1"},
   {name:"C-SPAN Live",        url:"https://www.youtube.com/embed/live_stream?channel=UC783OHgMPBECODSBMJHp9DQ&autoplay=1&mute=1"},
 ];
