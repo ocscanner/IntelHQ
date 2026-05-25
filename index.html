@@ -106,6 +106,18 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .ticker-sep{color:var(--border2);font-size:1.2rem;flex-shrink:0;user-select:none}
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
+/* CHP INCIDENTS */
+.chp-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;border-left:3px solid var(--accent)}
+.chp-card.incident-major{border-left-color:var(--danger)}
+.chp-card.incident-moderate{border-left-color:var(--warn)}
+.chp-card.incident-minor{border-left-color:var(--accent3)}
+.chp-card .chp-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.chp-card .chp-type{font-family:var(--fh);font-size:.82rem;font-weight:700;color:var(--text);letter-spacing:.04em}
+.chp-card .chp-center{font-family:var(--fm);font-size:.65rem;padding:2px 6px;border-radius:3px;background:rgba(0,180,255,.1);color:var(--accent);border:1px solid rgba(0,180,255,.2)}
+.chp-card .chp-time{font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-left:auto}
+.chp-card .chp-loc{font-size:.82rem;color:var(--text2);font-family:var(--fu);margin-bottom:3px}
+.chp-card .chp-detail{font-size:.75rem;color:var(--muted);font-family:var(--fm);line-height:1.4}
+
 /* MARKET TICKER */
 .market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
 .market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
@@ -541,20 +553,38 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       </div>
     </div>
     <div>
-      <div class="sh"><h2>🚦 SoCal Traffic</h2></div>
-      <div class="mapwrap">
-        <iframe src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=9&overlay=traffic&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true" loading="lazy" title="SoCal Traffic" allowfullscreen></iframe>
+      <div class="sh">
+        <h2>🚨 CHP CAD — Live Incidents</h2>
+        <span class="ltag">LIVE</span>
+        <span id="chp-count" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:4px"></span>
+        <button class="rbtn" onclick="loadCHP()">↺</button>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px" id="chp-filter-bar">
+        <button class="gpill active" onclick="setCHPFilter('ALL',this)">All</button>
+        <button class="gpill" onclick="setCHPFilter('ORANGE',this)">🟠 Orange</button>
+        <button class="gpill" onclick="setCHPFilter('LOSANGELES',this)">🔵 LA</button>
+        <button class="gpill" onclick="setCHPFilter('INLAND',this)">🟢 Inland</button>
+        <button class="gpill" onclick="setCHPFilter('BORDER',this)">🔴 Border</button>
+      </div>
+      <div id="chp-feed" style="display:flex;flex-direction:column;gap:7px;max-height:370px;overflow-y:auto">
+        <div class="loader">Loading CHP incidents…</div>
       </div>
       <div class="pills" style="margin-top:8px">
+        <a class="pill" href="https://cad.chp.ca.gov/" target="_blank">CHP CAD Full Site →</a>
         <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Caltrans QuickMap →</a>
         <a class="pill" href="https://511.org/" target="_blank">511 SoCal →</a>
-        <a class="pill" href="https://www.waze.com/livemap" target="_blank">Waze Live →</a>
       </div>
     </div>
   </div>
 
+  <!-- Aviation / Space Cams -->
+  <div style="margin-top:20px">
+    <div class="sh"><h2>🚀 Aviation / Space Live Cams</h2><span class="ltag">LIVE</span></div>
+    <div id="av-sg"></div>
+  </div>
+
   <!-- Airport Status -->
-  <div style="margin-top:16px">
+  <div style="margin-top:20px">
     <div class="sh"><h2>🛫 SoCal Airport Status</h2><span class="mtag">LIVE</span></div>
     <div class="aprow">
       <a class="apc" href="https://www.flylax.com/" target="_blank"><div class="acode">LAX</div><div class="aname">Los Angeles Intl</div><div class="astat aok" id="ap-lax">Checking…</div></a>
@@ -568,11 +598,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
   </div>
 
-  <!-- Aviation YouTube Streams -->
-  <div style="margin-top:20px">
-    <div class="sh"><h2>🚀 Aviation / Space Live Cams</h2><span class="ltag">LIVE</span></div>
-    <div id="av-sg"></div>
-  </div>
 </div>
 
 <!-- ══════════════════ ELECTIONS ══════════════════ -->
@@ -779,7 +804,7 @@ window.CHANNEL_GROUPS = {
   ]},
   national: { label:"National News", channels:[
     {name:"NBC News NOW",      type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg&autoplay=1&mute=1"},
-    {name:"ABC News Live",     type:"youtube", url:"https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q&autoplay=1&mute=1"},
+    {name:"ABC News Live",     type:"youtube", url:"https://www.youtube.com/embed/iipR5yUp36o?autoplay=1&mute=1&playsinline=1"},
     {name:"FOX Weather",       type:"youtube", url:"https://www.youtube.com/embed/wt6SIE7BXS8?autoplay=1&mute=1&playsinline=1"},
     {name:"Newsmax2 Live",     type:"youtube", url:"https://www.youtube.com/embed/oPtapPqfO_0?autoplay=1&mute=1&playsinline=1"},
   ]},
@@ -1244,6 +1269,124 @@ function setNextElection(){
   el.textContent=next.label+' ('+days+' days)';
 }
 
+/* ── CHP CAD FEED ── */
+const CHP_CENTERS = {
+  ORANGE:     { label:'Orange',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=ORANGE' },
+  LOSANGELES: { label:'Los Angeles', url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=LOSANGELES' },
+  INLAND:     { label:'Inland',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=INLAND' },
+  BORDER:     { label:'Border',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=BORDER' },
+};
+
+let chpAllIncidents = [];
+let chpActiveFilter = 'ALL';
+
+const MAJOR_TYPES = ['traffic collision','fatal','fatality','major injury','pursuit','rollover','overturned','hazmat','vegetation fire','structure fire','flooding','road closure','sig alert'];
+const MODERATE_TYPES = ['injury','disabled','hit and run','road rage','assist','pedestrian','bicycle'];
+
+function chpSeverity(type) {
+  const t = (type||'').toLowerCase();
+  if (MAJOR_TYPES.some(k => t.includes(k))) return 'major';
+  if (MODERATE_TYPES.some(k => t.includes(k))) return 'moderate';
+  return 'minor';
+}
+
+function chpCenterColor(center) {
+  const colors = { ORANGE:'🟠', LOSANGELES:'🔵', INLAND:'🟢', BORDER:'🔴' };
+  return colors[center] || '⚪';
+}
+
+function renderCHPFeed() {
+  const el = document.getElementById('chp-feed');
+  const cnt = document.getElementById('chp-count');
+  const filtered = chpActiveFilter === 'ALL'
+    ? chpAllIncidents
+    : chpAllIncidents.filter(i => i.center === chpActiveFilter);
+
+  if (cnt) cnt.textContent = `(${filtered.length} incidents)`;
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px 0">✅ No active incidents for selected center(s)</div>';
+    return;
+  }
+
+  el.innerHTML = '';
+  filtered.forEach(inc => {
+    const sev = chpSeverity(inc.type);
+    const div = document.createElement('div');
+    div.className = `chp-card incident-${sev}`;
+    div.innerHTML = `
+      <div class="chp-header">
+        <span class="chp-type">${inc.type || 'Incident'}</span>
+        <span class="chp-center">${chpCenterColor(inc.center)} ${CHP_CENTERS[inc.center]?.label || inc.center}</span>
+        <span class="chp-time">${inc.time || ''}</span>
+      </div>
+      <div class="chp-loc">📍 ${inc.location || 'Unknown location'}</div>
+      ${inc.detail ? `<div class="chp-detail">${inc.detail}</div>` : ''}
+    `;
+    el.appendChild(div);
+  });
+}
+
+function setCHPFilter(center, btn) {
+  chpActiveFilter = center;
+  document.querySelectorAll('#chp-filter-bar .gpill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderCHPFeed();
+}
+
+async function fetchCHPCenter(centerKey) {
+  const center = CHP_CENTERS[centerKey];
+  try {
+    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(center.url);
+    const r = await fetch(proxy);
+    const d = await r.json();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(d.contents, 'text/html');
+
+    const incidents = [];
+    // CHP CAD uses a table — parse rows
+    const rows = doc.querySelectorAll('table tr');
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 4) {
+        const time     = cells[0]?.textContent?.trim() || '';
+        const type     = cells[1]?.textContent?.trim() || '';
+        const location = cells[2]?.textContent?.trim() || '';
+        const detail   = cells[3]?.textContent?.trim() || '';
+        // Skip header rows and empty rows
+        if (time && type && !time.toLowerCase().includes('time') && type.length > 1) {
+          incidents.push({ time, type, location, detail, center: centerKey });
+        }
+      }
+    });
+    return incidents;
+  } catch(e) {
+    return [];
+  }
+}
+
+async function loadCHP() {
+  const el = document.getElementById('chp-feed');
+  el.innerHTML = '<div class="loader">Loading CHP incidents…</div>';
+  chpAllIncidents = [];
+
+  const results = await Promise.allSettled(
+    Object.keys(CHP_CENTERS).map(k => fetchCHPCenter(k))
+  );
+
+  results.forEach(r => {
+    if (r.status === 'fulfilled') chpAllIncidents.push(...r.value);
+  });
+
+  // Sort by time desc (most recent first)
+  chpAllIncidents.sort((a, b) => {
+    const ta = a.time || '', tb = b.time || '';
+    return tb.localeCompare(ta);
+  });
+
+  renderCHPFeed();
+}
+
 /* ── MARKET TICKER ── */
 const CRYPTO_IDS = 'bitcoin,dogecoin,ethereum,solana';
 const STOCK_SYMBOLS = ['TSLA','AAPL','NVDA','MSFT','META','JPM','XOM','SPY','GLD','SLV'];
@@ -1398,6 +1541,7 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 loadQuakes();loadFires();loadFEMA();
+loadCHP();setInterval(loadCHP, 60*1000);
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
