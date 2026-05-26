@@ -541,17 +541,17 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       </div>
     </div>
     <div>
-      <div class="sh"><h2>🚨 CHP Incidents — Caltrans QuickMap</h2><span class="ltag">LIVE</span></div>
+      <div class="sh"><h2>🚨 SoCal Traffic & Incidents</h2><span class="ltag">LIVE</span></div>
       <div class="mapwrap">
         <iframe
-          src="https://quickmap.dot.ca.gov/iframemap?extent=-118.9,33.3,-117.0,34.2&layers=CHP_Incidents"
+          src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=9&overlay=radar&product=radar&level=surface&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true&message=true"
           loading="lazy"
-          title="Caltrans QuickMap CHP Incidents"
+          title="SoCal Weather & Traffic"
           allowfullscreen>
         </iframe>
       </div>
 
-      <!-- CHP CAD direct link card -->
+      <!-- CHP CAD direct launch card -->
       <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:7px;padding:12px 14px;margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <div style="font-size:1.6rem">🚔</div>
         <div style="flex:1;min-width:0">
@@ -560,22 +560,18 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         </div>
         <div style="display:flex;gap:7px;flex-wrap:wrap">
           <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=ORANGE" target="_blank" rel="noopener"
-             style="padding:6px 12px;background:rgba(255,149,0,.12);border:1px solid rgba(255,149,0,.3);color:#ff9500;border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
-             onmouseover="this.style.background='rgba(255,149,0,.25)'" onmouseout="this.style.background='rgba(255,149,0,.12)'">🟠 Orange</a>
+             style="padding:6px 12px;background:rgba(255,149,0,.12);border:1px solid rgba(255,149,0,.3);color:#ff9500;border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em">🟠 Orange</a>
           <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=LOSANGELES" target="_blank" rel="noopener"
-             style="padding:6px 12px;background:rgba(0,180,255,.1);border:1px solid rgba(0,180,255,.25);color:var(--accent);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
-             onmouseover="this.style.background='rgba(0,180,255,.22)'" onmouseout="this.style.background='rgba(0,180,255,.1)'">🔵 LA</a>
+             style="padding:6px 12px;background:rgba(0,180,255,.1);border:1px solid rgba(0,180,255,.25);color:var(--accent);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em">🔵 LA</a>
           <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=INLAND" target="_blank" rel="noopener"
-             style="padding:6px 12px;background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.2);color:var(--accent3);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
-             onmouseover="this.style.background='rgba(0,255,157,.18)'" onmouseout="this.style.background='rgba(0,255,157,.08)'">🟢 Inland</a>
+             style="padding:6px 12px;background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.2);color:var(--accent3);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em">🟢 Inland</a>
           <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=BORDER" target="_blank" rel="noopener"
-             style="padding:6px 12px;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.25);color:var(--danger);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
-             onmouseover="this.style.background='rgba(255,59,48,.22)'" onmouseout="this.style.background='rgba(255,59,48,.1)'">🔴 Border</a>
+             style="padding:6px 12px;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.25);color:var(--danger);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em">🔴 Border</a>
         </div>
       </div>
 
       <div class="pills" style="margin-top:8px">
-        <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Full QuickMap →</a>
+        <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Caltrans QuickMap →</a>
         <a class="pill" href="https://cad.chp.ca.gov/" target="_blank">CHP CAD →</a>
         <a class="pill" href="https://511.org/" target="_blank">511 SoCal →</a>
         <a class="pill" href="https://www.waze.com/livemap" target="_blank">Waze Live →</a>
