@@ -106,18 +106,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .ticker-sep{color:var(--border2);font-size:1.2rem;flex-shrink:0;user-select:none}
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
-/* CHP INCIDENTS */
-.chp-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;border-left:3px solid var(--accent)}
-.chp-card.incident-major{border-left-color:var(--danger)}
-.chp-card.incident-moderate{border-left-color:var(--warn)}
-.chp-card.incident-minor{border-left-color:var(--accent3)}
-.chp-card .chp-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
-.chp-card .chp-type{font-family:var(--fh);font-size:.82rem;font-weight:700;color:var(--text);letter-spacing:.04em}
-.chp-card .chp-center{font-family:var(--fm);font-size:.65rem;padding:2px 6px;border-radius:3px;background:rgba(0,180,255,.1);color:var(--accent);border:1px solid rgba(0,180,255,.2)}
-.chp-card .chp-time{font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-left:auto}
-.chp-card .chp-loc{font-size:.82rem;color:var(--text2);font-family:var(--fu);margin-bottom:3px}
-.chp-card .chp-detail{font-size:.75rem;color:var(--muted);font-family:var(--fm);line-height:1.4}
-
 /* MARKET TICKER */
 .market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
 .market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
@@ -553,26 +541,44 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       </div>
     </div>
     <div>
-      <div class="sh">
-        <h2>🚨 CHP CAD — Live Incidents</h2>
-        <span class="ltag">LIVE</span>
-        <span id="chp-count" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:4px"></span>
-        <button class="rbtn" onclick="loadCHP()">↺</button>
+      <div class="sh"><h2>🚨 CHP Incidents — Caltrans QuickMap</h2><span class="ltag">LIVE</span></div>
+      <div class="mapwrap">
+        <iframe
+          src="https://quickmap.dot.ca.gov/iframemap?extent=-118.9,33.3,-117.0,34.2&layers=CHP_Incidents"
+          loading="lazy"
+          title="Caltrans QuickMap CHP Incidents"
+          allowfullscreen>
+        </iframe>
       </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px" id="chp-filter-bar">
-        <button class="gpill active" onclick="setCHPFilter('ALL',this)">All</button>
-        <button class="gpill" onclick="setCHPFilter('ORANGE',this)">🟠 Orange</button>
-        <button class="gpill" onclick="setCHPFilter('LOSANGELES',this)">🔵 LA</button>
-        <button class="gpill" onclick="setCHPFilter('INLAND',this)">🟢 Inland</button>
-        <button class="gpill" onclick="setCHPFilter('BORDER',this)">🔴 Border</button>
+
+      <!-- CHP CAD direct link card -->
+      <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:7px;padding:12px 14px;margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="font-size:1.6rem">🚔</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--fh);font-size:.95rem;font-weight:700;letter-spacing:.06em;color:var(--text)">CHP CAD — Live Incident Feed</div>
+          <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);margin-top:2px">Open official CHP CAD filtered to SoCal centers</div>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=ORANGE" target="_blank" rel="noopener"
+             style="padding:6px 12px;background:rgba(255,149,0,.12);border:1px solid rgba(255,149,0,.3);color:#ff9500;border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
+             onmouseover="this.style.background='rgba(255,149,0,.25)'" onmouseout="this.style.background='rgba(255,149,0,.12)'">🟠 Orange</a>
+          <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=LOSANGELES" target="_blank" rel="noopener"
+             style="padding:6px 12px;background:rgba(0,180,255,.1);border:1px solid rgba(0,180,255,.25);color:var(--accent);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
+             onmouseover="this.style.background='rgba(0,180,255,.22)'" onmouseout="this.style.background='rgba(0,180,255,.1)'">🔵 LA</a>
+          <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=INLAND" target="_blank" rel="noopener"
+             style="padding:6px 12px;background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.2);color:var(--accent3);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
+             onmouseover="this.style.background='rgba(0,255,157,.18)'" onmouseout="this.style.background='rgba(0,255,157,.08)'">🟢 Inland</a>
+          <a href="https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=BORDER" target="_blank" rel="noopener"
+             style="padding:6px 12px;background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.25);color:var(--danger);border-radius:5px;font-family:var(--fh);font-size:.82rem;font-weight:700;text-decoration:none;transition:all .2s;letter-spacing:.04em"
+             onmouseover="this.style.background='rgba(255,59,48,.22)'" onmouseout="this.style.background='rgba(255,59,48,.1)'">🔴 Border</a>
+        </div>
       </div>
-      <div id="chp-feed" style="display:flex;flex-direction:column;gap:7px;max-height:370px;overflow-y:auto">
-        <div class="loader">Loading CHP incidents…</div>
-      </div>
+
       <div class="pills" style="margin-top:8px">
-        <a class="pill" href="https://cad.chp.ca.gov/" target="_blank">CHP CAD Full Site →</a>
-        <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Caltrans QuickMap →</a>
+        <a class="pill" href="https://quickmap.dot.ca.gov/" target="_blank">Full QuickMap →</a>
+        <a class="pill" href="https://cad.chp.ca.gov/" target="_blank">CHP CAD →</a>
         <a class="pill" href="https://511.org/" target="_blank">511 SoCal →</a>
+        <a class="pill" href="https://www.waze.com/livemap" target="_blank">Waze Live →</a>
       </div>
     </div>
   </div>
@@ -1269,124 +1275,6 @@ function setNextElection(){
   el.textContent=next.label+' ('+days+' days)';
 }
 
-/* ── CHP CAD FEED ── */
-const CHP_CENTERS = {
-  ORANGE:     { label:'Orange',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=ORANGE' },
-  LOSANGELES: { label:'Los Angeles', url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=LOSANGELES' },
-  INLAND:     { label:'Inland',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=INLAND' },
-  BORDER:     { label:'Border',      url:'https://cad.chp.ca.gov/traffic.aspx?ddlComCenter=BORDER' },
-};
-
-let chpAllIncidents = [];
-let chpActiveFilter = 'ALL';
-
-const MAJOR_TYPES = ['traffic collision','fatal','fatality','major injury','pursuit','rollover','overturned','hazmat','vegetation fire','structure fire','flooding','road closure','sig alert'];
-const MODERATE_TYPES = ['injury','disabled','hit and run','road rage','assist','pedestrian','bicycle'];
-
-function chpSeverity(type) {
-  const t = (type||'').toLowerCase();
-  if (MAJOR_TYPES.some(k => t.includes(k))) return 'major';
-  if (MODERATE_TYPES.some(k => t.includes(k))) return 'moderate';
-  return 'minor';
-}
-
-function chpCenterColor(center) {
-  const colors = { ORANGE:'🟠', LOSANGELES:'🔵', INLAND:'🟢', BORDER:'🔴' };
-  return colors[center] || '⚪';
-}
-
-function renderCHPFeed() {
-  const el = document.getElementById('chp-feed');
-  const cnt = document.getElementById('chp-count');
-  const filtered = chpActiveFilter === 'ALL'
-    ? chpAllIncidents
-    : chpAllIncidents.filter(i => i.center === chpActiveFilter);
-
-  if (cnt) cnt.textContent = `(${filtered.length} incidents)`;
-
-  if (!filtered.length) {
-    el.innerHTML = '<div class="empty" style="padding:20px 0">✅ No active incidents for selected center(s)</div>';
-    return;
-  }
-
-  el.innerHTML = '';
-  filtered.forEach(inc => {
-    const sev = chpSeverity(inc.type);
-    const div = document.createElement('div');
-    div.className = `chp-card incident-${sev}`;
-    div.innerHTML = `
-      <div class="chp-header">
-        <span class="chp-type">${inc.type || 'Incident'}</span>
-        <span class="chp-center">${chpCenterColor(inc.center)} ${CHP_CENTERS[inc.center]?.label || inc.center}</span>
-        <span class="chp-time">${inc.time || ''}</span>
-      </div>
-      <div class="chp-loc">📍 ${inc.location || 'Unknown location'}</div>
-      ${inc.detail ? `<div class="chp-detail">${inc.detail}</div>` : ''}
-    `;
-    el.appendChild(div);
-  });
-}
-
-function setCHPFilter(center, btn) {
-  chpActiveFilter = center;
-  document.querySelectorAll('#chp-filter-bar .gpill').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderCHPFeed();
-}
-
-async function fetchCHPCenter(centerKey) {
-  const center = CHP_CENTERS[centerKey];
-  try {
-    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(center.url);
-    const r = await fetch(proxy);
-    const d = await r.json();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(d.contents, 'text/html');
-
-    const incidents = [];
-    // CHP CAD uses a table — parse rows
-    const rows = doc.querySelectorAll('table tr');
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length >= 4) {
-        const time     = cells[0]?.textContent?.trim() || '';
-        const type     = cells[1]?.textContent?.trim() || '';
-        const location = cells[2]?.textContent?.trim() || '';
-        const detail   = cells[3]?.textContent?.trim() || '';
-        // Skip header rows and empty rows
-        if (time && type && !time.toLowerCase().includes('time') && type.length > 1) {
-          incidents.push({ time, type, location, detail, center: centerKey });
-        }
-      }
-    });
-    return incidents;
-  } catch(e) {
-    return [];
-  }
-}
-
-async function loadCHP() {
-  const el = document.getElementById('chp-feed');
-  el.innerHTML = '<div class="loader">Loading CHP incidents…</div>';
-  chpAllIncidents = [];
-
-  const results = await Promise.allSettled(
-    Object.keys(CHP_CENTERS).map(k => fetchCHPCenter(k))
-  );
-
-  results.forEach(r => {
-    if (r.status === 'fulfilled') chpAllIncidents.push(...r.value);
-  });
-
-  // Sort by time desc (most recent first)
-  chpAllIncidents.sort((a, b) => {
-    const ta = a.time || '', tb = b.time || '';
-    return tb.localeCompare(ta);
-  });
-
-  renderCHPFeed();
-}
-
 /* ── MARKET TICKER ── */
 const CRYPTO_IDS = 'bitcoin,dogecoin,ethereum,solana';
 const STOCK_SYMBOLS = ['TSLA','AAPL','NVDA','MSFT','META','JPM','XOM','SPY','GLD','SLV'];
@@ -1541,7 +1429,6 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 loadQuakes();loadFires();loadFEMA();
-loadCHP();setInterval(loadCHP, 60*1000);
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
