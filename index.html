@@ -646,7 +646,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="radar-controls">
       <div>
         <div class="radar-title">AIR TRAFFIC RADAR</div>
-        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 40mi · Updates every 15s</div>
+        <div class="radar-sub">Center: 33.83°N 118.02°W · Radius: 25mi · Updates every 15s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
       <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
@@ -682,7 +682,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="radar-controls">
       <div>
         <div class="radar-title">SATELLITE TRACKER</div>
-        <div class="radar-sub">Center: 33.72°N 117.83°W · Min elevation: 15° · Updates every 10s</div>
+        <div class="radar-sub">Center: 33.83°N 118.02°W · Min elevation: 15° · Updates every 10s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="sat-last-update">--:--:--</span></div>
       <button class="rbtn" onclick="refreshSatellites()">↺ Refresh</button>
@@ -1549,13 +1549,13 @@ async function loadTicker() {
 /* ══════════════════════════════════════
    RADAR ENGINE
 ══════════════════════════════════════ */
-const RADAR_LAT    = 33.7175;
-const RADAR_LON    = -117.8311;
-const RADAR_RADIUS = 40; // miles
+const RADAR_LAT    = 33.832721;
+const RADAR_LON    = -118.022520;
+const RADAR_RADIUS = 25; // miles
 const RADAR_APIS   = [
   url => `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
   url => `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
-  url => `https://opensky-network.org/api/states/all?lamin=${RADAR_LAT-0.58}&lomin=${RADAR_LON-0.58}&lamax=${RADAR_LAT+0.58}&lomax=${RADAR_LON+0.58}`,
+  url => `https://opensky-network.org/api/states/all?lamin=${RADAR_LAT-0.362}&lomin=${RADAR_LON-0.362}&lamax=${RADAR_LAT+0.362}&lomax=${RADAR_LON+0.362}`,
 ];
 
 let radarAircraft   = [];
@@ -1612,7 +1612,7 @@ function drawRadar() {
   ctx.font = '9px Share Tech Mono, monospace';
   ctx.fillStyle = 'rgba(0,255,80,0.3)';
   ctx.textAlign = 'left';
-  [10, 20, 30, 40].forEach((mi, i) => {
+  [6, 12, 18, 25].forEach((mi, i) => {
     const y = CENTER - R * rings[i];
     ctx.fillText(mi + 'mi', CENTER + 4, y - 2);
   });
@@ -1921,8 +1921,8 @@ let satSweepAngle   = 0;
 let satAnimFrame    = null;
 let satLib          = null; // satellite.js
 
-const SAT_LAT  = 33.7175;
-const SAT_LON  = -117.8311;
+const SAT_LAT  = 33.832721;
+const SAT_LON  = -118.022520;
 const SAT_ALT  = 0.05; // km observer altitude
 const SAT_SIZE = 380;
 const SAT_C    = SAT_SIZE / 2;
