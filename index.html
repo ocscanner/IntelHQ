@@ -106,6 +106,32 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .ticker-sep{color:var(--border2);font-size:1.2rem;flex-shrink:0;user-select:none}
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
+/* RADAR DISPLAY */
+.radar-container{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.radar-container{grid-template-columns:1fr}}
+.radar-scope{position:relative;display:flex;align-items:center;justify-content:center}
+.radar-scope canvas{border-radius:50%;display:block}
+.radar-data-panel{display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:360px}
+.radar-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.radar-stat{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;text-align:center}
+.radar-stat .rs-val{font-family:var(--fm);font-size:1rem;color:var(--accent3);font-weight:700}
+.radar-stat .rs-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--fu)}
+.ac-card{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:5px;padding:7px 10px;cursor:pointer;transition:all .15s}
+.ac-card:hover{border-color:var(--accent);background:rgba(0,180,255,.07)}
+.ac-card.selected{border-left-color:var(--accent3);background:rgba(0,255,157,.06)}
+.ac-card.military{border-left-color:var(--danger)}
+.ac-callsign{font-family:var(--fh);font-size:.95rem;font-weight:700;color:var(--text);letter-spacing:.06em}
+.ac-type{font-family:var(--fm);font-size:.65rem;color:var(--accent);text-transform:uppercase;margin-left:6px}
+.ac-stats{display:flex;gap:12px;margin-top:3px;flex-wrap:wrap}
+.ac-stat{font-family:var(--fm);font-size:.72rem;color:var(--text2)}
+.ac-stat span{color:var(--muted);font-size:.65rem}
+.radar-empty{color:var(--muted);font-family:var(--fm);font-size:.8rem;text-align:center;padding:20px 0}
+.radar-controls{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.radar-title{font-family:var(--fh);font-size:1rem;font-weight:700;letter-spacing:.08em;color:var(--text)}
+.radar-sub{font-family:var(--fm);font-size:.7rem;color:var(--muted)}
+.radar-refresh{font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:auto}
+.radar-refresh span{color:var(--accent3)}
+
 /* MARKET TICKER */
 .market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
 .market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
@@ -575,6 +601,38 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <a class="pill" href="https://cad.chp.ca.gov/" target="_blank">CHP CAD →</a>
         <a class="pill" href="https://511.org/" target="_blank">511 SoCal →</a>
         <a class="pill" href="https://www.waze.com/livemap" target="_blank">Waze Live →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- RADAR DISPLAY -->
+  <div style="margin-top:20px">
+    <div class="sh"><h2>📡 Live Air Traffic Radar — 75mi Radius OC</h2><span class="ltag">LIVE</span></div>
+    <div class="radar-controls">
+      <div>
+        <div class="radar-title">OC SCANNER · AIR TRAFFIC</div>
+        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 75mi · Updates every 15s</div>
+      </div>
+      <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
+      <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
+    </div>
+    <div class="radar-container">
+      <!-- Left: radar canvas -->
+      <div class="radar-scope">
+        <canvas id="radar-canvas" width="360" height="360"></canvas>
+      </div>
+      <!-- Right: data panel -->
+      <div>
+        <div class="radar-stat-row">
+          <div class="radar-stat"><div class="rs-val" id="r-total">--</div><div class="rs-lbl">Aircraft</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-highest">--</div><div class="rs-lbl">Highest ft</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-fastest">--</div><div class="rs-lbl">Fastest kt</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-mil">--</div><div class="rs-lbl">Military</div></div>
+        </div>
+        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click aircraft to highlight →</div>
+        <div class="radar-data-panel" id="radar-data-panel">
+          <div class="radar-empty">Loading aircraft data…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1405,6 +1463,352 @@ async function loadTicker() {
   inner.style.animationDuration = speed + 's';
 }
 
+/* ══════════════════════════════════════
+   RADAR ENGINE
+══════════════════════════════════════ */
+const RADAR_LAT    = 33.7175;
+const RADAR_LON    = -117.8311;
+const RADAR_RADIUS = 75; // miles
+const RADAR_APIS   = [
+  url => `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
+  url => `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
+  url => `https://opensky-network.org/api/states/all?lamin=${RADAR_LAT-1.087}&lomin=${RADAR_LON-1.087}&lamax=${RADAR_LAT+1.087}&lomax=${RADAR_LON+1.087}`,
+];
+
+let radarAircraft   = [];
+let radarSelected   = null;
+let radarSweepAngle = 0;
+let radarAnimFrame  = null;
+let radarCanvas, radarCtx;
+const CANVAS_SIZE   = 360;
+const CENTER        = CANVAS_SIZE / 2;
+const R             = CENTER - 10;
+
+// Miles per degree latitude (approximate)
+const MI_PER_DEG = 69.0;
+
+function latLonToRadar(lat, lon) {
+  const dx = (lon - RADAR_LON) * MI_PER_DEG * Math.cos(RADAR_LAT * Math.PI / 180);
+  const dy = (lat - RADAR_LAT) * MI_PER_DEG;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist > RADAR_RADIUS) return null;
+  const scale = R / RADAR_RADIUS;
+  return {
+    x: CENTER + dx * scale,
+    y: CENTER - dy * scale,
+    dist
+  };
+}
+
+function drawRadar() {
+  if (!radarCtx) return;
+  const ctx = radarCtx;
+  const size = CANVAS_SIZE;
+
+  // Background
+  ctx.fillStyle = '#020a04';
+  ctx.fillRect(0, 0, size, size);
+
+  // Clip to circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Range rings
+  const rings = [0.25, 0.5, 0.75, 1.0];
+  rings.forEach(f => {
+    ctx.beginPath();
+    ctx.arc(CENTER, CENTER, R * f, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,255,80,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Ring labels
+  ctx.font = '9px Share Tech Mono, monospace';
+  ctx.fillStyle = 'rgba(0,255,80,0.3)';
+  ctx.textAlign = 'left';
+  [18.75, 37.5, 56.25, 75].forEach((mi, i) => {
+    const y = CENTER - R * rings[i];
+    ctx.fillText(mi + 'mi', CENTER + 4, y - 2);
+  });
+
+  // Cardinal lines
+  ctx.strokeStyle = 'rgba(0,255,80,0.08)';
+  ctx.lineWidth = 1;
+  [[CENTER,CENTER-R,CENTER,CENTER+R],[CENTER-R,CENTER,CENTER+R,CENTER]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  // Cardinal labels
+  ctx.fillStyle = 'rgba(0,255,80,0.5)';
+  ctx.font = '10px Share Tech Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', CENTER, CENTER - R + 14);
+  ctx.fillText('S', CENTER, CENTER + R - 4);
+  ctx.textAlign = 'left';
+  ctx.fillText('E', CENTER + R - 14, CENTER + 4);
+  ctx.textAlign = 'right';
+  ctx.fillText('W', CENTER - R + 14, CENTER + 4);
+
+  // Sweep gradient
+  const sweepRad = radarSweepAngle * Math.PI / 180;
+  const grad = ctx.createConicalGradient
+    ? null
+    : null;
+
+  // Draw sweep as a filled arc
+  ctx.beginPath();
+  ctx.moveTo(CENTER, CENTER);
+  ctx.arc(CENTER, CENTER, R, sweepRad - Math.PI * 0.5, sweepRad);
+  ctx.closePath();
+  const sweepGrad = ctx.createRadialGradient(CENTER, CENTER, 0, CENTER, CENTER, R);
+  sweepGrad.addColorStop(0, 'rgba(0,255,80,0.0)');
+  sweepGrad.addColorStop(0.7, 'rgba(0,255,80,0.06)');
+  sweepGrad.addColorStop(1, 'rgba(0,255,80,0.18)');
+  ctx.fillStyle = sweepGrad;
+  ctx.fill();
+
+  // Sweep line
+  ctx.beginPath();
+  ctx.moveTo(CENTER, CENTER);
+  ctx.lineTo(CENTER + Math.cos(sweepRad) * R, CENTER + Math.sin(sweepRad) * R);
+  ctx.strokeStyle = 'rgba(0,255,80,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Aircraft dots
+  radarAircraft.forEach(ac => {
+    if (!ac._pos) return;
+    const {x, y} = ac._pos;
+    const isSelected = radarSelected && ac.hex === radarSelected;
+    const isMil = ac.military || (ac.r && ac.r.startsWith('AE')) || false;
+
+    // Dot color
+    let dotColor = isMil ? '#ff3b30' : isSelected ? '#00ff9d' : '#00e060';
+    let dotSize  = isSelected ? 5 : 3.5;
+
+    // Glow
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,255,157,0.15)';
+      ctx.fill();
+    }
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.fill();
+
+    // Heading line
+    if (ac.track != null) {
+      const hdgRad = (ac.track - 90) * Math.PI / 180;
+      const len = isSelected ? 18 : 12;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(hdgRad) * len, y + Math.sin(hdgRad) * len);
+      ctx.strokeStyle = isSelected ? 'rgba(0,255,157,0.8)' : 'rgba(0,224,96,0.5)';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.stroke();
+    }
+
+    // Callsign label for selected
+    if (isSelected && ac.flight) {
+      ctx.font = 'bold 10px Share Tech Mono, monospace';
+      ctx.fillStyle = '#00ff9d';
+      ctx.textAlign = 'left';
+      ctx.fillText(ac.flight.trim(), x + 8, y - 6);
+    }
+  });
+
+  ctx.restore();
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,255,80,0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#00ff9d';
+  ctx.fill();
+}
+
+function animateRadar() {
+  radarSweepAngle = (radarSweepAngle + 0.8) % 360;
+  drawRadar();
+  radarAnimFrame = requestAnimationFrame(animateRadar);
+}
+
+function parseAircraft(raw) {
+  // Handle multiple API formats
+  let list = [];
+  if (Array.isArray(raw?.ac)) list = raw.ac;                  // airplanes.live / adsb.lol
+  else if (Array.isArray(raw?.states)) {                       // OpenSky
+    list = raw.states.map(s => ({
+      hex:     s[0],
+      flight:  s[1]?.trim() || '',
+      lon:     s[5],
+      lat:     s[6],
+      baro_alt: s[7],
+      gs:      s[9] ? s[9] * 1.944 : null, // m/s to knots
+      track:   s[10],
+      on_ground: s[8],
+    }));
+  }
+  else if (Array.isArray(raw)) list = raw;
+
+  return list.map(ac => {
+    const lat = ac.lat ?? ac.latitude;
+    const lon = ac.lon ?? ac.longitude ?? ac.lng;
+    const alt = ac.alt_baro ?? ac.baro_altitude ?? ac.altitude ?? ac.baro_alt;
+    const spd = ac.gs ?? ac.ground_speed ?? ac.velocity;
+    const hdg = ac.track ?? ac.true_track ?? ac.heading;
+    const cs  = (ac.flight ?? ac.callsign ?? ac.hex ?? '').trim();
+    const pos = (lat != null && lon != null) ? latLonToRadar(lat, lon) : null;
+
+    return {
+      hex:      ac.hex || ac.icao24 || '',
+      flight:   cs,
+      lat, lon,
+      alt_ft:   alt != null ? Math.round(typeof alt === 'string' ? parseFloat(alt) : alt * (alt < 1000 ? 3.281 : 1)) : null,
+      spd_kt:   spd != null ? Math.round(spd) : null,
+      track:    hdg,
+      type:     ac.t ?? ac.type ?? '',
+      reg:      ac.r ?? ac.registration ?? '',
+      military: ac.military || false,
+      ground:   ac.alt_baro === 'ground' || ac.on_ground === true,
+      _pos:     pos,
+    };
+  }).filter(ac => ac._pos !== null && !ac.ground);
+}
+
+function renderDataPanel() {
+  const panel = document.getElementById('radar-data-panel');
+  const totalEl   = document.getElementById('r-total');
+  const highEl    = document.getElementById('r-highest');
+  const fastEl    = document.getElementById('r-fastest');
+  const milEl     = document.getElementById('r-mil');
+
+  if (!radarAircraft.length) {
+    panel.innerHTML = '<div class="radar-empty">No aircraft detected in range</div>';
+    if(totalEl) totalEl.textContent = '0';
+    return;
+  }
+
+  // Stats
+  const maxAlt  = Math.max(...radarAircraft.filter(a=>a.alt_ft).map(a=>a.alt_ft));
+  const maxSpd  = Math.max(...radarAircraft.filter(a=>a.spd_kt).map(a=>a.spd_kt));
+  const milCnt  = radarAircraft.filter(a=>a.military).length;
+
+  if(totalEl) totalEl.textContent  = radarAircraft.length;
+  if(highEl)  highEl.textContent   = maxAlt > 0 ? maxAlt.toLocaleString() : '--';
+  if(fastEl)  fastEl.textContent   = maxSpd > 0 ? maxSpd : '--';
+  if(milEl)   milEl.textContent    = milCnt;
+
+  // Sort: selected first, then by distance
+  const sorted = [...radarAircraft].sort((a,b) => {
+    if (a.hex === radarSelected) return -1;
+    if (b.hex === radarSelected) return 1;
+    return (a._pos?.dist || 99) - (b._pos?.dist || 99);
+  });
+
+  panel.innerHTML = '';
+  sorted.forEach(ac => {
+    const isSel = ac.hex === radarSelected;
+    const isMil = ac.military;
+    const card  = document.createElement('div');
+    card.className = `ac-card${isSel?' selected':''}${isMil?' military':''}`;
+    card.onclick   = () => {
+      radarSelected = isSel ? null : ac.hex;
+      renderDataPanel();
+    };
+
+    const alt = ac.alt_ft ? ac.alt_ft.toLocaleString() + ' ft' : '--';
+    const spd = ac.spd_kt ? ac.spd_kt + ' kt' : '--';
+    const hdg = ac.track  ? Math.round(ac.track) + '°' : '--';
+    const dst = ac._pos   ? Math.round(ac._pos.dist) + ' mi' : '--';
+    const cs  = ac.flight || ac.hex || 'Unknown';
+    const typ = ac.type || '';
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <span class="ac-callsign">${cs}</span>
+          ${typ ? `<span class="ac-type">${typ}</span>` : ''}
+          ${isMil ? '<span style="color:var(--danger);font-size:.65rem;font-family:var(--fm);margin-left:6px">MIL</span>' : ''}
+        </div>
+        <span style="font-family:var(--fm);font-size:.65rem;color:var(--muted)">${dst}</span>
+      </div>
+      <div class="ac-stats">
+        <div class="ac-stat"><span>ALT </span>${alt}</div>
+        <div class="ac-stat"><span>SPD </span>${spd}</div>
+        <div class="ac-stat"><span>HDG </span>${hdg}</div>
+        ${ac.reg ? `<div class="ac-stat"><span>REG </span>${ac.reg}</div>` : ''}
+      </div>
+    `;
+    panel.appendChild(card);
+  });
+}
+
+async function fetchRadarData() {
+  // Try each API in order until one works
+  for (const apiFn of RADAR_APIS) {
+    try {
+      const url = apiFn();
+      const r   = await fetch(url);
+      if (!r.ok) continue;
+      const data = await r.json();
+      radarAircraft = parseAircraft(data);
+      renderDataPanel();
+      const el = document.getElementById('radar-last-update');
+      if (el) el.textContent = new Date().toLocaleTimeString();
+      return;
+    } catch(e) { continue; }
+  }
+  // All APIs failed - show message but keep existing data
+  const el = document.getElementById('radar-last-update');
+  if (el) el.textContent = 'API unavailable';
+}
+
+function initRadar() {
+  radarCanvas = document.getElementById('radar-canvas');
+  if (!radarCanvas) return;
+
+  // Make canvas responsive
+  const container = radarCanvas.parentElement;
+  const size = Math.min(container.offsetWidth || 360, 360);
+  radarCanvas.width  = size;
+  radarCanvas.height = size;
+
+  radarCtx = radarCanvas.getContext('2d');
+  animateRadar();
+  fetchRadarData();
+  setInterval(fetchRadarData, 15000);
+
+  // Click on canvas to select aircraft
+  radarCanvas.addEventListener('click', e => {
+    const rect  = radarCanvas.getBoundingClientRect();
+    const scale = radarCanvas.width / rect.width;
+    const mx    = (e.clientX - rect.left) * scale;
+    const my    = (e.clientY - rect.top)  * scale;
+    let closest = null, minDist = 14;
+    radarAircraft.forEach(ac => {
+      if (!ac._pos) return;
+      const d = Math.sqrt((ac._pos.x - mx)**2 + (ac._pos.y - my)**2);
+      if (d < minDist) { minDist = d; closest = ac.hex; }
+    });
+    radarSelected = closest;
+    renderDataPanel();
+  });
+}
+
 /* ── NAV ── */
 document.querySelectorAll('.ntab').forEach(t=>{
   t.addEventListener('click',()=>{
@@ -1425,6 +1829,7 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 loadQuakes();loadFires();loadFEMA();
+initRadar();
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
