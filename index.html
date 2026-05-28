@@ -315,6 +315,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab active" data-p="streams">🎥 Streams</button>
   <button class="ntab" data-p="news">📰 News & Politics <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
+  <button class="ntab" data-p="radar">📡 Radar</button>
   <button class="ntab" data-p="elections">🗳 Elections</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
@@ -605,38 +606,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
   </div>
 
-  <!-- RADAR DISPLAY -->
-  <div style="margin-top:20px">
-    <div class="sh"><h2>📡 Live Air Traffic Radar — 75mi Radius OC</h2><span class="ltag">LIVE</span></div>
-    <div class="radar-controls">
-      <div>
-        <div class="radar-title">OC SCANNER · AIR TRAFFIC</div>
-        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 75mi · Updates every 15s</div>
-      </div>
-      <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
-      <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
-    </div>
-    <div class="radar-container">
-      <!-- Left: radar canvas -->
-      <div class="radar-scope">
-        <canvas id="radar-canvas" width="360" height="360"></canvas>
-      </div>
-      <!-- Right: data panel -->
-      <div>
-        <div class="radar-stat-row">
-          <div class="radar-stat"><div class="rs-val" id="r-total">--</div><div class="rs-lbl">Aircraft</div></div>
-          <div class="radar-stat"><div class="rs-val" id="r-highest">--</div><div class="rs-lbl">Highest ft</div></div>
-          <div class="radar-stat"><div class="rs-val" id="r-fastest">--</div><div class="rs-lbl">Fastest kt</div></div>
-          <div class="radar-stat"><div class="rs-val" id="r-mil">--</div><div class="rs-lbl">Military</div></div>
-        </div>
-        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click aircraft to highlight →</div>
-        <div class="radar-data-panel" id="radar-data-panel">
-          <div class="radar-empty">Loading aircraft data…</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Aviation / Space Cams -->
   <div style="margin-top:20px">
     <div class="sh"><h2>🚀 Aviation / Space Live Cams</h2><span class="ltag">LIVE</span></div>
@@ -655,6 +624,120 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
     <div style="margin-top:7px;font-size:.72rem;color:var(--muted);font-family:var(--fm)">
       Click any airport for live info · <a class="pill" href="https://nasstatus.faa.gov/" target="_blank" style="display:inline">FAA NAS Status →</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════ RADAR ══════════════════ -->
+<div id="panel-radar" class="panel">
+
+  <!-- Mode switcher -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="font-family:var(--fh);font-size:1.1rem;font-weight:700;letter-spacing:.1em;color:var(--text)">OC SCANNER · RADAR COMMAND</div>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="gpill active" id="mode-air" onclick="setRadarMode('air')">✈ Air Traffic</button>
+      <button class="gpill" id="mode-sat" onclick="setRadarMode('sat')">🛰 Satellites</button>
+    </div>
+  </div>
+
+  <!-- ── AIR TRAFFIC RADAR ── -->
+  <div id="radar-air-section">
+    <div class="radar-controls">
+      <div>
+        <div class="radar-title">AIR TRAFFIC RADAR</div>
+        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 75mi · Updates every 15s</div>
+      </div>
+      <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
+      <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
+    </div>
+    <div class="radar-container">
+      <div class="radar-scope">
+        <canvas id="radar-canvas" width="380" height="380"></canvas>
+      </div>
+      <div>
+        <div class="radar-stat-row">
+          <div class="radar-stat"><div class="rs-val" id="r-total">--</div><div class="rs-lbl">Aircraft</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-highest">--</div><div class="rs-lbl">Highest ft</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-fastest">--</div><div class="rs-lbl">Fastest kt</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-mil">--</div><div class="rs-lbl">Military</div></div>
+        </div>
+        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click dot or card to highlight</div>
+        <div class="radar-data-panel" id="radar-data-panel">
+          <div class="radar-empty">Loading aircraft data…</div>
+        </div>
+      </div>
+    </div>
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;font-family:var(--fm);font-size:.72rem;color:var(--muted)">
+      <span><span style="color:#00e060">●</span> Commercial / Private</span>
+      <span><span style="color:#ff3b30">●</span> Military</span>
+      <span><span style="color:#00ff9d">●</span> Selected</span>
+      <span style="margin-left:auto">Data: airplanes.live / adsb.lol / OpenSky</span>
+    </div>
+  </div>
+
+  <!-- ── SATELLITE RADAR ── -->
+  <div id="radar-sat-section" style="display:none">
+    <div class="radar-controls">
+      <div>
+        <div class="radar-title">SATELLITE TRACKER</div>
+        <div class="radar-sub">Center: 33.72°N 117.83°W · Sky dome overhead · Updates every 10s</div>
+      </div>
+      <div class="radar-refresh">Last update: <span id="sat-last-update">--:--:--</span></div>
+      <button class="rbtn" onclick="refreshSatellites()">↺ Refresh</button>
+    </div>
+    <div class="radar-container">
+      <div class="radar-scope">
+        <canvas id="sat-canvas" width="380" height="380"></canvas>
+      </div>
+      <div>
+        <div class="radar-stat-row">
+          <div class="radar-stat"><div class="rs-val" id="s-total">--</div><div class="rs-lbl">Overhead</div></div>
+          <div class="radar-stat"><div class="rs-val" id="s-iss">--</div><div class="rs-lbl">ISS Visible</div></div>
+          <div class="radar-stat"><div class="rs-val" id="s-starlink">--</div><div class="rs-lbl">Starlink</div></div>
+          <div class="radar-stat"><div class="rs-val" id="s-highest">--</div><div class="rs-lbl">Highest mi</div></div>
+        </div>
+
+        <!-- ISS special card -->
+        <div id="iss-card" style="background:rgba(0,255,157,.06);border:1px solid rgba(0,255,157,.2);border-radius:6px;padding:10px 12px;margin-bottom:8px;display:none">
+          <div style="font-family:var(--fh);font-size:.9rem;font-weight:700;color:var(--accent3);letter-spacing:.06em">🚀 ISS — INTERNATIONAL SPACE STATION</div>
+          <div class="ac-stats" style="margin-top:5px">
+            <div class="ac-stat"><span>ALT </span><span id="iss-alt">--</span></div>
+            <div class="ac-stat"><span>SPD </span><span id="iss-spd">--</span></div>
+            <div class="ac-stat"><span>AZ </span><span id="iss-az">--</span></div>
+            <div class="ac-stat"><span>EL </span><span id="iss-el">--</span></div>
+          </div>
+          <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-top:5px">Next pass over OC: <span id="iss-next-pass" style="color:var(--accent)">Calculating…</span></div>
+        </div>
+
+        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click dot or card to select</div>
+        <div class="radar-data-panel" id="sat-data-panel">
+          <div class="radar-empty">Loading satellite data…</div>
+        </div>
+      </div>
+    </div>
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;font-family:var(--fm);font-size:.72rem;color:var(--muted)">
+      <span><span style="color:#00ff9d">●</span> ISS / Space Stations</span>
+      <span><span style="color:#00b4ff">●</span> Starlink</span>
+      <span><span style="color:#ffb700">●</span> Weather / Earth Obs</span>
+      <span><span style="color:#af52de">●</span> GPS / Nav</span>
+      <span><span style="color:#ff4d2e">●</span> Other / Debris</span>
+      <span style="margin-left:auto">Data: CelesTrak / satellite.js</span>
+    </div>
+
+    <!-- Sat filter pills -->
+    <div style="margin-top:12px">
+      <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Filter by type:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="sat-filter-bar">
+        <button class="gpill active" onclick="setSatFilter('all',this)">All</button>
+        <button class="gpill" onclick="setSatFilter('stations',this)">🚀 Space Stations</button>
+        <button class="gpill" onclick="setSatFilter('starlink',this)">🔵 Starlink</button>
+        <button class="gpill" onclick="setSatFilter('weather',this)">🌤 Weather</button>
+        <button class="gpill" onclick="setSatFilter('gps',this)">📍 GPS/Nav</button>
+        <button class="gpill" onclick="setSatFilter('visual',this)">👁 Visual</button>
+      </div>
     </div>
   </div>
 
@@ -1807,6 +1890,424 @@ function initRadar() {
     radarSelected = closest;
     renderDataPanel();
   });
+}
+
+/* ══════════════════════════════════════
+   RADAR MODE SWITCHER
+══════════════════════════════════════ */
+let currentRadarMode = 'air';
+
+function setRadarMode(mode) {
+  currentRadarMode = mode;
+  document.getElementById('radar-air-section').style.display = mode === 'air' ? '' : 'none';
+  document.getElementById('radar-sat-section').style.display = mode === 'sat' ? '' : 'none';
+  document.getElementById('mode-air').classList.toggle('active', mode === 'air');
+  document.getElementById('mode-sat').classList.toggle('active', mode === 'sat');
+  if (mode === 'sat') {
+    if (!satInitialized) initSatelliteRadar();
+    else refreshSatellites();
+  }
+}
+
+/* ══════════════════════════════════════
+   SATELLITE RADAR ENGINE
+══════════════════════════════════════ */
+let satInitialized  = false;
+let satCanvas, satCtx;
+let satObjects      = [];   // parsed + computed positions
+let satSelected     = null;
+let satFilter       = 'all';
+let satSweepAngle   = 0;
+let satAnimFrame    = null;
+let satLib          = null; // satellite.js
+
+const SAT_LAT  = 33.7175;
+const SAT_LON  = -117.8311;
+const SAT_ALT  = 0.05; // km observer altitude
+const SAT_SIZE = 380;
+const SAT_C    = SAT_SIZE / 2;
+const SAT_R    = SAT_C - 10;
+
+// TLE groups to load from CelesTrak
+const TLE_GROUPS = [
+  { key:'stations', label:'Space Stations', color:'#00ff9d',
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE' },
+  { key:'starlink',  label:'Starlink',       color:'#00b4ff',
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=TLE' },
+  { key:'weather',   label:'Weather',        color:'#ffb700',
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=TLE' },
+  { key:'gps',       label:'GPS/Nav',        color:'#af52de',
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=TLE' },
+  { key:'visual',    label:'Visual',         color:'#ff4d2e',
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=TLE' },
+];
+
+function setSatFilter(f, btn) {
+  satFilter = f;
+  document.querySelectorAll('#sat-filter-bar .gpill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderSatPanel();
+  drawSatRadar();
+}
+
+function parseTLE(text, group) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const sats  = [];
+  for (let i = 0; i < lines.length - 2; i += 3) {
+    const name = lines[i].replace(/^0 /,'').trim();
+    const l1   = lines[i+1];
+    const l2   = lines[i+2];
+    if (l1.startsWith('1') && l2.startsWith('2')) {
+      sats.push({ name, l1, l2, group: group.key, color: group.color });
+    }
+  }
+  return sats;
+}
+
+function computeSatPositions(tles) {
+  if (!satLib) return [];
+  const now    = new Date();
+  const gmst   = satLib.gstime(now);
+  const obsGd  = { latitude: satLib.degreesToRadians(SAT_LAT), longitude: satLib.degreesToRadians(SAT_LON), height: SAT_ALT };
+  const results = [];
+
+  for (const tle of tles) {
+    try {
+      const satrec    = satLib.twoline2satrec(tle.l1, tle.l2);
+      const pv        = satLib.propagate(satrec, now);
+      if (!pv.position) continue;
+      const ecf       = satLib.eciToEcf(pv.position, gmst);
+      const lookAngles = satLib.ecfToLookAngles(obsGd, ecf);
+      const el        = satLib.radiansToDegrees(lookAngles.elevation);
+      const az        = satLib.radiansToDegrees(lookAngles.azimuth);
+      if (el < 0) continue; // below horizon
+      // Altitude in km
+      const geo       = satLib.eciToGeodetic(pv.position, gmst);
+      const altKm     = geo.height;
+      const altMi     = Math.round(altKm * 0.621371);
+      // Velocity magnitude in km/s
+      const vel       = pv.velocity
+        ? Math.sqrt(pv.velocity.x**2 + pv.velocity.y**2 + pv.velocity.z**2)
+        : null;
+      const spdKmps   = vel ? vel.toFixed(2) : '--';
+      results.push({ ...tle, el, az, altMi, spdKmps, _el: el, _az: az });
+    } catch(e) {}
+  }
+  return results;
+}
+
+function satToCanvas(az, el) {
+  // el 90=center, 0=edge
+  const r     = SAT_R * (1 - el / 90);
+  const azRad = (az - 90) * Math.PI / 180; // rotate so N is up
+  return {
+    x: SAT_C + r * Math.cos(azRad),
+    y: SAT_C + r * Math.sin(azRad)
+  };
+}
+
+function drawSatRadar() {
+  if (!satCtx) return;
+  const ctx = satCtx;
+
+  ctx.fillStyle = '#020408';
+  ctx.fillRect(0, 0, SAT_SIZE, SAT_SIZE);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(SAT_C, SAT_C, SAT_R, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Elevation rings: 0°, 30°, 60°, 90° horizon/zenith
+  [0,30,60,90].forEach(el => {
+    const r = SAT_R * (1 - el/90);
+    ctx.beginPath();
+    ctx.arc(SAT_C, SAT_C, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,120,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Ring labels
+  ctx.font = '9px Share Tech Mono, monospace';
+  ctx.fillStyle = 'rgba(0,120,255,0.4)';
+  ctx.textAlign = 'left';
+  [{el:0,l:'0°'},{el:30,l:'30°'},{el:60,l:'60°'},{el:90,l:'90°'}].forEach(({el,l}) => {
+    const r = SAT_R * (1 - el/90);
+    if (r > 5) ctx.fillText(l, SAT_C + 4, SAT_C - r + 10);
+  });
+
+  // Cardinal lines
+  ctx.strokeStyle = 'rgba(0,120,255,0.1)';
+  ctx.lineWidth = 1;
+  [[SAT_C,SAT_C-SAT_R,SAT_C,SAT_C+SAT_R],[SAT_C-SAT_R,SAT_C,SAT_C+SAT_R,SAT_C]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  // Cardinals labels
+  ctx.fillStyle = 'rgba(0,180,255,0.6)';
+  ctx.font = '10px Share Tech Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', SAT_C, SAT_C - SAT_R + 14);
+  ctx.fillText('S', SAT_C, SAT_C + SAT_R - 4);
+  ctx.textAlign = 'left';
+  ctx.fillText('E', SAT_C + SAT_R - 14, SAT_C + 4);
+  ctx.textAlign = 'right';
+  ctx.fillText('W', SAT_C - SAT_R + 14, SAT_C + 4);
+
+  // Sweep
+  const sweepRad = (satSweepAngle - 90) * Math.PI / 180;
+  ctx.beginPath();
+  ctx.moveTo(SAT_C, SAT_C);
+  ctx.arc(SAT_C, SAT_C, SAT_R, sweepRad - Math.PI * 0.4, sweepRad);
+  ctx.closePath();
+  const sg = ctx.createRadialGradient(SAT_C, SAT_C, 0, SAT_C, SAT_C, SAT_R);
+  sg.addColorStop(0,   'rgba(0,120,255,0.0)');
+  sg.addColorStop(0.7, 'rgba(0,120,255,0.05)');
+  sg.addColorStop(1,   'rgba(0,120,255,0.15)');
+  ctx.fillStyle = sg;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(SAT_C, SAT_C);
+  ctx.lineTo(SAT_C + Math.cos(sweepRad) * SAT_R, SAT_C + Math.sin(sweepRad) * SAT_R);
+  ctx.strokeStyle = 'rgba(0,150,255,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Draw satellites
+  const visible = satFilter === 'all' ? satObjects : satObjects.filter(s => s.group === satFilter);
+  visible.forEach(sat => {
+    const pos = satToCanvas(sat.az, sat.el);
+    const isSel = radarSelected === sat.name || satSelected === sat.name;
+    const isISS = sat.name.includes('ISS') || sat.name.includes('ZARYA');
+    const dotSize = isISS ? 6 : isSel ? 5 : 3;
+
+    if (isSel) {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
+      ctx.fillStyle = `${sat.color}22`;
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, dotSize, 0, Math.PI * 2);
+    ctx.fillStyle = isISS ? '#00ff9d' : sat.color;
+    if (isSel || isISS) {
+      ctx.shadowColor = isISS ? '#00ff9d' : sat.color;
+      ctx.shadowBlur  = 8;
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (isSel || isISS) {
+      ctx.font = isISS ? 'bold 10px Share Tech Mono, monospace' : '9px Share Tech Mono, monospace';
+      ctx.fillStyle = isISS ? '#00ff9d' : sat.color;
+      ctx.textAlign = 'left';
+      ctx.fillText(sat.name.slice(0,16), pos.x + 8, pos.y - 4);
+    }
+  });
+
+  ctx.restore();
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(SAT_C, SAT_C, SAT_R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,120,255,0.4)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Center dot (observer)
+  ctx.beginPath();
+  ctx.arc(SAT_C, SAT_C, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#00b4ff';
+  ctx.fill();
+}
+
+function animateSatRadar() {
+  satSweepAngle = (satSweepAngle + 0.5) % 360;
+  drawSatRadar();
+  satAnimFrame = requestAnimationFrame(animateSatRadar);
+}
+
+function renderSatPanel() {
+  const panel  = document.getElementById('sat-data-panel');
+  const total  = document.getElementById('s-total');
+  const stEl   = document.getElementById('s-starlink');
+  const issEl  = document.getElementById('s-iss');
+  const highEl = document.getElementById('s-highest');
+
+  const visible = satFilter === 'all' ? satObjects : satObjects.filter(s => s.group === satFilter);
+  const iss     = satObjects.find(s => s.name.includes('ISS') || s.name.includes('ZARYA'));
+  const slinks  = satObjects.filter(s => s.group === 'starlink').length;
+  const maxAlt  = satObjects.length ? Math.max(...satObjects.map(s => s.altMi || 0)) : 0;
+
+  if (total)  total.textContent  = satObjects.length;
+  if (stEl)   stEl.textContent   = slinks;
+  if (issEl)  issEl.textContent  = iss ? '✅' : '❌';
+  if (highEl) highEl.textContent = maxAlt ? maxAlt.toLocaleString() : '--';
+
+  // ISS card
+  const issCard = document.getElementById('iss-card');
+  if (iss && issCard) {
+    issCard.style.display = '';
+    document.getElementById('iss-alt').textContent = iss.altMi + ' mi';
+    document.getElementById('iss-spd').textContent = iss.spdKmps + ' km/s';
+    document.getElementById('iss-az').textContent  = Math.round(iss.az) + '°';
+    document.getElementById('iss-el').textContent  = Math.round(iss.el) + '°';
+  } else if (issCard) {
+    issCard.style.display = 'none';
+  }
+
+  if (!visible.length) {
+    panel.innerHTML = '<div class="radar-empty">No satellites overhead matching filter</div>';
+    return;
+  }
+
+  // Sort by elevation (highest first)
+  const sorted = [...visible].sort((a,b) => b.el - a.el);
+  panel.innerHTML = '';
+
+  sorted.forEach(sat => {
+    const isSel = satSelected === sat.name;
+    const card  = document.createElement('div');
+    card.className = `ac-card${isSel ? ' selected' : ''}`;
+    card.style.borderLeftColor = sat.color;
+    card.onclick = () => {
+      satSelected = isSel ? null : sat.name;
+      renderSatPanel();
+      drawSatRadar();
+    };
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ac-callsign" style="font-size:.85rem">${sat.name}</span>
+        <span style="font-family:var(--fm);font-size:.65rem;padding:1px 5px;border-radius:3px;background:${sat.color}22;color:${sat.color}">${sat.group}</span>
+      </div>
+      <div class="ac-stats">
+        <div class="ac-stat"><span>EL </span>${Math.round(sat.el)}°</div>
+        <div class="ac-stat"><span>AZ </span>${Math.round(sat.az)}°</div>
+        <div class="ac-stat"><span>ALT </span>${sat.altMi} mi</div>
+        <div class="ac-stat"><span>SPD </span>${sat.spdKmps} km/s</div>
+      </div>
+    `;
+    panel.appendChild(card);
+  });
+}
+
+let allTLEs = [];
+
+async function fetchTLEGroup(group) {
+  const urls = [
+    group.url,
+    group.url.replace('celestrak.org', 'celestrak.com'),
+  ];
+  for (const url of urls) {
+    try {
+      // Try direct first (works from GitHub Pages due to CelesTrak CORS)
+      const r = await fetch(url);
+      if (r.ok) {
+        const text = await r.text();
+        if (text.includes('1 ') || text.includes('2 ')) return parseTLE(text, group);
+      }
+    } catch(e) {}
+    try {
+      // Fallback via allorigins
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+      if (r.ok) {
+        const d = await r.json();
+        if (d.contents && d.contents.includes('1 ')) return parseTLE(d.contents, group);
+      }
+    } catch(e) {}
+  }
+  return [];
+}
+
+async function loadSatelliteJS() {
+  return new Promise((resolve, reject) => {
+    if (window.satellite) { resolve(window.satellite); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js';
+    script.onload  = () => resolve(window.satellite);
+    script.onerror = () => {
+      // Try unpkg fallback
+      const s2 = document.createElement('script');
+      s2.src = 'https://unpkg.com/satellite.js@4.0.0/dist/satellite.min.js';
+      s2.onload  = () => resolve(window.satellite);
+      s2.onerror = reject;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(script);
+  });
+}
+
+async function refreshSatellites() {
+  document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Computing positions…</div>';
+  try {
+    if (!satLib) satLib = await loadSatelliteJS();
+    // Compute positions from cached TLEs
+    if (allTLEs.length) {
+      satObjects = computeSatPositions(allTLEs);
+      renderSatPanel();
+      drawSatRadar();
+      const el = document.getElementById('sat-last-update');
+      if (el) el.textContent = new Date().toLocaleTimeString();
+    }
+  } catch(e) {
+    document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Error computing positions</div>';
+  }
+}
+
+async function initSatelliteRadar() {
+  satInitialized = true;
+  satCanvas = document.getElementById('sat-canvas');
+  if (!satCanvas) return;
+  satCtx = satCanvas.getContext('2d');
+  animateSatRadar();
+
+  // Click canvas to select
+  satCanvas.addEventListener('click', e => {
+    const rect  = satCanvas.getBoundingClientRect();
+    const scale = satCanvas.width / rect.width;
+    const mx    = (e.clientX - rect.left) * scale;
+    const my    = (e.clientY - rect.top)  * scale;
+    const vis   = satFilter === 'all' ? satObjects : satObjects.filter(s => s.group === satFilter);
+    let closest = null, minD = 14;
+    vis.forEach(sat => {
+      const pos = satToCanvas(sat.az, sat.el);
+      const d   = Math.sqrt((pos.x-mx)**2 + (pos.y-my)**2);
+      if (d < minD) { minD = d; closest = sat.name; }
+    });
+    satSelected = closest;
+    renderSatPanel();
+    drawSatRadar();
+  });
+
+  try {
+    // Load satellite.js
+    satLib = await loadSatelliteJS();
+
+    // Load all TLE groups in parallel
+    document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Loading TLE data from CelesTrak…</div>';
+    const results = await Promise.allSettled(TLE_GROUPS.map(g => fetchTLEGroup(g)));
+    allTLEs = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+    satObjects = computeSatPositions(allTLEs);
+    renderSatPanel();
+    drawSatRadar();
+
+    const el = document.getElementById('sat-last-update');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+
+    // Refresh positions every 10s (TLEs refresh every 5 min)
+    setInterval(refreshSatellites, 10000);
+    setInterval(async () => {
+      const results = await Promise.allSettled(TLE_GROUPS.map(g => fetchTLEGroup(g)));
+      allTLEs = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    }, 5 * 60 * 1000);
+
+  } catch(e) {
+    document.getElementById('sat-data-panel').innerHTML =
+      '<div class="radar-empty">⚠ Could not load satellite.js or TLE data. Check console.</div>';
+  }
 }
 
 /* ── NAV ── */
