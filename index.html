@@ -646,7 +646,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="radar-controls">
       <div>
         <div class="radar-title">AIR TRAFFIC RADAR</div>
-        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 75mi · Updates every 15s</div>
+        <div class="radar-sub">Center: 33.72°N 117.83°W · Radius: 40mi · Updates every 15s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
       <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
@@ -682,7 +682,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="radar-controls">
       <div>
         <div class="radar-title">SATELLITE TRACKER</div>
-        <div class="radar-sub">Center: 33.72°N 117.83°W · Sky dome overhead · Updates every 10s</div>
+        <div class="radar-sub">Center: 33.72°N 117.83°W · Min elevation: 15° · Updates every 10s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="sat-last-update">--:--:--</span></div>
       <button class="rbtn" onclick="refreshSatellites()">↺ Refresh</button>
@@ -1551,11 +1551,11 @@ async function loadTicker() {
 ══════════════════════════════════════ */
 const RADAR_LAT    = 33.7175;
 const RADAR_LON    = -117.8311;
-const RADAR_RADIUS = 75; // miles
+const RADAR_RADIUS = 40; // miles
 const RADAR_APIS   = [
   url => `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
   url => `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
-  url => `https://opensky-network.org/api/states/all?lamin=${RADAR_LAT-1.087}&lomin=${RADAR_LON-1.087}&lamax=${RADAR_LAT+1.087}&lomax=${RADAR_LON+1.087}`,
+  url => `https://opensky-network.org/api/states/all?lamin=${RADAR_LAT-0.58}&lomin=${RADAR_LON-0.58}&lamax=${RADAR_LAT+0.58}&lomax=${RADAR_LON+0.58}`,
 ];
 
 let radarAircraft   = [];
@@ -1612,7 +1612,7 @@ function drawRadar() {
   ctx.font = '9px Share Tech Mono, monospace';
   ctx.fillStyle = 'rgba(0,255,80,0.3)';
   ctx.textAlign = 'left';
-  [18.75, 37.5, 56.25, 75].forEach((mi, i) => {
+  [10, 20, 30, 40].forEach((mi, i) => {
     const y = CENTER - R * rings[i];
     ctx.fillText(mi + 'mi', CENTER + 4, y - 2);
   });
@@ -1980,7 +1980,7 @@ function computeSatPositions(tles) {
       const lookAngles = satLib.ecfToLookAngles(obsGd, ecf);
       const el        = satLib.radiansToDegrees(lookAngles.elevation);
       const az        = satLib.radiansToDegrees(lookAngles.azimuth);
-      if (el < 0) continue; // below horizon
+      if (el < 15) continue; // below 15° elevation threshold
       // Altitude in km
       const geo       = satLib.eciToGeodetic(pv.position, gmst);
       const altKm     = geo.height;
