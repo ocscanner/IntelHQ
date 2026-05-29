@@ -649,7 +649,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <div class="radar-sub">Center: 33.83°N 118.02°W · Radius: 25mi · Updates every 15s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="radar-last-update">--:--:--</span></div>
-      <span id="radar-loc-badge" style="font-family:var(--fm);font-size:.68rem;padding:2px 8px;border-radius:3px;background:rgba(0,255,157,.1);border:1px solid rgba(0,255,157,.2);color:var(--accent3)">📍 Locating…</span>
+      <button id="loc-update-btn" class="rbtn" onclick="updateMyLocation()" style="color:var(--accent3);border-color:rgba(0,255,157,.3)">📍 Update Location</button>
       <button class="rbtn" onclick="fetchRadarData()">↺ Refresh</button>
     </div>
     <div class="radar-container">
@@ -686,7 +686,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <div class="radar-sub">Center: 33.83°N 118.02°W · Min elevation: 15° · Updates every 10s</div>
       </div>
       <div class="radar-refresh">Last update: <span id="sat-last-update">--:--:--</span></div>
-      <span id="sat-loc-badge" style="font-family:var(--fm);font-size:.68rem;padding:2px 8px;border-radius:3px;background:rgba(0,180,255,.1);border:1px solid rgba(0,180,255,.2);color:var(--accent)">📍 Locating…</span>
+      <button id="sat-loc-update-btn" class="rbtn" onclick="updateMyLocation()" style="color:var(--accent3);border-color:rgba(0,255,157,.3)">📍 Update Location</button>
       <button class="rbtn" onclick="refreshSatellites()">↺ Refresh</button>
     </div>
     <div class="radar-container">
@@ -1553,29 +1553,69 @@ async function loadTicker() {
 ══════════════════════════════════════ */
 const RADAR_RADIUS = 25; // miles
 
-// Dynamic coordinates — updated by geolocation
+// Static default coordinates — OC Scanner home base
 let RADAR_LAT = 33.832721;
 let RADAR_LON = -118.022520;
 let RADAR_LOCATION_NAME = 'OC, CA';
 
-// Build API URLs dynamically so they always use current coords
 function getRadarAPIs() {
   const deg = (RADAR_RADIUS / 69.0).toFixed(4);
-  // airplanes.live is HTTP only - must go via HTTPS proxy
-  // Use corsproxy.io which bridges HTTP→HTTPS
   const apLive  = `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`;
   const adsbLol = `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`;
-  const opensky = `https://opensky-network.org/api/states/all?lamin=${(RADAR_LAT-deg)}&lomin=${(RADAR_LON-deg)}&lamax=${(RADAR_LAT+parseFloat(deg))}&lomax=${(RADAR_LON+parseFloat(deg))}`;
+  const opensky = `https://opensky-network.org/api/states/all?lamin=${(RADAR_LAT-parseFloat(deg)).toFixed(4)}&lomin=${(RADAR_LON-parseFloat(deg)).toFixed(4)}&lamax=${(RADAR_LAT+parseFloat(deg)).toFixed(4)}&lomax=${(RADAR_LON+parseFloat(deg)).toFixed(4)}`;
   return [
-    // Try direct HTTPS first
     apLive,
     adsbLol,
-    // Fallback via corsproxy.io
     `https://corsproxy.io/?${encodeURIComponent(apLive)}`,
     `https://corsproxy.io/?${encodeURIComponent(adsbLol)}`,
-    // OpenSky as last resort
     opensky,
   ];
+}
+
+function updateRadarSubtitles() {
+  const latStr = Math.abs(RADAR_LAT).toFixed(4) + (RADAR_LAT >= 0 ? '°N' : '°S');
+  const lonStr = Math.abs(RADAR_LON).toFixed(4) + (RADAR_LON >= 0 ? '°E' : '°W');
+  const sub    = `${latStr} ${lonStr} · Radius: 25mi · Updates every 15s`;
+  const satSub = `${latStr} ${lonStr} · Min elevation: 15° · Updates every 10s`;
+  const airSubEl = document.querySelector('#radar-air-section .radar-sub');
+  const satSubEl = document.querySelector('#radar-sat-section .radar-sub');
+  if (airSubEl) airSubEl.textContent = sub;
+  if (satSubEl) satSubEl.textContent = satSub;
+  const badge = `📍 ${latStr}, ${lonStr}`;
+  const airBadge = document.getElementById('radar-loc-badge');
+  const satBadge = document.getElementById('sat-loc-badge');
+  if (airBadge) airBadge.textContent = badge;
+  if (satBadge) satBadge.textContent = badge;
+}
+
+function updateMyLocation() {
+  const btn = document.getElementById('loc-update-btn');
+  const satBtn = document.getElementById('sat-loc-update-btn');
+  if (btn) btn.textContent = '📍 Locating…';
+  if (satBtn) satBtn.textContent = '📍 Locating…';
+
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      RADAR_LAT = pos.coords.latitude;
+      RADAR_LON = pos.coords.longitude;
+      RADAR_LOCATION_NAME = 'Current Location';
+      updateRadarSubtitles();
+      fetchRadarData();
+      if (satInitialized) refreshSatellites();
+      if (btn) btn.textContent = '📍 Update Location';
+      if (satBtn) satBtn.textContent = '📍 Update Location';
+    },
+    err => {
+      alert('Location access denied. Using default coordinates.');
+      if (btn) btn.textContent = '📍 Update Location';
+      if (satBtn) satBtn.textContent = '📍 Update Location';
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
 }
 
 let radarAircraft   = [];
@@ -1904,62 +1944,20 @@ async function fetchRadarData() {
   if (el) el.textContent = 'API unavailable';
 }
 
-function updateRadarSubtitles() {
-  const latStr = Math.abs(RADAR_LAT).toFixed(4) + (RADAR_LAT >= 0 ? '°N' : '°S');
-  const lonStr = Math.abs(RADAR_LON).toFixed(4) + (RADAR_LON >= 0 ? '°E' : '°W');
-  const sub    = `${latStr} ${lonStr} · Radius: 25mi · Updates every 15s`;
-  const satSub = `${latStr} ${lonStr} · Min elevation: 15° · Updates every 10s`;
-  const airSubEl = document.querySelector('#radar-air-section .radar-sub');
-  const satSubEl = document.querySelector('#radar-sat-section .radar-sub');
-  if (airSubEl) airSubEl.textContent = sub;
-  if (satSubEl) satSubEl.textContent = satSub;
-  // Update location badges
-  const badge    = `📍 ${latStr}, ${lonStr}`;
-  const airBadge = document.getElementById('radar-loc-badge');
-  const satBadge = document.getElementById('sat-loc-badge');
-  if (airBadge) airBadge.textContent = badge;
-  if (satBadge) satBadge.textContent = badge;
-}
-
-function requestGeolocation(callback) {
-  if (!navigator.geolocation) { callback(false); return; }
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      RADAR_LAT = pos.coords.latitude;
-      RADAR_LON = pos.coords.longitude;
-      RADAR_LOCATION_NAME = 'Current Location';
-      updateRadarSubtitles();
-      callback(true);
-    },
-    err => {
-      console.warn('Geolocation denied or unavailable:', err.message);
-      updateRadarSubtitles();
-      callback(false);
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-  );
-}
-
 function initRadar() {
   radarCanvas = document.getElementById('radar-canvas');
   if (!radarCanvas) return;
 
-  // Make canvas responsive
   const container = radarCanvas.parentElement;
   const size = Math.min(container.offsetWidth || 380, 380);
   radarCanvas.width  = size;
   radarCanvas.height = size;
 
   radarCtx = radarCanvas.getContext('2d');
+  updateRadarSubtitles();
   animateRadar();
-
-  // Request geolocation first, then fetch
-  requestGeolocation(() => {
-    fetchRadarData();
-    setInterval(fetchRadarData, 15000);
-    // Re-request location every 5 min in case user is moving
-    setInterval(() => requestGeolocation(() => {}), 5 * 60 * 1000);
-  });
+  fetchRadarData();
+  setInterval(fetchRadarData, 15000);
 
   // Click on canvas to select aircraft
   radarCanvas.addEventListener('click', e => {
@@ -2393,22 +2391,16 @@ async function initSatelliteRadar() {
     drawSatRadar();
   });
 
-  // Use geolocation (may already be set from air radar init)
-  requestGeolocation(async () => {
-    try {
-      // Load satellite.js
-      satLib = await loadSatelliteJS();
-      // Load all TLE groups
-      await loadAllTLEs();
-      // Refresh positions every 10s, TLEs every 5 min
-      setInterval(refreshSatellites, 10000);
-      setInterval(loadAllTLEs, 5 * 60 * 1000);
-
-    } catch(e) {
-      document.getElementById('sat-data-panel').innerHTML =
-        '<div class="radar-empty">⚠ Could not load satellite.js or TLE data. Check console.</div>';
-    }
-  });
+  // Load satellite.js and TLE data directly
+  try {
+    satLib = await loadSatelliteJS();
+    await loadAllTLEs();
+    setInterval(refreshSatellites, 10000);
+    setInterval(loadAllTLEs, 5 * 60 * 1000);
+  } catch(e) {
+    document.getElementById('sat-data-panel').innerHTML =
+      '<div class="radar-empty">⚠ Could not load satellite.js or TLE data.</div>';
+  }
 }
 
 /* ── NAV ── */
