@@ -5,9 +5,10 @@
  */
 
 const ALLOWED_ORIGINS = [
-  'https://ocscanner.github.io',
-  'http://localhost',
-  'http://127.0.0.1',
+  'https://intelhq.pages.dev',        // your Cloudflare Pages URL
+  'https://ocscanner.github.io',      // keep old GitHub Pages URL too
+  'http://localhost',                  // for local testing
+];
 ];
 
 const API_TARGETS = {
