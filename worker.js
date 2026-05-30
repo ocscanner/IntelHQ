@@ -9,7 +9,6 @@ const ALLOWED_ORIGINS = [
   'https://ocscanner.github.io',      // keep old GitHub Pages URL too
   'http://localhost',                  // for local testing
 ];
-];
 
 const API_TARGETS = {
   '/flights': (lat, lon, dist) =>
