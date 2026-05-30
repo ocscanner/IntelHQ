@@ -1560,16 +1560,21 @@ let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
   const deg = (RADAR_RADIUS / 69.0).toFixed(4);
+  // WORKER_URL: replace with your Cloudflare Worker URL after deployment
+  // e.g. 'https://oc-radar.yourname.workers.dev'
+  const WORKER_URL = '';
   const apLive  = `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`;
-  const adsbLol = `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`;
+  const adsbLol = `https://api.adsb.lol/v2/lat/${RADAR_LAT}/${RADAR_LON}/dist/${RADAR_RADIUS}`;
   const opensky = `https://opensky-network.org/api/states/all?lamin=${(RADAR_LAT-parseFloat(deg)).toFixed(4)}&lomin=${(RADAR_LON-parseFloat(deg)).toFixed(4)}&lamax=${(RADAR_LAT+parseFloat(deg)).toFixed(4)}&lomax=${(RADAR_LON+parseFloat(deg)).toFixed(4)}`;
-  return [
-    apLive,
-    adsbLol,
-    `https://corsproxy.io/?${encodeURIComponent(apLive)}`,
-    `https://corsproxy.io/?${encodeURIComponent(adsbLol)}`,
-    opensky,
-  ];
+  const urls = [apLive, adsbLol, opensky];
+  // Prepend worker URLs if configured
+  if (WORKER_URL) {
+    urls.unshift(
+      `${WORKER_URL}/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`,
+      `${WORKER_URL}/adsb?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
+    );
+  }
+  return urls;
 }
 
 function updateRadarSubtitles() {
@@ -1589,15 +1594,23 @@ function updateRadarSubtitles() {
 }
 
 function updateMyLocation() {
-  const btn = document.getElementById('loc-update-btn');
+  const btn    = document.getElementById('loc-update-btn');
   const satBtn = document.getElementById('sat-loc-update-btn');
-  if (btn) btn.textContent = '📍 Locating…';
-  if (satBtn) satBtn.textContent = '📍 Locating…';
+  const setText = t => { if(btn) btn.textContent = t; if(satBtn) satBtn.textContent = t; };
 
   if (!navigator.geolocation) {
-    alert('Geolocation is not supported by your browser.');
+    setText('📍 Not supported');
     return;
   }
+
+  // Check if we're on HTTPS (required for geolocation)
+  if (location.protocol !== 'https:') {
+    setText('📍 HTTPS required');
+    return;
+  }
+
+  setText('📍 Locating…');
+
   navigator.geolocation.getCurrentPosition(
     pos => {
       RADAR_LAT = pos.coords.latitude;
@@ -1606,15 +1619,24 @@ function updateMyLocation() {
       updateRadarSubtitles();
       fetchRadarData();
       if (satInitialized) refreshSatellites();
-      if (btn) btn.textContent = '📍 Update Location';
-      if (satBtn) satBtn.textContent = '📍 Update Location';
+      setText('📍 Location Updated ✓');
+      setTimeout(() => setText('📍 Update Location'), 3000);
     },
     err => {
-      alert('Location access denied. Using default coordinates.');
-      if (btn) btn.textContent = '📍 Update Location';
-      if (satBtn) satBtn.textContent = '📍 Update Location';
+      console.warn('Geolocation error:', err.code, err.message);
+      if (err.code === 1) {
+        // Permission denied — show instructions
+        setText('📍 Permission denied');
+        setTimeout(() => setText('📍 Update Location'), 3000);
+      } else if (err.code === 2) {
+        setText('📍 Position unavailable');
+        setTimeout(() => setText('📍 Update Location'), 3000);
+      } else {
+        setText('📍 Timeout — retry');
+        setTimeout(() => setText('📍 Update Location'), 3000);
+      }
     },
-    { enableHighAccuracy: true, timeout: 8000 }
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
   );
 }
 
@@ -1929,19 +1951,31 @@ function renderDataPanel() {
 async function fetchRadarData() {
   for (const url of getRadarAPIs()) {
     try {
-      const r   = await fetch(url);
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) continue;
       const data = await r.json();
-      radarAircraft = parseAircraft(data);
+      const parsed = parseAircraft(data);
+      if (!parsed.length && !data.ac && !data.states) continue; // empty response
+      radarAircraft = parsed;
       renderDataPanel();
       const el = document.getElementById('radar-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
       return;
     } catch(e) { continue; }
   }
-  // All APIs failed — keep existing data
+  // All APIs failed
   const el = document.getElementById('radar-last-update');
   if (el) el.textContent = 'API unavailable';
+  const panel = document.getElementById('radar-data-panel');
+  if (panel && !radarAircraft.length) {
+    panel.innerHTML = `
+      <div class="radar-empty" style="text-align:left;padding:8px">
+        ⚠ Flight data APIs unavailable.<br><br>
+        To enable live data, deploy the Cloudflare Worker:<br>
+        <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--accent)">workers.cloudflare.com →</a><br>
+        <span style="font-size:.65rem;color:var(--muted)">Then set WORKER_URL in getRadarAPIs()</span>
+      </div>`;
+  }
 }
 
 function initRadar() {
@@ -2278,32 +2312,31 @@ function renderSatPanel() {
 let allTLEs = [];
 
 async function fetchTLEGroup(group) {
+  // Race all sources in parallel — fastest wins
   const urls = [
-    // CelesTrak direct (works from most browsers)
     group.url,
-    // HTTPS variant
-    group.url.replace('http://','https://'),
-    // Via corsproxy.io
     `https://corsproxy.io/?${encodeURIComponent(group.url)}`,
-    // Via allorigins
     `https://api.allorigins.win/get?url=${encodeURIComponent(group.url)}`,
   ];
 
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
-      let text = await r.text();
-      // allorigins wraps in JSON
-      if (url.includes('allorigins')) {
-        try { text = JSON.parse(text).contents; } catch(e) {}
-      }
-      if (text && (text.includes('1 ') || text.includes('2 '))) {
-        return parseTLE(text, group);
-      }
-    } catch(e) { continue; }
+  const attempts = urls.map(async url => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    let text = await r.text();
+    if (url.includes('allorigins')) {
+      try { text = JSON.parse(text).contents; } catch(e) {}
+    }
+    if (!text || (!text.includes('1 ') && !text.includes('2 '))) {
+      throw new Error('No TLE data');
+    }
+    return parseTLE(text, group);
+  });
+
+  try {
+    return await Promise.any(attempts);
+  } catch(e) {
+    return [];
   }
-  return [];
 }
 
 async function loadSatelliteJS() {
@@ -2344,26 +2377,50 @@ async function refreshSatellites() {
 }
 
 async function loadAllTLEs() {
-  document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Loading TLE data from CelesTrak…</div>';
-  const results = await Promise.allSettled(TLE_GROUPS.map(g => fetchTLEGroup(g)));
-  allTLEs = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  const panel = document.getElementById('sat-data-panel');
+  if (panel) panel.innerHTML = '<div class="radar-empty">Loading satellite data…</div>';
 
-  if (!allTLEs.length) {
-    // All TLE sources failed — show helpful message with direct links
-    document.getElementById('sat-data-panel').innerHTML = `
-      <div class="radar-empty" style="text-align:left;padding:12px">
-        ⚠ TLE data unavailable — CelesTrak may be rate limiting.<br><br>
-        <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE" target="_blank" style="color:var(--accent)">Check CelesTrak directly →</a><br>
-        <a href="https://www.heavens-above.com" target="_blank" style="color:var(--accent)">Heavens-Above.com →</a>
-      </div>`;
-    return;
+  // Priority groups first — small and fast
+  const PRIORITY = ['stations', 'visual'];
+  const BACKGROUND = ['weather', 'gps', 'starlink']; // starlink is 500+ sats, load last
+
+  const priorityGroups = TLE_GROUPS.filter(g => PRIORITY.includes(g.key));
+  const bgGroups       = TLE_GROUPS.filter(g => BACKGROUND.includes(g.key));
+
+  // Load priority groups first — show radar as soon as these arrive
+  const priorityResults = await Promise.allSettled(priorityGroups.map(g => fetchTLEGroup(g)));
+  const priorityTLEs    = priorityResults.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+  if (priorityTLEs.length) {
+    allTLEs = priorityTLEs;
+    satObjects = computeSatPositions(allTLEs);
+    renderSatPanel();
+    drawSatRadar();
+    const el = document.getElementById('sat-last-update');
+    if (el) el.textContent = new Date().toLocaleTimeString() + ' (partial)';
   }
 
-  satObjects = computeSatPositions(allTLEs);
-  renderSatPanel();
-  drawSatRadar();
-  const el = document.getElementById('sat-last-update');
-  if (el) el.textContent = new Date().toLocaleTimeString();
+  // Load background groups without blocking UI
+  Promise.allSettled(bgGroups.map(g => fetchTLEGroup(g))).then(bgResults => {
+    const bgTLEs = bgResults.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    if (bgTLEs.length) {
+      allTLEs = [...priorityTLEs, ...bgTLEs];
+      satObjects = computeSatPositions(allTLEs);
+      renderSatPanel();
+      drawSatRadar();
+      const el = document.getElementById('sat-last-update');
+      if (el) el.textContent = new Date().toLocaleTimeString();
+    }
+  });
+
+  if (!priorityTLEs.length) {
+    if (panel) panel.innerHTML = `
+      <div class="radar-empty" style="text-align:left;padding:12px">
+        ⚠ TLE data unavailable — CelesTrak may be rate limiting.<br><br>
+        <a href="https://celestrak.org/" target="_blank" style="color:var(--accent)">CelesTrak →</a> &nbsp;
+        <a href="https://www.heavens-above.com" target="_blank" style="color:var(--accent)">Heavens-Above →</a>
+      </div>`;
+  }
 }
 
 async function initSatelliteRadar() {
