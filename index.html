@@ -1562,7 +1562,7 @@ function getRadarAPIs() {
   const deg = (RADAR_RADIUS / 69.0).toFixed(4);
   // WORKER_URL: replace with your Cloudflare Worker URL after deployment
   // e.g. 'https://oc-radar.yourname.workers.dev'
-  const WORKER_URL = '';
+  const WORKER_URL = 'https://oc-radar-proxy.ocscannernews.workers.dev';
   const apLive  = `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`;
   const adsbLol = `https://api.adsb.lol/v2/lat/${RADAR_LAT}/${RADAR_LON}/dist/${RADAR_RADIUS}`;
   const opensky = `https://opensky-network.org/api/states/all?lamin=${(RADAR_LAT-parseFloat(deg)).toFixed(4)}&lomin=${(RADAR_LON-parseFloat(deg)).toFixed(4)}&lamax=${(RADAR_LAT+parseFloat(deg)).toFixed(4)}&lomax=${(RADAR_LON+parseFloat(deg)).toFixed(4)}`;
