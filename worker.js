@@ -5,10 +5,12 @@
  */
 
 const ALLOWED_ORIGINS = [
-  'https://intelhq.pages.dev',        // your Cloudflare Pages URL
-  'https://ocscanner.github.io',      // keep old GitHub Pages URL too
-  'http://localhost',                  // for local testing
-];
+  'https://ocscanner.github.io',
+  'https://intelhq.ocscannernews.workers.dev',
+  'https://ocscannernews.pages.dev',
+  'http://localhost',
+  'http://127.0.0.1',
+  '*', // allow all for now — tighten after testing
 ];
 
 const API_TARGETS = {
@@ -28,7 +30,7 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
-          'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+          'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET',
           'Access-Control-Max-Age': '86400',
         }
@@ -68,7 +70,7 @@ export default {
         status: resp.status,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': corsOrigin,
+          'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'no-cache, max-age=10',
         }
       });
