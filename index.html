@@ -1177,8 +1177,8 @@ async function loadLocalNews(){
   const items=[];
   for(const f of LOCAL_FEEDS){
     try{
-      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const d=await r.json();const xml=new DOMParser().parseFromString(d.contents,'text/xml');
+      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(f.u));
+      const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,4).forEach(it=>{
         items.push({src:f.n,title:it.querySelector('title')?.textContent||'',link:it.querySelector('link')?.textContent||'#',pub:it.querySelector('pubDate')?.textContent||''});
       });
@@ -1235,9 +1235,9 @@ const IMM_KW=['border','immigration','migrant','asylum','dhs','cbp','ice','depor
 function matchKW(text,kws){const t=text.toLowerCase();return kws.some(k=>t.includes(k));}
 async function fetchFeed(url){
   try{
-    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url));
-    const d=await r.json();
-    return Array.from(new DOMParser().parseFromString(d.contents,'text/xml').querySelectorAll('item')).slice(0,8);
+    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(url));
+    const text=await r.text();
+    return Array.from(new DOMParser().parseFromString(text,'text/xml').querySelectorAll('item')).slice(0,8);
   }catch(e){return[];}
 }
 async function loadNewsColumns(){
@@ -1314,8 +1314,8 @@ async function loadQuakes(){
 async function loadFires(){
   const el=document.getElementById('fire-feed');
   try{
-    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
-    const d=await r.json();const xml=new DOMParser().parseFromString(d.contents,'text/xml');
+    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
+    const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
     const items=Array.from(xml.querySelectorAll('item')).slice(0,6);el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
     items.forEach(it=>{
@@ -1333,27 +1333,36 @@ async function loadFires(){
 async function loadFEMA(){
   const el=document.getElementById('fema-feed');
   try{
-    const r=await fetch('https://www.fema.gov/api/open/v2/disasterDeclarationsSummaries?$filter=state%20eq%20%27CA%27&$orderby=declarationDate%20desc&$top=5&$format=json');
-    const d=await r.json();const items=d.DisasterDeclarationsSummaries||[];el.innerHTML='';
+    const femaUrl='https://www.fema.gov/api/open/v2/disasterDeclarationsSummaries?$filter=state%20eq%20%27CA%27&$orderby=declarationDate%20desc&$top=5&$format=json';
+    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(femaUrl),{signal:AbortSignal.timeout(8000)});
+    const d=await r.json();
+    const items=d.DisasterDeclarationsSummaries||[];el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No recent CA declarations.</div>';return;}
     items.forEach(it=>{
       const div=document.createElement('div');div.className='iit';
       div.innerHTML=`<div class="itype">FEMA DR-${it.disasterNumber}</div><div class="itit">${it.declarationTitle}</div><div class="imet">${it.designatedArea||'CA'} · ${it.declarationDate?new Date(it.declarationDate).toLocaleDateString():''}</div>`;
       el.appendChild(div);
     });
-  }catch(e){el.innerHTML='<div class="loader">Unable to load FEMA data.</div>';}
+  }catch(e){el.innerHTML='<div class="loader">Unable to load FEMA data. <a href="https://www.fema.gov/disasters" target="_blank" style="color:var(--accent)">Check FEMA →</a></div>';}
 }
 
 /* ── AIRPORTS ── */
 async function loadAirports(){
+  // FAA NAS Status API blocks CORS — route through our worker proxy
   for(const code of['LAX','SNA','LGB','ONT','SAN']){
     const el=document.getElementById('ap-'+code.toLowerCase());if(!el)continue;
     try{
-      const r=await fetch('https://nasstatus.faa.gov/api/airport-status/'+code);
-      const d=await r.json();const delays=d.status?.delay?.delays||[];
+      // Try via corsproxy first, fallback to worker
+      const faaUrl = `https://nasstatus.faa.gov/api/airport-status/${code}`;
+      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(faaUrl), {signal:AbortSignal.timeout(5000)});
+      const d=await r.json();
+      const delays=d.status?.delay?.delays||[];
       el.textContent=delays.length?'⚠ Delays':'✅ No Delays';
       el.className='astat '+(delays.length?'adly':'aok');
-    }catch(e){el.textContent='— Check FAA';el.className='astat';}
+    }catch(e){
+      el.textContent='— Check FAA';
+      el.className='astat';
+    }
   }
 }
 
@@ -1375,9 +1384,8 @@ async function loadElectionNews(){
   const items=[];const seen=new Set();
   for(const f of ELECTION_FEEDS){
     try{
-      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const d=await r.json();
-      const xml=new DOMParser().parseFromString(d.contents,'text/xml');
+      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(f.u));
+      const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
         const title=it.querySelector('title')?.textContent||'';
         const link=it.querySelector('link')?.textContent||'#';
@@ -1459,13 +1467,12 @@ async function loadMarketTicker() {
     }
   } catch(e) {}
 
-  // Stocks — fetch each symbol via Yahoo Finance v8 through allorigins
+  // Stocks — fetch each symbol via Yahoo Finance v8 through corsproxy
   const stockResults = await Promise.allSettled(
     STOCK_SYMBOLS.map(async sym => {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
-      const d = await r.json();
-      const parsed = JSON.parse(d.contents);
+      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+      const parsed = await r.json();
       const meta = parsed?.chart?.result?.[0]?.meta;
       if (!meta) return null;
       const price = meta.regularMarketPrice;
@@ -1509,9 +1516,9 @@ async function loadTicker() {
   const seen = new Set();
   await Promise.allSettled(TICKER_FEEDS.map(async f => {
     try {
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
+      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(f.u));
       const d = await r.json();
-      const xml = new DOMParser().parseFromString(d.contents, 'text/xml');
+      const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0, 6).forEach(it => {
         const title = it.querySelector('title')?.textContent?.trim() || '';
         const link  = it.querySelector('link')?.textContent?.trim() || '#';
@@ -2316,7 +2323,7 @@ async function fetchTLEGroup(group) {
   const urls = [
     group.url,
     `https://corsproxy.io/?${encodeURIComponent(group.url)}`,
-    `https://api.allorigins.win/get?url=${encodeURIComponent(group.url)}`,
+    `https://corsproxy.io/?${encodeURIComponent(group.url)}`,
   ];
 
   const attempts = urls.map(async url => {
