@@ -1,87 +1,85 @@
 /**
- * OC Scanner Intel HQ - Cloudflare Worker Proxy
- * Deploy at: https://workers.cloudflare.com (free tier)
- * Handles CORS for flight data APIs
+ * OC Scanner Intel HQ — Flight Data Proxy Worker
+ * Paste this into your Cloudflare Worker editor and deploy.
  */
 
-const ALLOWED_ORIGINS = [
-  'https://ocscanner.github.io',
-  'https://intelhq.ocscannernews.workers.dev',
-  'https://ocscannernews.pages.dev',
-  'http://localhost',
-  'http://127.0.0.1',
-  '*', // allow all for now — tighten after testing
-];
-
-const API_TARGETS = {
-  '/flights': (lat, lon, dist) =>
-    `https://api.airplanes.live/v2/point/${lat}/${lon}/${dist}`,
-  '/adsb': (lat, lon, dist) =>
-    `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${dist}`,
-};
-
 export default {
-  async fetch(request) {
-    const origin = request.headers.get('Origin') || '';
-    const url    = new URL(request.url);
-    const path   = url.pathname;
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
 
-    // CORS preflight
+    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET',
-          'Access-Control-Max-Age': '86400',
-        }
+        headers: corsHeaders()
       });
     }
 
-    // Only allow GET
-    if (request.method !== 'GET') {
-      return new Response('Method not allowed', { status: 405 });
+    // Only serve /flights path
+    if (url.pathname !== '/flights') {
+      return new Response(JSON.stringify({ error: 'Use /flights?lat=XX&lon=XX&dist=XX' }), {
+        status: 404,
+        headers: { ...corsHeaders(), 'Content-Type': 'application/json' }
+      });
     }
 
-    // Parse params
     const lat  = url.searchParams.get('lat')  || '33.832721';
     const lon  = url.searchParams.get('lon')  || '-118.022520';
     const dist = url.searchParams.get('dist') || '25';
 
-    // Find matching API
-    const apiFn = API_TARGETS[path];
-    if (!apiFn) {
-      return new Response('Not found', { status: 404 });
+    // Try APIs in order — return first successful response
+    const apis = [
+      `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${dist}`,
+      `https://api.airplanes.live/v2/point/${lat}/${lon}/${dist}`,
+      `https://opensky-network.org/api/states/all?lamin=${lat-0.4}&lomin=${lon-0.4}&lamax=${+lat+0.4}&lomax=${+lon+0.4}`,
+    ];
+
+    for (const apiUrl of apis) {
+      try {
+        const resp = await fetch(apiUrl, {
+          headers: {
+            'User-Agent':  'Mozilla/5.0 OCScannerIntelHQ/1.0',
+            'Accept':      'application/json',
+            'Cache-Control': 'no-cache',
+          },
+          cf: { cacheTtl: 10 }
+        });
+
+        if (!resp.ok) continue;
+
+        const text = await resp.text();
+
+        // Validate it's actual flight data
+        if (!text || text.length < 10) continue;
+        if (text.includes('rate limit') || text.includes('Rate limit')) continue;
+        if (!text.includes('{')) continue;
+
+        return new Response(text, {
+          status: 200,
+          headers: {
+            ...corsHeaders(),
+            'Content-Type': 'application/json',
+            'X-Source': new URL(apiUrl).hostname,
+          }
+        });
+
+      } catch (e) {
+        continue;
+      }
     }
 
-    // Proxy request
-    const targetUrl = apiFn(lat, lon, dist);
-    try {
-      const resp = await fetch(targetUrl, {
-        headers: {
-          'User-Agent': 'OCScannerIntelHQ/1.0',
-          'Accept':     'application/json',
-        }
-      });
-
-      const data = await resp.text();
-      const corsOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-
-      return new Response(data, {
-        status: resp.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache, max-age=10',
-        }
-      });
-    } catch (e) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 502,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        }
-      });
-    }
+    // All failed — return empty aircraft array so radar doesn't crash
+    return new Response(JSON.stringify({ ac: [], msg: 'All APIs unavailable', time: Date.now() }), {
+      status: 200,
+      headers: { ...corsHeaders(), 'Content-Type': 'application/json' }
+    });
   }
 };
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin':  '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age':       '86400',
+  };
+}
