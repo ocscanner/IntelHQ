@@ -1567,21 +1567,13 @@ let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
   const deg = (RADAR_RADIUS / 69.0).toFixed(4);
-  // WORKER_URL: replace with your Cloudflare Worker URL after deployment
-  // e.g. 'https://oc-radar.yourname.workers.dev'
   const WORKER_URL = 'https://oc-radar-proxy.ocscannernews.workers.dev';
+  const workerUrl = `${WORKER_URL}/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`;
   const apLive  = `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`;
   const adsbLol = `https://api.adsb.lol/v2/lat/${RADAR_LAT}/${RADAR_LON}/dist/${RADAR_RADIUS}`;
   const opensky = `https://opensky-network.org/api/states/all?lamin=${(RADAR_LAT-parseFloat(deg)).toFixed(4)}&lomin=${(RADAR_LON-parseFloat(deg)).toFixed(4)}&lamax=${(RADAR_LAT+parseFloat(deg)).toFixed(4)}&lomax=${(RADAR_LON+parseFloat(deg)).toFixed(4)}`;
-  const urls = [apLive, adsbLol, opensky];
-  // Prepend worker URLs if configured
-  if (WORKER_URL) {
-    urls.unshift(
-      `${WORKER_URL}/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`,
-      `${WORKER_URL}/adsb?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
-    );
-  }
-  return urls;
+  // Worker first, then direct APIs as fallback
+  return [workerUrl, apLive, adsbLol, opensky];
 }
 
 function updateRadarSubtitles() {
@@ -1961,9 +1953,9 @@ async function fetchRadarData() {
       const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) continue;
       const data = await r.json();
-      const parsed = parseAircraft(data);
-      if (!parsed.length && !data.ac && !data.states) continue; // empty response
-      radarAircraft = parsed;
+      // Accept response if it has the right structure, even if no aircraft right now
+      if (!data.ac && !data.states && !Array.isArray(data)) continue;
+      radarAircraft = parseAircraft(data);
       renderDataPanel();
       const el = document.getElementById('radar-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
@@ -1972,16 +1964,10 @@ async function fetchRadarData() {
   }
   // All APIs failed
   const el = document.getElementById('radar-last-update');
-  if (el) el.textContent = 'API unavailable';
+  if (el) el.textContent = 'Retrying…';
   const panel = document.getElementById('radar-data-panel');
   if (panel && !radarAircraft.length) {
-    panel.innerHTML = `
-      <div class="radar-empty" style="text-align:left;padding:8px">
-        ⚠ Flight data APIs unavailable.<br><br>
-        To enable live data, deploy the Cloudflare Worker:<br>
-        <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--accent)">workers.cloudflare.com →</a><br>
-        <span style="font-size:.65rem;color:var(--muted)">Then set WORKER_URL in getRadarAPIs()</span>
-      </div>`;
+    panel.innerHTML = `<div class="radar-empty">⚠ Flight data unavailable — retrying in 15s</div>`;
   }
 }
 
