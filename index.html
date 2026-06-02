@@ -1177,8 +1177,8 @@ async function loadLocalNews(){
   const items=[];
   for(const f of LOCAL_FEEDS){
     try{
-      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(f.u));
-      const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
+      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
+      const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,4).forEach(it=>{
         items.push({src:f.n,title:it.querySelector('title')?.textContent||'',link:it.querySelector('link')?.textContent||'#',pub:it.querySelector('pubDate')?.textContent||''});
       });
@@ -1235,8 +1235,10 @@ const IMM_KW=['border','immigration','migrant','asylum','dhs','cbp','ice','depor
 function matchKW(text,kws){const t=text.toLowerCase();return kws.some(k=>t.includes(k));}
 async function fetchFeed(url){
   try{
-    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(url));
-    const text=await r.text();
+    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url));
+    const j=await r.json();
+    const text=j.contents||'';
+    if(!text)return[];
     return Array.from(new DOMParser().parseFromString(text,'text/xml').querySelectorAll('item')).slice(0,8);
   }catch(e){return[];}
 }
@@ -1314,8 +1316,8 @@ async function loadQuakes(){
 async function loadFires(){
   const el=document.getElementById('fire-feed');
   try{
-    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
-    const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
+    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
+    const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
     const items=Array.from(xml.querySelectorAll('item')).slice(0,6);el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
     items.forEach(it=>{
@@ -1334,7 +1336,7 @@ async function loadFEMA(){
   const el=document.getElementById('fema-feed');
   try{
     const femaUrl='https://www.fema.gov/api/open/v2/disasterDeclarationsSummaries?$filter=state%20eq%20%27CA%27&$orderby=declarationDate%20desc&$top=5&$format=json';
-    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(femaUrl),{signal:AbortSignal.timeout(8000)});
+    const r=await fetch(femaUrl,{signal:AbortSignal.timeout(8000)});
     const d=await r.json();
     const items=d.DisasterDeclarationsSummaries||[];el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No recent CA declarations.</div>';return;}
@@ -1354,7 +1356,7 @@ async function loadAirports(){
     try{
       // Try via corsproxy first, fallback to worker
       const faaUrl = `https://nasstatus.faa.gov/api/airport-status/${code}`;
-      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(faaUrl), {signal:AbortSignal.timeout(5000)});
+      const r=await fetch(faaUrl, {signal:AbortSignal.timeout(5000)});
       const d=await r.json();
       const delays=d.status?.delay?.delays||[];
       el.textContent=delays.length?'⚠ Delays':'✅ No Delays';
@@ -1384,8 +1386,8 @@ async function loadElectionNews(){
   const items=[];const seen=new Set();
   for(const f of ELECTION_FEEDS){
     try{
-      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(f.u));
-      const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
+      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
+      const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
         const title=it.querySelector('title')?.textContent||'';
         const link=it.querySelector('link')?.textContent||'#';
@@ -1471,7 +1473,7 @@ async function loadMarketTicker() {
   const stockResults = await Promise.allSettled(
     STOCK_SYMBOLS.map(async sym => {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+      const r = await fetch(url, {signal:AbortSignal.timeout(5000)});
       const parsed = await r.json();
       const meta = parsed?.chart?.result?.[0]?.meta;
       if (!meta) return null;
@@ -1516,9 +1518,9 @@ async function loadTicker() {
   const seen = new Set();
   await Promise.allSettled(TICKER_FEEDS.map(async f => {
     try {
-      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(f.u));
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
       const d = await r.json();
-      const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+      const _raw2=await r.json();const xml = new DOMParser().parseFromString(_raw2.contents||_raw2,'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0, 6).forEach(it => {
         const title = it.querySelector('title')?.textContent?.trim() || '';
         const link  = it.querySelector('link')?.textContent?.trim() || '#';
@@ -1955,19 +1957,30 @@ function renderDataPanel() {
 async function fetchRadarData() {
   for (const url of getRadarAPIs()) {
     try {
+      console.log('[Radar] Trying:', url);
       const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
+      console.log('[Radar] Response:', r.status, r.ok);
+      if (!r.ok) { console.log('[Radar] Not OK, skipping'); continue; }
       const data = await r.json();
-      // Accept response if it has the right structure, even if no aircraft right now
-      if (!data.ac && !data.states && !Array.isArray(data)) continue;
+      console.log('[Radar] Data keys:', Object.keys(data), 'ac count:', data.ac?.length, 'states count:', data.states?.length);
+      // Accept response if it has the right structure
+      if (!data.ac && !data.states && !Array.isArray(data)) {
+        console.log('[Radar] No aircraft data structure found, skipping');
+        continue;
+      }
       radarAircraft = parseAircraft(data);
+      console.log('[Radar] Parsed aircraft:', radarAircraft.length);
       renderDataPanel();
       const el = document.getElementById('radar-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
       return;
-    } catch(e) { continue; }
+    } catch(e) {
+      console.log('[Radar] Error:', e.message);
+      continue;
+    }
   }
   // All APIs failed
+  console.log('[Radar] All APIs failed');
   const el = document.getElementById('radar-last-update');
   if (el) el.textContent = 'Retrying…';
   const panel = document.getElementById('radar-data-panel');
@@ -2313,16 +2326,18 @@ async function fetchTLEGroup(group) {
   // Race all sources in parallel — fastest wins
   const urls = [
     group.url,
-    `https://corsproxy.io/?${encodeURIComponent(group.url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(group.url)}`,
+    `https://api.allorigins.win/get?url=${encodeURIComponent(group.url)}`,
   ];
 
   const attempts = urls.map(async url => {
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    let text = await r.text();
+    let text;
     if (url.includes('allorigins')) {
-      try { text = JSON.parse(text).contents; } catch(e) {}
+      const j = await r.json();
+      text = j.contents || '';
+    } else {
+      text = await r.text();
     }
     if (!text || (!text.includes('1 ') && !text.includes('2 '))) {
       throw new Error('No TLE data');
