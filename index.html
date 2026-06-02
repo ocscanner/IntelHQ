@@ -1602,7 +1602,6 @@ function updateMyLocation() {
     return;
   }
 
-  // Check if we're on HTTPS (required for geolocation)
   if (location.protocol !== 'https:') {
     setText('📍 HTTPS required');
     return;
@@ -1618,24 +1617,30 @@ function updateMyLocation() {
       updateRadarSubtitles();
       fetchRadarData();
       if (satInitialized) refreshSatellites();
-      setText('📍 Location Updated ✓');
-      setTimeout(() => setText('📍 Update Location'), 3000);
+      setText('📍 ' + pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4));
+      setTimeout(() => setText('📍 Update Location'), 5000);
     },
     err => {
       console.warn('Geolocation error:', err.code, err.message);
       if (err.code === 1) {
-        // Permission denied — show instructions
-        setText('📍 Permission denied');
-        setTimeout(() => setText('📍 Update Location'), 3000);
+        // Permission denied — tell user how to fix it
+        setText('📍 Allow in browser settings');
+        // Show a small tooltip/note in the radar subtitle
+        const sub = document.querySelector('#radar-air-section .radar-sub');
+        if (sub) {
+          const orig = sub.textContent;
+          sub.textContent = '⚠ Location blocked — click the 🔒 lock icon in your browser address bar to allow location access';
+          sub.style.color = 'var(--warn)';
+          setTimeout(() => { sub.textContent = orig; sub.style.color = ''; }, 6000);
+        }
       } else if (err.code === 2) {
         setText('📍 Position unavailable');
-        setTimeout(() => setText('📍 Update Location'), 3000);
       } else {
         setText('📍 Timeout — retry');
-        setTimeout(() => setText('📍 Update Location'), 3000);
       }
+      setTimeout(() => setText('📍 Update Location'), 5000);
     },
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
   );
 }
 
@@ -2373,16 +2378,19 @@ async function loadAllTLEs() {
   const panel = document.getElementById('sat-data-panel');
   if (panel) panel.innerHTML = '<div class="radar-empty">Loading satellite data…</div>';
 
-  // Priority groups first — small and fast
-  const PRIORITY = ['stations', 'visual'];
-  const BACKGROUND = ['weather', 'gps', 'starlink']; // starlink is 500+ sats, load last
+  const PRIORITY   = ['stations', 'visual'];
+  const BACKGROUND = ['weather', 'gps', 'starlink'];
 
   const priorityGroups = TLE_GROUPS.filter(g => PRIORITY.includes(g.key));
   const bgGroups       = TLE_GROUPS.filter(g => BACKGROUND.includes(g.key));
 
-  // Load priority groups first — show radar as soon as these arrive
-  const priorityResults = await Promise.allSettled(priorityGroups.map(g => fetchTLEGroup(g)));
-  const priorityTLEs    = priorityResults.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  // Load priority groups with small stagger to avoid rate limiting
+  const priorityTLEs = [];
+  for (const g of priorityGroups) {
+    const result = await fetchTLEGroup(g);
+    priorityTLEs.push(...result);
+    await new Promise(r => setTimeout(r, 500)); // 500ms between requests
+  }
 
   if (priorityTLEs.length) {
     allTLEs = priorityTLEs;
@@ -2393,9 +2401,14 @@ async function loadAllTLEs() {
     if (el) el.textContent = new Date().toLocaleTimeString() + ' (partial)';
   }
 
-  // Load background groups without blocking UI
-  Promise.allSettled(bgGroups.map(g => fetchTLEGroup(g))).then(bgResults => {
-    const bgTLEs = bgResults.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  // Load background groups staggered
+  (async () => {
+    const bgTLEs = [];
+    for (const g of bgGroups) {
+      await new Promise(r => setTimeout(r, 1000)); // 1s between background requests
+      const result = await fetchTLEGroup(g);
+      bgTLEs.push(...result);
+    }
     if (bgTLEs.length) {
       allTLEs = [...priorityTLEs, ...bgTLEs];
       satObjects = computeSatPositions(allTLEs);
@@ -2404,12 +2417,12 @@ async function loadAllTLEs() {
       const el = document.getElementById('sat-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
     }
-  });
+  })();
 
   if (!priorityTLEs.length) {
     if (panel) panel.innerHTML = `
       <div class="radar-empty" style="text-align:left;padding:12px">
-        ⚠ TLE data unavailable — CelesTrak may be rate limiting.<br><br>
+        ⚠ CelesTrak rate limit reached. Try again in a minute.<br><br>
         <a href="https://celestrak.org/" target="_blank" style="color:var(--accent)">CelesTrak →</a> &nbsp;
         <a href="https://www.heavens-above.com" target="_blank" style="color:var(--accent)">Heavens-Above →</a>
       </div>`;
