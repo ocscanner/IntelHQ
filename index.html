@@ -1960,17 +1960,12 @@ async function fetchRadarData() {
     try {
       console.log('[Radar] Trying:', url);
       const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      console.log('[Radar] Response:', r.status, r.ok);
-      if (!r.ok) { console.log('[Radar] Not OK, skipping'); continue; }
+      console.log('[Radar] Status:', r.status);
+      if (!r.ok) continue;
       const data = await r.json();
-      console.log('[Radar] Data keys:', Object.keys(data), 'ac count:', data.ac?.length, 'states count:', data.states?.length);
-      // Accept response if it has the right structure
-      if (!data.ac && !data.states && !Array.isArray(data)) {
-        console.log('[Radar] No aircraft data structure found, skipping');
-        continue;
-      }
+      console.log('[Radar] Keys:', Object.keys(data), 'ac:', data.ac?.length ?? 'none');
       radarAircraft = parseAircraft(data);
-      console.log('[Radar] Parsed aircraft:', radarAircraft.length);
+      console.log('[Radar] Parsed:', radarAircraft.length, 'aircraft');
       renderDataPanel();
       const el = document.getElementById('radar-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
@@ -1980,8 +1975,7 @@ async function fetchRadarData() {
       continue;
     }
   }
-  // All APIs failed
-  console.log('[Radar] All APIs failed');
+  console.log('[Radar] All URLs failed');
   const el = document.getElementById('radar-last-update');
   if (el) el.textContent = 'Retrying…';
   const panel = document.getElementById('radar-data-panel');
