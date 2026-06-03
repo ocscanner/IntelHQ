@@ -1,0 +1,4 @@
+# Cloudflare Pages headers config
+
+/*.html
+  Cache-Control: no-cache, max-age=0, must-revalidate
