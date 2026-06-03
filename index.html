@@ -1178,7 +1178,7 @@ async function loadLocalNews(){
   for(const f of LOCAL_FEEDS){
     try{
       const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
+      const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,4).forEach(it=>{
         items.push({src:f.n,title:it.querySelector('title')?.textContent||'',link:it.querySelector('link')?.textContent||'#',pub:it.querySelector('pubDate')?.textContent||''});
       });
@@ -1197,10 +1197,10 @@ async function loadLocalNews(){
 /* ── NEWS COLUMNS ── */
 const NEWS_SOURCES={
   politics:[
-    {n:'Fox News',         c:'src-fox',   u:'https://feeds.foxnews.com/foxnews/politics'},
-    {n:'Fox Breaking',     c:'src-fox',   u:'https://feeds.foxnews.com/foxnews/latest'},
-    {n:'Breitbart',        c:'src-breit', u:'https://feeds.feedburner.com/breitbart'},
-    {n:'Daily Wire',       c:'src-breit', u:'https://feeds.feedburner.com/dailywire'},
+    {n:'Fox News',         c:'src-fox',   u:'https://rss.politico.com/politics-news.xml'},
+    {n:'Fox Breaking',     c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/'},
+    {n:'Breitbart',        c:'src-breit', u:'https://www.breitbart.com/feed/'},
+    {n:'Daily Wire',       c:'src-breit', u:'https://www.dailywire.com/feeds/rss.xml'},
     {n:'National Review',  c:'src-wash',  u:'https://www.nationalreview.com/feed/'},
     {n:'Washington Examiner',c:'src-wash',u:'https://www.washingtonexaminer.com/feed'},
     {n:'The Hill',         c:'src-hill',  u:'https://thehill.com/feed'},
@@ -1209,7 +1209,7 @@ const NEWS_SOURCES={
     {n:'AP Politics',      c:'src-ap',    u:'https://rsshub.app/apnews/topics/politics'},
   ],
   world:[
-    {n:'Fox World',        c:'src-fox',   u:'https://feeds.foxnews.com/foxnews/world'},
+    {n:'Fox World',        c:'src-fox',   u:'https://feeds.reuters.com/reuters/worldNews'},
     {n:'Military Times',   c:'src-mil',   u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
     {n:'Defense News',     c:'src-def',   u:'https://www.defensenews.com/arc/outboundfeeds/rss/'},
     {n:'Stars & Stripes',  c:'src-mil',   u:'https://www.stripes.com/arcio/rss/'},
@@ -1220,7 +1220,7 @@ const NEWS_SOURCES={
   ],
   immigration:[
     {n:'Breitbart Border', c:'src-breit', u:'https://www.breitbart.com/immigration/feed/'},
-    {n:'Fox National',     c:'src-fox',   u:'https://feeds.foxnews.com/foxnews/national'},
+    {n:'Fox National',     c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/immigration/'},
     {n:'Washington Examiner',c:'src-wash',u:'https://www.washingtonexaminer.com/feed'},
     {n:'Just the News',    c:'src-just',  u:'https://justthenews.com/feeds/all-stories'},
     {n:'DHS News',         c:'src-ap',    u:'https://www.dhs.gov/dhs-articles/rss.xml'},
@@ -1317,7 +1317,7 @@ async function loadFires(){
   const el=document.getElementById('fire-feed');
   try{
     const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
-    const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
+    const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
     const items=Array.from(xml.querySelectorAll('item')).slice(0,6);el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
     items.forEach(it=>{
@@ -1370,8 +1370,8 @@ async function loadAirports(){
 
 /* ── ELECTION NEWS ── */
 const ELECTION_FEEDS=[
-  {n:'Fox Politics',   c:'src-fox',   u:'https://feeds.foxnews.com/foxnews/politics'},
-  {n:'Breitbart',      c:'src-breit', u:'https://feeds.feedburner.com/breitbart'},
+  {n:'Fox Politics',   c:'src-fox',   u:'https://rss.politico.com/politics-news.xml'},
+  {n:'Breitbart',      c:'src-breit', u:'https://www.breitbart.com/feed/'},
   {n:'Politico',       c:'src-hill',  u:'https://rss.politico.com/politico.xml'},
   {n:'The Hill',       c:'src-hill',  u:'https://thehill.com/feed'},
   {n:'Wash. Examiner', c:'src-wash',  u:'https://www.washingtonexaminer.com/feed'},
@@ -1387,7 +1387,7 @@ async function loadElectionNews(){
   for(const f of ELECTION_FEEDS){
     try{
       const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const _raw=await r.json();const xml=new DOMParser().parseFromString(_raw.contents||_raw,'text/xml');
+      const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
         const title=it.querySelector('title')?.textContent||'';
         const link=it.querySelector('link')?.textContent||'#';
@@ -1473,8 +1473,9 @@ async function loadMarketTicker() {
   const stockResults = await Promise.allSettled(
     STOCK_SYMBOLS.map(async sym => {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-      const r = await fetch(url, {signal:AbortSignal.timeout(5000)});
-      const parsed = await r.json();
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), {signal:AbortSignal.timeout(8000)});
+      const j = await r.json();
+      const parsed = j.contents ? JSON.parse(j.contents) : j;
       const meta = parsed?.chart?.result?.[0]?.meta;
       if (!meta) return null;
       const price = meta.regularMarketPrice;
@@ -1501,11 +1502,11 @@ async function loadMarketTicker() {
 
 /* ── STREAMS TICKER ── */
 const TICKER_FEEDS = [
-  {n:'Fox News',    u:'https://feeds.foxnews.com/foxnews/latest'},
-  {n:'Breitbart',   u:'https://feeds.feedburner.com/breitbart'},
+  {n:'Fox News',    u:'https://www.washingtontimes.com/rss/headlines/news/'},
+  {n:'Breitbart',   u:'https://www.breitbart.com/feed/'},
   {n:'AP News',     u:'https://rsshub.app/apnews/topics/politics'},
   {n:'The Hill',    u:'https://thehill.com/feed'},
-  {n:'Fox World',   u:'https://feeds.foxnews.com/foxnews/world'},
+  {n:'Fox World',   u:'https://feeds.reuters.com/reuters/worldNews'},
   {n:'Wash. Examiner', u:'https://www.washingtonexaminer.com/feed'},
   {n:'Military Times', u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
   {n:'OC Register', u:'https://www.ocregister.com/feed/'},
@@ -1520,7 +1521,7 @@ async function loadTicker() {
     try {
       const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
       const d = await r.json();
-      const _raw2=await r.json();const xml = new DOMParser().parseFromString(_raw2.contents||_raw2,'text/xml');
+      const _j2=await r.json();const xml = new DOMParser().parseFromString(_j2.contents||'','text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0, 6).forEach(it => {
         const title = it.querySelector('title')?.textContent?.trim() || '';
         const link  = it.querySelector('link')?.textContent?.trim() || '#';
