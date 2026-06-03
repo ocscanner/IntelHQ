@@ -2335,7 +2335,9 @@ async function fetchTLEGroup(group) {
 
   for (const url of urls) {
     try {
+      console.log('[TLE] Trying', group.key, ':', url.slice(0,70));
       const r = await fetch(url);
+      console.log('[TLE]', group.key, 'status:', r.status);
       if (!r.ok) continue;
       let text;
       if (url.includes('allorigins')) {
@@ -2479,11 +2481,16 @@ async function initSatelliteRadar() {
 
   // Load satellite.js and TLE data directly
   try {
+    console.log('[Sat] Loading satellite.js...');
     satLib = await loadSatelliteJS();
+    console.log('[Sat] satellite.js loaded:', !!satLib);
+    console.log('[Sat] Loading TLEs...');
     await loadAllTLEs();
+    console.log('[Sat] TLEs loaded:', allTLEs.length, 'objects');
     setInterval(refreshSatellites, 10000);
     setInterval(loadAllTLEs, 5 * 60 * 1000);
   } catch(e) {
+    console.log('[Sat] Error:', e.message);
     document.getElementById('sat-data-panel').innerHTML =
       '<div class="radar-empty">⚠ Could not load satellite.js or TLE data.</div>';
   }
