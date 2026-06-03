@@ -2055,15 +2055,20 @@ const SAT_R    = SAT_C - 10;
 // TLE groups to load from CelesTrak
 const TLE_GROUPS = [
   { key:'stations', label:'Space Stations', color:'#00ff9d',
-    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE' },
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE',
+    alt:'https://tle.ivanstanojevic.me/api/tle/?search=ISS&format=json' },
   { key:'starlink',  label:'Starlink',       color:'#00b4ff',
-    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=TLE' },
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=TLE',
+    alt:'https://tle.ivanstanojevic.me/api/tle/?search=STARLINK&format=json&page-size=100' },
   { key:'weather',   label:'Weather',        color:'#ffb700',
-    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=TLE' },
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=TLE',
+    alt:'https://tle.ivanstanojevic.me/api/tle/?search=NOAA&format=json' },
   { key:'gps',       label:'GPS/Nav',        color:'#af52de',
-    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=TLE' },
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=TLE',
+    alt:'https://tle.ivanstanojevic.me/api/tle/?search=GPS&format=json' },
   { key:'visual',    label:'Visual',         color:'#ff4d2e',
-    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=TLE' },
+    url:'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=TLE',
+    alt:null },
 ];
 
 function setSatFilter(f, btn) {
@@ -2320,45 +2325,67 @@ function renderSatPanel() {
 let allTLEs = [];
 
 async function fetchTLEGroup(group) {
-  // Try multiple sources — CelesTrak direct, worker proxy, and JSON format
-  const jsonUrl = group.url.replace('FORMAT=TLE', 'FORMAT=JSON');
-  const urls = [
-    // Direct CelesTrak (works if they allow CORS)
-    group.url,
-    // JSON format (smaller, more proxy-friendly)
-    jsonUrl,
-    // Via our worker proxy
-    `https://oc-radar-proxy.ocscannernews.workers.dev/tle?url=${encodeURIComponent(group.url)}`,
-    // Via allorigins as last resort
-    `https://api.allorigins.win/get?url=${encodeURIComponent(group.url)}`,
-  ];
-
-  for (const url of urls) {
-    try {
-      console.log('[TLE] Trying', group.key, ':', url.slice(0,70));
-      const r = await fetch(url);
-      console.log('[TLE]', group.key, 'status:', r.status);
-      if (!r.ok) continue;
-      let text;
-      if (url.includes('allorigins')) {
-        const j = await r.json();
-        text = j.contents || '';
-      } else if (url.includes('FORMAT=JSON') || url.includes('/tle?')) {
-        // Handle JSON TLE format from CelesTrak
-        const j = await r.json();
-        if (Array.isArray(j)) {
-          // Convert JSON TLE format to text TLE format
-          text = j.map(s => `${s.OBJECT_NAME}\n${s.TLE_LINE1}\n${s.TLE_LINE2}`).join('\n');
-        } else {
-          text = await r.text();
-        }
-      } else {
-        text = await r.text();
+  // Helper: parse tle.ivanstanojevic.me JSON response
+  function parseIvanJSON(data, grp) {
+    const members = data.member || (Array.isArray(data) ? data : []);
+    const lines = [];
+    members.forEach(s => {
+      if (s.name && s.line1 && s.line2) {
+        lines.push(s.name + '\n' + s.line1 + '\n' + s.line2);
       }
-      if (!text || (!text.includes('1 ') && !text.includes('2 '))) continue;
-      return parseTLE(text, group);
-    } catch(e) { continue; }
+    });
+    return lines.length ? parseTLE(lines.join('\n'), grp) : [];
   }
+
+  const TIMEOUT = 6000;
+  function tFetch(url) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), TIMEOUT);
+      fetch(url).then(r => { clearTimeout(t); resolve(r); }).catch(e => { clearTimeout(t); reject(e); });
+    });
+  }
+
+  // 1. Try alt source first (tle.ivanstanojevic.me has open CORS)
+  if (group.alt) {
+    try {
+      console.log('[TLE] Alt source:', group.key, group.alt.slice(0,60));
+      const r = await tFetch(group.alt);
+      if (r.ok) {
+        const j = await r.json();
+        const result = parseIvanJSON(j, group);
+        if (result.length) { console.log('[TLE]', group.key, 'got', result.length, 'from alt'); return result; }
+      }
+    } catch(e) { console.log('[TLE] Alt failed:', group.key, e.message); }
+  }
+
+  // 2. Try worker proxy (CelesTrak via Cloudflare)
+  try {
+    const wUrl = 'https://oc-radar-proxy.ocscannernews.workers.dev/tle?url=' + encodeURIComponent(group.url);
+    console.log('[TLE] Worker proxy:', group.key);
+    const r = await tFetch(wUrl);
+    if (r.ok) {
+      const text = await r.text();
+      if (text && (text.includes('1 ') || text.includes('2 '))) {
+        const result = parseTLE(text, group);
+        if (result.length) { console.log('[TLE]', group.key, 'got', result.length, 'from worker'); return result; }
+      }
+    }
+  } catch(e) { console.log('[TLE] Worker failed:', group.key, e.message); }
+
+  // 3. Try CelesTrak direct
+  try {
+    console.log('[TLE] Direct:', group.key);
+    const r = await tFetch(group.url);
+    if (r.ok) {
+      const text = await r.text();
+      if (text && (text.includes('1 ') || text.includes('2 '))) {
+        const result = parseTLE(text, group);
+        if (result.length) { console.log('[TLE]', group.key, 'got', result.length, 'from direct'); return result; }
+      }
+    }
+  } catch(e) { console.log('[TLE] Direct failed:', group.key, e.message); }
+
+  console.log('[TLE]', group.key, 'all sources failed');
   return [];
 }
 
