@@ -2477,12 +2477,18 @@ async function initSatelliteRadar() {
 }
 
 /* ── NAV ── */
+let radarInitialized = false;
 document.querySelectorAll('.ntab').forEach(t=>{
   t.addEventListener('click',()=>{
     document.querySelectorAll('.ntab').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.p).classList.add('active');
+    // Init radar on first click of radar tab
+    if (t.dataset.p === 'radar' && !radarInitialized) {
+      radarInitialized = true;
+      setTimeout(() => initRadar(), 100); // small delay so panel is visible/sized
+    }
   });
 });
 
@@ -2496,7 +2502,6 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 loadQuakes();loadFires();loadFEMA();
-initRadar();
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
@@ -2505,3 +2510,4 @@ setNextElection();
 </script>
 </body>
 </html>
+
