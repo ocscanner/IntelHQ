@@ -1681,6 +1681,9 @@ function isMilitary(ac) {
   return false;
 }
 
+// Miles per degree latitude
+const MI_PER_DEG = 69.0;
+
 function latLonToRadar(lat, lon) {
   const dx = (lon - RADAR_LON) * MI_PER_DEG * Math.cos(RADAR_LAT * Math.PI / 180);
   const dy = (lat - RADAR_LAT) * MI_PER_DEG;
