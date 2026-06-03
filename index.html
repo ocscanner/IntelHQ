@@ -2320,33 +2320,44 @@ function renderSatPanel() {
 let allTLEs = [];
 
 async function fetchTLEGroup(group) {
-  // Race all sources in parallel — fastest wins
+  // Try multiple sources — CelesTrak direct, worker proxy, and JSON format
+  const jsonUrl = group.url.replace('FORMAT=TLE', 'FORMAT=JSON');
   const urls = [
+    // Direct CelesTrak (works if they allow CORS)
     group.url,
+    // JSON format (smaller, more proxy-friendly)
+    jsonUrl,
+    // Via our worker proxy
+    `https://oc-radar-proxy.ocscannernews.workers.dev/tle?url=${encodeURIComponent(group.url)}`,
+    // Via allorigins as last resort
     `https://api.allorigins.win/get?url=${encodeURIComponent(group.url)}`,
   ];
 
-  const attempts = urls.map(async url => {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    let text;
-    if (url.includes('allorigins')) {
-      const j = await r.json();
-      text = j.contents || '';
-    } else {
-      text = await r.text();
-    }
-    if (!text || (!text.includes('1 ') && !text.includes('2 '))) {
-      throw new Error('No TLE data');
-    }
-    return parseTLE(text, group);
-  });
-
-  try {
-    return await Promise.any(attempts);
-  } catch(e) {
-    return [];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      let text;
+      if (url.includes('allorigins')) {
+        const j = await r.json();
+        text = j.contents || '';
+      } else if (url.includes('FORMAT=JSON') || url.includes('/tle?')) {
+        // Handle JSON TLE format from CelesTrak
+        const j = await r.json();
+        if (Array.isArray(j)) {
+          // Convert JSON TLE format to text TLE format
+          text = j.map(s => `${s.OBJECT_NAME}\n${s.TLE_LINE1}\n${s.TLE_LINE2}`).join('\n');
+        } else {
+          text = await r.text();
+        }
+      } else {
+        text = await r.text();
+      }
+      if (!text || (!text.includes('1 ') && !text.includes('2 '))) continue;
+      return parseTLE(text, group);
+    } catch(e) { continue; }
   }
+  return [];
 }
 
 async function loadSatelliteJS() {
