@@ -1955,14 +1955,10 @@ async function fetchRadarData() {
   for (const url of getRadarAPIs()) {
     try {
       console.log('[Radar] Trying:', url);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
       const r = await fetch(url, {
-        signal: controller.signal,
         cache: 'no-store',
         headers: { 'Accept': 'application/json' }
       });
-      clearTimeout(timer);
       console.log('[Radar] Status:', r.status);
       if (!r.ok) continue;
       const data = await r.json();
@@ -2328,10 +2324,7 @@ async function fetchTLEGroup(group) {
   ];
 
   const attempts = urls.map(async url => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    const r = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
+    const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     let text;
     if (url.includes('allorigins')) {
@@ -2516,4 +2509,3 @@ setNextElection();
 </script>
 </body>
 </html>
-
