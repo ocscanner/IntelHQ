@@ -2110,8 +2110,11 @@ async function loadTFRs() {
     const r = await fetch('https://oc-radar-proxy.ocscannernews.workers.dev/tfr');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
+    console.log('[TFR] Raw response:', JSON.stringify(data).slice(0, 300));
+    console.log('[TFR] count:', data.count, 'error:', data.error);
     allTFRs = Array.isArray(data) ? data : (data.TFRs || data.tfrs || []);
     console.log('[TFR] Loaded:', allTFRs.length, 'TFRs');
+    if (allTFRs.length > 0) console.log('[TFR] First TFR:', JSON.stringify(allTFRs[0]));
     renderTFRs();
   } catch(e) {
     console.log('[TFR] Error:', e.message);
