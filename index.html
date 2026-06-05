@@ -132,6 +132,19 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .radar-refresh{font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:auto}
 .radar-refresh span{color:var(--accent3)}
 
+/* TFR CARDS */
+.tfr-card{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:5px;padding:8px 11px;font-size:.8rem}
+.tfr-card.vip{border-left-color:#af52de}
+.tfr-card.security{border-left-color:var(--danger)}
+.tfr-card.fire{border-left-color:var(--accent2)}
+.tfr-card.hazard{border-left-color:var(--warn)}
+.tfr-card.uas{border-left-color:var(--accent)}
+.tfr-card .tfr-type{font-family:var(--fm);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.tfr-card .tfr-title{font-family:var(--fu);font-weight:600;color:var(--text);margin:2px 0;line-height:1.3;font-size:.83rem}
+.tfr-card .tfr-meta{font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:3px}
+.tfr-card a{color:var(--accent);text-decoration:none;font-size:.7rem}
+.tfr-card a:hover{text-decoration:underline}
+
 /* MARKET TICKER */
 .market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
 .market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
@@ -675,6 +688,36 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       <span><span style="color:#ff3b30">●</span> Military</span>
       <span><span style="color:#00ff9d">●</span> Selected</span>
       <span style="margin-left:auto">Data: airplanes.live / adsb.lol / OpenSky</span>
+    </div>
+
+    <!-- TFR LIST -->
+    <div style="margin-top:18px">
+      <div class="sh">
+        <h2>🚫 Active TFRs — Nationwide</h2>
+        <span class="ltag">LIVE</span>
+        <span id="tfr-count" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:4px"></span>
+        <button class="rbtn" onclick="loadTFRs()">↺ Refresh</button>
+      </div>
+
+      <!-- Filter pills -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="tfr-filter-bar">
+        <button class="gpill active" onclick="setTFRFilter('ALL',this)">All</button>
+        <button class="gpill" onclick="setTFRFilter('VIP',this)">👤 VIP</button>
+        <button class="gpill" onclick="setTFRFilter('SECURITY',this)">🔒 Security</button>
+        <button class="gpill" onclick="setTFRFilter('HAZARDS',this)">⚠ Hazards</button>
+        <button class="gpill" onclick="setTFRFilter('FIRE',this)">🔥 Fire</button>
+        <button class="gpill" onclick="setTFRFilter('EVENT',this)">🎪 Event</button>
+        <button class="gpill" onclick="setTFRFilter('UAS',this)">🛸 UAS</button>
+      </div>
+
+      <div id="tfr-feed" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;max-height:420px;overflow-y:auto">
+        <div class="loader">Loading TFR data…</div>
+      </div>
+      <div class="pills" style="margin-top:8px">
+        <a class="pill" href="https://tfr.faa.gov/tfr3/?page=tfr" target="_blank">FAA TFR Full List →</a>
+        <a class="pill" href="https://tfr.faa.gov/tfr3/?page=map" target="_blank">FAA TFR Map →</a>
+        <a class="pill" href="https://skyvector.com/" target="_blank">SkyVector →</a>
+      </div>
     </div>
   </div>
 
@@ -2018,6 +2061,64 @@ function initRadar() {
   });
 }
 
+/* ── TFR DATA ── */
+let allTFRs = [];
+let tfrFilter = 'ALL';
+
+const TFR_TYPE_MAP = {
+  'VIP':      { label:'👤 VIP',      cls:'vip'      },
+  'SECURITY': { label:'🔒 Security', cls:'security' },
+  'HAZARDS':  { label:'⚠ Hazard',   cls:'hazard'   },
+  'FIRE':     { label:'🔥 Fire',     cls:'fire'     },
+  'EVENT':    { label:'🎪 Event',    cls:'hazard'   },
+  'UAS':      { label:'🛸 UAS',      cls:'uas'      },
+};
+
+function setTFRFilter(f, btn) {
+  tfrFilter = f;
+  document.querySelectorAll('#tfr-filter-bar .gpill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderTFRs();
+}
+
+function renderTFRs() {
+  const el    = document.getElementById('tfr-feed');
+  const count = document.getElementById('tfr-count');
+  if (!el) return;
+  const filtered = tfrFilter === 'ALL' ? allTFRs : allTFRs.filter(t => (t.type||'').toUpperCase().includes(tfrFilter));
+  if (count) count.textContent = '(' + filtered.length + ' active)';
+  if (!filtered.length) { el.innerHTML = '<div class="empty">✅ No active TFRs matching filter</div>'; return; }
+  el.innerHTML = '';
+  filtered.forEach(tfr => {
+    const typeKey = Object.keys(TFR_TYPE_MAP).find(k => (tfr.type||'').toUpperCase().includes(k)) || 'OTHER';
+    const typeInfo = TFR_TYPE_MAP[typeKey] || { label: tfr.type || 'TFR', cls: 'hazard' };
+    const card = document.createElement('div');
+    card.className = 'tfr-card ' + typeInfo.cls;
+    const notamClean = (tfr.notam||'').replace('/','_');
+    const detailUrl = tfr.links?.details || ('https://tfr.faa.gov/tfr3/?page=detail_' + notamClean);
+    card.innerHTML = '<div class="tfr-type">' + typeInfo.label + ' · ' + (tfr.facility||'') + ' · ' + (tfr.state||'') + '</div>'
+      + '<div class="tfr-title">' + (tfr.description||tfr.notam||'TFR Active') + '</div>'
+      + '<div class="tfr-meta">NOTAM ' + (tfr.notam||'--') + ' · ' + (tfr.date||'') + ' · <a href="' + detailUrl + '" target="_blank" rel="noopener">Details →</a></div>';
+    el.appendChild(card);
+  });
+}
+
+async function loadTFRs() {
+  const el = document.getElementById('tfr-feed');
+  if (el) el.innerHTML = '<div class="loader">Loading TFR data…</div>';
+  try {
+    const r = await fetch('https://oc-radar-proxy.ocscannernews.workers.dev/tfr');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    allTFRs = Array.isArray(data) ? data : (data.TFRs || data.tfrs || []);
+    console.log('[TFR] Loaded:', allTFRs.length, 'TFRs');
+    renderTFRs();
+  } catch(e) {
+    console.log('[TFR] Error:', e.message);
+    if (el) el.innerHTML = '<div class="empty">⚠ Unable to load TFRs. <a href="https://tfr.faa.gov/tfr3/?page=tfr" target="_blank" style="color:var(--accent)">View on FAA →</a></div>';
+  }
+}
+
 /* ══════════════════════════════════════
    RADAR MODE SWITCHER
 ══════════════════════════════════════ */
@@ -2484,7 +2585,11 @@ document.querySelectorAll('.ntab').forEach(t=>{
     // Init radar on first click of radar tab
     if (t.dataset.p === 'radar' && !radarInitialized) {
       radarInitialized = true;
-      setTimeout(() => initRadar(), 100); // small delay so panel is visible/sized
+      setTimeout(() => {
+        initRadar();
+        loadTFRs();
+        setInterval(loadTFRs, 5 * 60 * 1000);
+      }, 100);
     }
   });
 });
