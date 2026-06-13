@@ -1115,10 +1115,10 @@ const AVIATION_CHANNELS = [
 
 /* News streams rendered in News tab */
 const NEWS_LIVE_STREAMS = [
-  {name:"FOX News Live",      url:"https://www.youtube.com/embed/live_stream?channel=UCXIJgqnII2ZOINSWNf17yeA&autoplay=1&mute=1"},
+  {name:"LiveNOW from FOX",   url:"https://www.youtube.com/embed/live_stream?channel=UCJg9wBPyKMNA5sRDnvzmkdg&autoplay=1&mute=1&playsinline=1"},
   {name:"Newsmax2 Live",      url:"https://www.youtube.com/embed/oPtapPqfO_0?autoplay=1&mute=1&playsinline=1"},
-  {name:"NewsNation Live",    url:"https://www.youtube.com/embed/live_stream?channel=UCG7P3nP5Lrh6OTfCVUI-rTg&autoplay=1&mute=1"},
-  {name:"C-SPAN Live",        url:"https://www.youtube.com/embed/live_stream?channel=UC783OHgMPBECODSBMJHp9DQ&autoplay=1&mute=1"},
+  {name:"NewsNation Live",    url:"https://www.youtube.com/embed/live_stream?channel=UCkm99LrT7pKJMOwYpdJ9l7A&autoplay=1&mute=1&playsinline=1"},
+  {name:"C-SPAN Live",        url:"https://www.youtube.com/embed/live_stream?channel=UCb--64Gl51jIEVE-GLDAVTg&autoplay=1&mute=1&playsinline=1"},
 ];
 
 let customStreams = JSON.parse(sessionStorage.getItem('ocs-custom')||'[]');
@@ -1142,6 +1142,9 @@ function fmt(date,tz,secs){
 /* ── STREAM CELL BUILDER ── */
 function buildStreamCell(ch, key, showStop=true) {
   const id=ytId(ch.url);
+  // For channel live streams, popout should open the channel's /live page
+  const chM=ch.url.match(/channel=([A-Za-z0-9_-]+)/);
+  const popUrl = chM ? `https://www.youtube.com/channel/${chM[1]}/live` : ch.url;
   const cell=document.createElement('div');cell.className='scell';
   cell.innerHTML=`
     <div class="shdr"><span class="slabel">${ch.name}</span><span class="stbadge">${ch._gl||'YouTube'}</span></div>
@@ -1154,7 +1157,7 @@ function buildStreamCell(ch, key, showStop=true) {
     <div class="sacts">
       <button class="sbtn" onclick="playStream('${key}','${encodeURIComponent(ch.url)}')">▶ Play</button>
       <button class="sbtn foc" onclick="openFocus('${encodeURIComponent(ch.url)}')">⛶ Focus</button>
-      <button class="sbtn" onclick="window.open('${ch.url}','_blank','noopener,noreferrer,width=960,height=600')">↗ Popout</button>
+      <button class="sbtn" onclick="window.open('${popUrl}','_blank','noopener,noreferrer,width=960,height=600')">↗ Popout</button>
       ${showStop?`<button class="sbtn" onclick="stopStream('${key}')">■ Stop</button>`:''}
     </div>`;
   return cell;
@@ -1212,7 +1215,12 @@ function renderNewsStreams(){
 }
 
 function playStream(key,enc){
-  const url=decodeURIComponent(enc);
+  let url=decodeURIComponent(enc);
+  // Normalize channel-based live streams to the working nocookie embed endpoint
+  const chMatch=url.match(/channel=([A-Za-z0-9_-]+)/);
+  if(url.includes('live_stream')&&chMatch){
+    url=`https://www.youtube-nocookie.com/embed/live_stream?channel=${chMatch[1]}&autoplay=1&mute=1&playsinline=1`;
+  }
   const b=document.getElementById('sb-'+key);if(!b)return;
   b.innerHTML=`<iframe src="${url}" title="Stream" loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; autoplay" allowfullscreen style="width:100%;height:100%;border:0"></iframe>`;
 }
