@@ -2867,7 +2867,17 @@ setNextElection();
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('/IntelHQ/sw.js')
-        .then(reg => console.log('[SW] Registered:', reg.scope))
+        .then(reg => {
+          console.log('[SW] Registered:', reg.scope);
+          reg.onupdatefound = () => {
+            const newWorker = reg.installing;
+            newWorker.onstatechange = () => {
+              if (newWorker.state === 'activated') {
+                window.location.reload();
+              }
+            };
+          };
+        })
         .catch(err => console.warn('[SW] Registration failed:', err));
     });
   }
