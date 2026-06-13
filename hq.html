@@ -814,6 +814,12 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <!-- Upcoming Launches -->
     <div>
       <div class="sh"><h2>📅 Upcoming Launches</h2><span class="mtag">SCHEDULE</span><button class="rbtn" onclick="loadLaunches()">↺</button></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-family:var(--fm);font-size:.66rem;color:var(--muted)">
+        <span><span style="color:#00ff9d">●</span> Vandenberg</span>
+        <span><span style="color:#00b4ff">●</span> Kennedy/Cape</span>
+        <span><span style="color:#ff4d2e">●</span> Starbase</span>
+        <span><span style="color:#af52de">●</span> Other</span>
+      </div>
       <div id="launch-list" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">
         <div class="loader">Loading launch schedule…</div>
       </div>
@@ -2147,6 +2153,20 @@ function initRadar() {
 let spaceInitialized = false;
 let nextLaunchTimer = null;
 
+// Detect launch site and assign color
+function launchSite(l) {
+  const loc = (l.pad?.location?.name || l.location || l.pad?.name || '').toLowerCase();
+  const name = (l.name || '').toLowerCase();
+  const hay = loc + ' ' + name;
+  if (hay.includes('vandenberg') || hay.includes('vsfb'))
+    return { label: 'Vandenberg SFB', icon: '🌲', color: '#00ff9d' };
+  if (hay.includes('kennedy') || hay.includes('cape canaveral') || hay.includes('ksc') || hay.includes('lc-39') || hay.includes('slc-40') || hay.includes('ccsfs') || hay.includes('florida'))
+    return { label: 'Kennedy / Cape Canaveral', icon: '🚀', color: '#00b4ff' };
+  if (hay.includes('starbase') || hay.includes('boca chica') || hay.includes('brownsville'))
+    return { label: 'Starbase', icon: '⭐', color: '#ff4d2e' };
+  return { label: l.pad?.location?.name || l.location || 'Other Site', icon: '📍', color: '#af52de' };
+}
+
 async function loadLaunches() {
   const listEl = document.getElementById('launch-list');
   const nextEl = document.getElementById('next-launch');
@@ -2188,11 +2208,14 @@ async function loadLaunches() {
     listEl.innerHTML = '';
     launches.forEach(l => {
       const dt = new Date(l.net);
+      const site = launchSite(l);
       const card = document.createElement('div');
-      card.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:5px;padding:9px 12px';
+      card.style.cssText = `background:var(--bg3);border:1px solid var(--border);border-left:3px solid ${site.color};border-radius:5px;padding:9px 12px`;
       card.innerHTML = `
         <div style="font-family:var(--fu);font-weight:600;color:var(--text);font-size:.85rem">${l.name}</div>
-        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:3px">${l.provider || ''} · ${dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})} ${dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</div>
+        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:3px">
+          <span style="color:${site.color}">${site.icon} ${site.label}</span> · ${dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})} ${dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
+        </div>
       `;
       listEl.appendChild(card);
     });
