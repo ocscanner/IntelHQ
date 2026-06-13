@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OC Scanner · Command Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#111d28;
+  --border:rgba(0,180,255,.10);--border2:rgba(0,180,255,.22);
+  --accent:#00b4ff;--accent2:#ff4d2e;--accent3:#00ff9d;
+  --muted:#7a9aaa;--text:#eef4f8;--text2:#b8d0dc;
+  --warn:#ffb700;--danger:#ff3b30;
+  --fm:'Share Tech Mono',monospace;--fu:'Barlow Condensed',sans-serif;--fh:'Rajdhani',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--fu);background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;
+  overflow-x:hidden;position:relative;
+}
+
+/* Scanline overlay */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,180,255,.012) 3px,rgba(0,0,0,0) 4px);
+}
+
+/* Ambient radar sweep behind everything */
+.radar-bg{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  z-index:0;pointer-events:none;opacity:.5;
+}
+.radar-bg svg{width:min(140vh,140vw);height:min(140vh,140vw)}
+.ring{fill:none;stroke:rgba(0,180,255,.07);stroke-width:1}
+.cross{stroke:rgba(0,180,255,.05);stroke-width:1}
+.sweep-line{transform-origin:500px 500px;animation:sweep 8s linear infinite}
+@keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.blip{fill:var(--accent3);opacity:0;animation:blip 8s linear infinite}
+@keyframes blip{0%,100%{opacity:0}3%{opacity:.9}40%{opacity:0}}
+
+/* Status bar */
+#sb{
+  position:relative;z-index:10;
+  background:linear-gradient(90deg,#020d14,#040f1a);border-bottom:1px solid var(--border2);
+  padding:8px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+  font-family:var(--fm);font-size:.78rem;
+}
+.sbi{display:flex;align-items:center;gap:7px;color:var(--text2)}
+.sbi .lbl{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}
+.sbi .val{color:var(--accent);font-weight:600}
+.pdot{width:8px;height:8px;border-radius:50%;background:var(--accent3);animation:pulse 1.6s ease-in-out infinite;box-shadow:0 0 8px var(--accent3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sdiv{width:1px;height:16px;background:var(--border2)}
+
+/* Main */
+main{
+  position:relative;z-index:10;flex:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:40px 20px;gap:0;
+}
+
+.boot{opacity:0;animation:boot .8s ease forwards}
+.boot.d1{animation-delay:.1s}
+.boot.d2{animation-delay:.35s}
+.boot.d3{animation-delay:.6s}
+.boot.d4{animation-delay:.85s}
+.boot.d5{animation-delay:1.1s}
+@keyframes boot{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.badge{
+  width:96px;height:96px;border-radius:20px;margin:0 auto 22px;
+  background:linear-gradient(135deg,#003d66,#00b4ff);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--fh);font-weight:700;font-size:2.2rem;color:#fff;letter-spacing:.04em;
+  box-shadow:0 0 50px rgba(0,180,255,.4);
+  position:relative;
+}
+.badge::before{
+  content:"";position:absolute;inset:-3px;border-radius:22px;
+  border:1px solid var(--border2);
+}
+
+h1{
+  font-family:var(--fh);font-weight:700;letter-spacing:.16em;
+  font-size:clamp(2.4rem,7vw,4.2rem);line-height:.95;color:#fff;
+  text-shadow:0 0 40px rgba(0,180,255,.25);
+}
+.tagline{
+  font-family:var(--fm);font-size:clamp(.7rem,2vw,.85rem);
+  color:var(--accent);letter-spacing:.34em;text-transform:uppercase;
+  margin-top:14px;
+}
+.classified{
+  font-family:var(--fm);font-size:.66rem;color:var(--muted);
+  letter-spacing:.2em;margin-top:8px;text-transform:uppercase;
+}
+
+/* Live stat readout */
+.stats{
+  display:flex;gap:0;margin:34px 0 36px;
+  border:1px solid var(--border2);border-radius:8px;overflow:hidden;
+  background:rgba(8,16,24,.6);backdrop-filter:blur(4px);
+}
+.stat{
+  padding:12px 22px;display:flex;flex-direction:column;gap:3px;min-width:96px;
+  border-right:1px solid var(--border);
+}
+.stat:last-child{border-right:none}
+.stat .v{font-family:var(--fm);font-size:1.15rem;font-weight:700;color:var(--accent3)}
+.stat .k{font-family:var(--fm);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+
+/* Primary CTA */
+.enter{
+  display:inline-flex;align-items:center;gap:14px;
+  font-family:var(--fh);font-weight:700;font-size:1.15rem;letter-spacing:.14em;
+  text-transform:uppercase;text-decoration:none;color:#021018;
+  background:linear-gradient(135deg,#00b4ff,#00ff9d);
+  padding:17px 42px;border-radius:8px;
+  box-shadow:0 0 40px rgba(0,180,255,.35);
+  transition:transform .2s,box-shadow .2s;
+}
+.enter:hover{transform:translateY(-2px);box-shadow:0 0 60px rgba(0,255,157,.5)}
+.enter .arr{font-size:1.3rem;transition:transform .2s}
+.enter:hover .arr{transform:translateX(5px)}
+
+/* Quick launch grid */
+.quick{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+  gap:10px;margin-top:36px;width:100%;max-width:680px;
+}
+.q{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:16px 10px;text-decoration:none;
+  background:rgba(15,24,32,.7);backdrop-filter:blur(4px);
+  border:1px solid var(--border);border-radius:8px;
+  transition:all .2s;
+}
+.q:hover{border-color:var(--accent);background:rgba(0,180,255,.08);transform:translateY(-2px)}
+.q .qi{font-size:1.5rem}
+.q .qt{font-family:var(--fu);font-weight:600;font-size:.85rem;letter-spacing:.05em;color:var(--text);text-transform:uppercase}
+
+/* Footer */
+footer{
+  position:relative;z-index:10;text-align:center;padding:18px;
+  font-family:var(--fm);font-size:.66rem;color:var(--muted);letter-spacing:.1em;
+  border-top:1px solid var(--border);
+}
+footer .au{color:var(--accent2);letter-spacing:.14em}
+
+@media(max-width:480px){
+  .stats{flex-wrap:wrap}
+  .stat{flex:1;min-width:50%;border-bottom:1px solid var(--border)}
+}
+@media(prefers-reduced-motion:reduce){
+  .boot{animation:none;opacity:1}
+  .sweep-line,.blip,.pdot{animation:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Ambient radar -->
+<div class="radar-bg" aria-hidden="true">
+  <svg viewBox="0 0 1000 1000">
+    <circle class="ring" cx="500" cy="500" r="480"/>
+    <circle class="ring" cx="500" cy="500" r="360"/>
+    <circle class="ring" cx="500" cy="500" r="240"/>
+    <circle class="ring" cx="500" cy="500" r="120"/>
+    <line class="cross" x1="500" y1="20" x2="500" y2="980"/>
+    <line class="cross" x1="20" y1="500" x2="980" y2="500"/>
+    <g class="sweep-line">
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="rgba(0,255,157,0)"/>
+          <stop offset="100%" stop-color="rgba(0,255,157,.22)"/>
+        </linearGradient>
+      </defs>
+      <path d="M500 500 L980 500 A480 480 0 0 0 760 86 Z" fill="url(#sg)"/>
+      <line x1="500" y1="500" x2="980" y2="500" stroke="rgba(0,255,157,.5)" stroke-width="2"/>
+    </g>
+    <circle class="blip" cx="690" cy="360" r="5" style="animation-delay:1.2s"/>
+    <circle class="blip" cx="330" cy="600" r="5" style="animation-delay:3.4s"/>
+    <circle class="blip" cx="620" cy="640" r="5" style="animation-delay:5.1s"/>
+    <circle class="blip" cx="410" cy="320" r="5" style="animation-delay:6.6s"/>
+  </svg>
+</div>
+
+<!-- Status bar -->
+<div id="sb">
+  <div class="sbi"><span class="pdot"></span><span class="val">SYSTEMS ONLINE</span></div>
+  <div class="sdiv"></div>
+  <div class="sbi"><span class="lbl">Local</span><span class="val" id="clk-local">--:--:--</span></div>
+  <div class="sbi"><span class="lbl">UTC</span><span class="val" id="clk-utc">--:--:--</span></div>
+  <div class="sdiv"></div>
+  <div class="sbi"><span class="lbl">Sector</span><span class="val">ORANGE COUNTY · CA</span></div>
+</div>
+
+<main>
+  <div class="boot d1">
+    <div class="badge">OC</div>
+  </div>
+  <h1 class="boot d1">OC SCANNER</h1>
+  <div class="tagline boot d2">Intel HQ · Unified Command</div>
+  <div class="classified boot d2">Authorized Personnel Only</div>
+
+  <div class="stats boot d3">
+    <div class="stat"><span class="v" id="s-aircraft">--</span><span class="k">Aircraft</span></div>
+    <div class="stat"><span class="v" id="s-temp">--</span><span class="k">OC Temp</span></div>
+    <div class="stat"><span class="v" id="s-quakes">--</span><span class="k">Quakes 24h</span></div>
+    <div class="stat"><span class="v" id="s-status">●</span><span class="k">Feeds</span></div>
+  </div>
+
+  <a class="enter boot d4" href="hq.html">Enter Intel HQ <span class="arr">→</span></a>
+
+  <div class="quick boot d5">
+    <a class="q" href="hq.html#radar"><span class="qi">📡</span><span class="qt">Radar</span></a>
+    <a class="q" href="hq.html#traffic"><span class="qi">✈</span><span class="qt">Flights</span></a>
+    <a class="q" href="hq.html#space"><span class="qi">🚀</span><span class="qt">Space</span></a>
+    <a class="q" href="hq.html#weather"><span class="qi">⛈</span><span class="qt">Weather</span></a>
+    <a class="q" href="hq.html#intel"><span class="qi">🚨</span><span class="qt">Intel</span></a>
+  </div>
+</main>
+
+<footer>
+  OC SCANNER COMMAND · <span class="au">RESTRICTED ACCESS</span> · INTEL HQ v2
+</footer>
+
+<script>
+const RADAR_LAT=33.832721, RADAR_LON=-118.02252;
+
+function clocks(){
+  const now=new Date();
+  const f=(d,tz)=>d.toLocaleTimeString('en-US',{hour12:false,timeZone:tz});
+  const l=document.getElementById('clk-local'); if(l)l.textContent=f(now);
+  const u=document.getElementById('clk-utc'); if(u)u.textContent=f(now,'UTC');
+}
+clocks();setInterval(clocks,1000);
+
+// Live mini-stats
+async function loadStats(){
+  // Aircraft count via worker
+  try{
+    const r=await fetch(`https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=25`);
+    const d=await r.json();
+    const n=(d.ac||d.states||[]).length;
+    const el=document.getElementById('s-aircraft'); if(el)el.textContent=n||'0';
+  }catch(e){const el=document.getElementById('s-aircraft');if(el)el.textContent='—';}
+
+  // OC temperature via Open-Meteo
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${RADAR_LAT}&longitude=${RADAR_LON}&current=temperature_2m&temperature_unit=fahrenheit`);
+    const d=await r.json();
+    const t=Math.round(d.current?.temperature_2m);
+    const el=document.getElementById('s-temp'); if(el)el.textContent=isNaN(t)?'—':t+'°';
+  }catch(e){const el=document.getElementById('s-temp');if(el)el.textContent='—';}
+
+  // SoCal earthquakes 24h via USGS
+  try{
+    const r=await fetch('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime='+new Date(Date.now()-86400000).toISOString().slice(0,10)+'&minlatitude=32.5&maxlatitude=34.5&minlongitude=-119&maxlongitude=-116.5&minmagnitude=2');
+    const d=await r.json();
+    const el=document.getElementById('s-quakes'); if(el)el.textContent=(d.features||[]).length;
+  }catch(e){const el=document.getElementById('s-quakes');if(el)el.textContent='—';}
+
+  // Feeds status
+  const st=document.getElementById('s-status'); if(st){st.textContent='●';st.style.color='var(--accent3)';}
+}
+loadStats();setInterval(loadStats,60000);
+</script>
+</body>
+</html>
