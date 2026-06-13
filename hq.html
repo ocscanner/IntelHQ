@@ -329,6 +329,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="news">📰 News & Politics <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
   <button class="ntab" data-p="radar">📡 Radar</button>
+  <button class="ntab" data-p="space">🚀 Space</button>
   <button class="ntab" data-p="elections">🗳 Elections</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
@@ -697,22 +698,11 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <span class="mtag">FAA</span>
       </div>
 
-      <!-- SkyVector embed - shows TFRs on a sectional chart -->
-      <div style="width:100%;height:420px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000;margin-bottom:12px">
-        <iframe
-          src="https://skyvector.com/?ll=33.832721,-118.02252&chart=301&zoom=2&tfr=1"
-          loading="lazy"
-          title="SkyVector TFR Map"
-          style="width:100%;height:100%;border:0"
-          allowfullscreen>
-        </iframe>
-      </div>
-
-      <!-- Quick launch buttons for each FAA TFR tool -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:10px">
+      <!-- Quick launch buttons for TFR tools -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:12px">
         <a class="ol" href="https://tfr.faa.gov/tfr3/?page=tfr" target="_blank" rel="noopener">
           <span class="oi">📋</span>
-          <div><span>FAA TFR Full List</span><span class="od">189 active TFRs · tfr.faa.gov</span></div>
+          <div><span>FAA TFR Full List</span><span class="od">Active TFRs · tfr.faa.gov</span></div>
         </a>
         <a class="ol" href="https://tfr.faa.gov/tfr3/?page=map" target="_blank" rel="noopener">
           <span class="oi">🗺</span>
@@ -736,9 +726,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         </a>
       </div>
 
-      <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);padding:6px 0">
-        ⚠ FAA does not provide a public TFR API — data must be viewed directly on FAA or third-party tools above.
-        SkyVector map above shows TFRs as red circles on the sectional chart.
+      <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px">
+        ⚠ The FAA does not provide a public TFR data API and blocks all iframe embeds. Use the links above to view active TFRs directly on FAA or third-party tools.
       </div>
     </div>
   </div>
@@ -805,6 +794,75 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <button class="gpill" onclick="setSatFilter('gps',this)">📍 GPS/Nav</button>
         <button class="gpill" onclick="setSatFilter('visual',this)">👁 Visual</button>
       </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════ SPACE ══════════════════ -->
+<div id="panel-space" class="panel">
+
+  <!-- Next Launch Countdown Hero -->
+  <div style="margin-bottom:18px">
+    <div class="sh"><h2>🚀 Next Launch</h2><span class="ltag">LIVE</span></div>
+    <div id="next-launch" style="background:linear-gradient(135deg,#0a1420,#060d16);border:1px solid var(--border2);border-radius:10px;padding:20px">
+      <div class="loader">Loading next launch…</div>
+    </div>
+  </div>
+
+  <div class="two">
+    <!-- Upcoming Launches -->
+    <div>
+      <div class="sh"><h2>📅 Upcoming Launches</h2><span class="mtag">SCHEDULE</span><button class="rbtn" onclick="loadLaunches()">↺</button></div>
+      <div id="launch-list" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto">
+        <div class="loader">Loading launch schedule…</div>
+      </div>
+    </div>
+
+    <!-- Right column: ISS + Space Weather -->
+    <div>
+      <!-- ISS Telemetry -->
+      <div class="sh"><h2>🛰 ISS Telemetry</h2><span class="ltag">LIVE</span></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+        <div class="radar-stat-row" style="margin-bottom:0">
+          <div class="radar-stat"><div class="rs-val" id="iss-lat">--</div><div class="rs-lbl">Latitude</div></div>
+          <div class="radar-stat"><div class="rs-val" id="iss-lon">--</div><div class="rs-lbl">Longitude</div></div>
+          <div class="radar-stat"><div class="rs-val" id="iss-altitude">--</div><div class="rs-lbl">Altitude</div></div>
+          <div class="radar-stat"><div class="rs-val" id="iss-velocity">--</div><div class="rs-lbl">Velocity</div></div>
+        </div>
+        <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-top:10px;text-align:center" id="iss-location">Tracking ISS position…</div>
+      </div>
+
+      <!-- Space Weather -->
+      <div class="sh"><h2>☀ Space Weather</h2><span class="mtag">NOAA SWPC</span></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+        <div class="radar-stat-row" style="margin-bottom:0">
+          <div class="radar-stat"><div class="rs-val" id="sw-kp">--</div><div class="rs-lbl">Kp Index</div></div>
+          <div class="radar-stat"><div class="rs-val" id="sw-wind">--</div><div class="rs-lbl">Solar Wind</div></div>
+          <div class="radar-stat"><div class="rs-val" id="sw-density">--</div><div class="rs-lbl">Density</div></div>
+          <div class="radar-stat"><div class="rs-val" id="sw-bz">--</div><div class="rs-lbl">Bz (nT)</div></div>
+        </div>
+        <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-top:10px;text-align:center" id="sw-status">Loading space weather…</div>
+      </div>
+
+      <!-- Space News -->
+      <div class="sh"><h2>📰 Space News</h2><span class="ltag">LIVE</span></div>
+      <div id="space-news" class="nfeed" style="max-height:280px;overflow-y:auto">
+        <div class="loader">Loading space news…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resources -->
+  <div style="margin-top:18px">
+    <div class="sh"><h2>🔗 Space Resources</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+      <a class="ol" href="https://maxq.app/" target="_blank" rel="noopener"><span class="oi">🚀</span><div><span>MaxQ</span><span class="od">Mission control dashboard</span></div></a>
+      <a class="ol" href="https://www.spacex.com/launches/" target="_blank" rel="noopener"><span class="oi">🛸</span><div><span>SpaceX Launches</span><span class="od">Official launch schedule</span></div></a>
+      <a class="ol" href="https://www.nasa.gov/live/" target="_blank" rel="noopener"><span class="oi">📡</span><div><span>NASA Live</span><span class="od">NASA TV & live events</span></div></a>
+      <a class="ol" href="https://spaceweather.com/" target="_blank" rel="noopener"><span class="oi">☀</span><div><span>SpaceWeather.com</span><span class="od">Solar activity & aurora</span></div></a>
+      <a class="ol" href="https://www.n2yo.com/" target="_blank" rel="noopener"><span class="oi">🛰</span><div><span>N2YO Satellite Tracking</span><span class="od">Real-time satellite positions</span></div></a>
+      <a class="ol" href="https://nextspaceflight.com/" target="_blank" rel="noopener"><span class="oi">📅</span><div><span>Next Spaceflight</span><span class="od">Detailed launch calendar</span></div></a>
     </div>
   </div>
 
@@ -2084,6 +2142,176 @@ function initRadar() {
 }
 
 /* ══════════════════════════════════════
+   SPACE TAB
+══════════════════════════════════════ */
+let spaceInitialized = false;
+let nextLaunchTimer = null;
+
+async function loadLaunches() {
+  const listEl = document.getElementById('launch-list');
+  const nextEl = document.getElementById('next-launch');
+  try {
+    const r = await fetch('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10&mode=list');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const launches = data.results || [];
+    if (!launches.length) throw new Error('No launches');
+
+    // Hero - next launch
+    const next = launches[0];
+    const netDate = new Date(next.net);
+    nextEl.innerHTML = `
+      <div style="font-family:var(--fh);font-size:1.4rem;font-weight:700;color:var(--text);letter-spacing:.04em">${next.name}</div>
+      <div style="font-family:var(--fm);font-size:.8rem;color:var(--accent);margin:6px 0">${next.provider || ''} · ${next.pad?.location?.name || next.location || ''}</div>
+      <div id="countdown-timer" style="font-family:var(--fm);font-size:2rem;font-weight:700;color:var(--accent3);margin:12px 0;letter-spacing:.05em">--:--:--:--</div>
+      <div style="font-family:var(--fm);font-size:.75rem;color:var(--muted)">Liftoff: ${netDate.toLocaleString()}</div>
+    `;
+
+    // Start countdown
+    if (nextLaunchTimer) clearInterval(nextLaunchTimer);
+    function updateCountdown() {
+      const now = new Date();
+      const diff = netDate - now;
+      const tEl = document.getElementById('countdown-timer');
+      if (!tEl) { clearInterval(nextLaunchTimer); return; }
+      if (diff <= 0) { tEl.textContent = '🚀 LIFTOFF'; tEl.style.color = 'var(--accent2)'; clearInterval(nextLaunchTimer); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      tEl.textContent = `T- ${d}d ${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+    }
+    updateCountdown();
+    nextLaunchTimer = setInterval(updateCountdown, 1000);
+
+    // List
+    listEl.innerHTML = '';
+    launches.forEach(l => {
+      const dt = new Date(l.net);
+      const card = document.createElement('div');
+      card.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:5px;padding:9px 12px';
+      card.innerHTML = `
+        <div style="font-family:var(--fu);font-weight:600;color:var(--text);font-size:.85rem">${l.name}</div>
+        <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:3px">${l.provider || ''} · ${dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})} ${dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</div>
+      `;
+      listEl.appendChild(card);
+    });
+  } catch(e) {
+    console.log('[Space] Launch error:', e.message);
+    if (nextEl) nextEl.innerHTML = '<div class="radar-empty">⚠ Launch data unavailable. <a href="https://nextspaceflight.com/" target="_blank" style="color:var(--accent)">View schedule →</a></div>';
+    if (listEl) listEl.innerHTML = '';
+  }
+}
+
+async function loadISS() {
+  try {
+    const r = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    document.getElementById('iss-lat').textContent = d.latitude.toFixed(2) + '°';
+    document.getElementById('iss-lon').textContent = d.longitude.toFixed(2) + '°';
+    document.getElementById('iss-altitude').textContent = Math.round(d.altitude) + ' km';
+    document.getElementById('iss-velocity').textContent = Math.round(d.velocity).toLocaleString() + ' km/h';
+    const lat = d.latitude.toFixed(1), lon = d.longitude.toFixed(1);
+    document.getElementById('iss-location').textContent = `Currently over ${lat}°, ${lon}° · Updated ${new Date().toLocaleTimeString()}`;
+  } catch(e) {
+    console.log('[Space] ISS error:', e.message);
+    document.getElementById('iss-location').textContent = 'ISS telemetry unavailable';
+  }
+}
+
+async function loadSpaceWeather() {
+  // NOAA SWPC - planetary K index
+  try {
+    const kpR = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+    if (kpR.ok) {
+      const kp = await kpR.json();
+      const latest = kp[kp.length - 1];
+      const kpVal = parseFloat(latest[1]);
+      const kpEl = document.getElementById('sw-kp');
+      kpEl.textContent = kpVal.toFixed(1);
+      kpEl.style.color = kpVal >= 5 ? 'var(--danger)' : kpVal >= 4 ? 'var(--warn)' : 'var(--accent3)';
+      const statusEl = document.getElementById('sw-status');
+      if (kpVal >= 5) statusEl.textContent = '⚠ Geomagnetic storm active — aurora possible';
+      else if (kpVal >= 4) statusEl.textContent = 'Unsettled geomagnetic conditions';
+      else statusEl.textContent = 'Quiet geomagnetic conditions';
+    }
+  } catch(e) { console.log('[Space] Kp error:', e.message); }
+
+  // Solar wind - plasma
+  try {
+    const swR = await fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json');
+    if (swR.ok) {
+      const sw = await swR.json();
+      const latest = sw[sw.length - 1];
+      // [time, density, speed, temperature]
+      document.getElementById('sw-wind').textContent = Math.round(parseFloat(latest[2])) + ' km/s';
+      document.getElementById('sw-density').textContent = parseFloat(latest[1]).toFixed(1);
+    }
+  } catch(e) { console.log('[Space] Solar wind error:', e.message); }
+
+  // Magnetic field - Bz
+  try {
+    const magR = await fetch('https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json');
+    if (magR.ok) {
+      const mag = await magR.json();
+      const latest = mag[mag.length - 1];
+      // [time, bx, by, bz, lon, lat, bt]
+      const bz = parseFloat(latest[3]);
+      const bzEl = document.getElementById('sw-bz');
+      bzEl.textContent = bz.toFixed(1);
+      bzEl.style.color = bz < -10 ? 'var(--danger)' : bz < -5 ? 'var(--warn)' : 'var(--text2)';
+    }
+  } catch(e) { console.log('[Space] Bz error:', e.message); }
+}
+
+async function loadSpaceNews() {
+  const el = document.getElementById('space-news');
+  const feeds = [
+    { n:'Spaceflight Now', u:'https://spaceflightnow.com/feed/' },
+    { n:'NASA',            u:'https://www.nasa.gov/feed/' },
+    { n:'Space.com',       u:'https://www.space.com/feeds/all' },
+  ];
+  const items = [];
+  await Promise.allSettled(feeds.map(async f => {
+    try {
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
+      const j = await r.json();
+      const xml = new DOMParser().parseFromString(j.contents || '', 'text/xml');
+      Array.from(xml.querySelectorAll('item')).slice(0,5).forEach(it => {
+        items.push({
+          src: f.n,
+          title: it.querySelector('title')?.textContent || '',
+          link: it.querySelector('link')?.textContent || '#',
+          pub: it.querySelector('pubDate')?.textContent || ''
+        });
+      });
+    } catch(e) {}
+  }));
+  if (!items.length) { el.innerHTML = '<div class="empty">Space news unavailable</div>'; return; }
+  el.innerHTML = '';
+  items.slice(0,12).forEach(it => {
+    const a = document.createElement('a');
+    a.href = it.link; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'ncard';
+    a.innerHTML = `<div class="nsrc">${it.src}</div><div class="ntitle">${it.title}</div>`;
+    el.appendChild(a);
+  });
+}
+
+function initSpace() {
+  if (spaceInitialized) return;
+  spaceInitialized = true;
+  loadLaunches();
+  loadISS();
+  loadSpaceWeather();
+  loadSpaceNews();
+  setInterval(loadISS, 5000);
+  setInterval(loadSpaceWeather, 5 * 60 * 1000);
+  setInterval(loadLaunches, 10 * 60 * 1000);
+}
+
+/* ══════════════════════════════════════
    RADAR MODE SWITCHER
 ══════════════════════════════════════ */
 let currentRadarMode = 'air';
@@ -2552,6 +2780,9 @@ document.querySelectorAll('.ntab').forEach(t=>{
       setTimeout(() => {
         initRadar();
       }, 100);
+    }
+    if (t.dataset.p === 'space') {
+      initSpace();
     }
   });
 });
