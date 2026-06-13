@@ -1,0 +1,27 @@
+{
+  "name": "OC Scanner · Intel HQ",
+  "short_name": "Intel HQ",
+  "description": "OC Scanner Unified Command — live flights, radar, weather, intel, and OSINT for Orange County, CA.",
+  "start_url": "/IntelHQ/",
+  "scope": "/IntelHQ/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "icons": [
+    {
+      "src": "assets/oc-scanner-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/oc-scanner-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["news", "utilities"],
+  "lang": "en-US"
+}
