@@ -2792,24 +2792,39 @@ async function initSatelliteRadar() {
 
 /* ── NAV ── */
 let radarInitialized = false;
+function activateTab(pid){
+  const tab = document.querySelector('.ntab[data-p="'+pid+'"]');
+  const panel = document.getElementById('panel-'+pid);
+  if (!tab || !panel) return;
+  document.querySelectorAll('.ntab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  tab.classList.add('active');
+  panel.classList.add('active');
+  // Init radar on first activation of radar tab
+  if (pid === 'radar' && !radarInitialized) {
+    radarInitialized = true;
+    setTimeout(() => { initRadar(); }, 100);
+  }
+  if (pid === 'space') {
+    initSpace();
+  }
+}
+
 document.querySelectorAll('.ntab').forEach(t=>{
   t.addEventListener('click',()=>{
-    document.querySelectorAll('.ntab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('panel-'+t.dataset.p).classList.add('active');
-    // Init radar on first click of radar tab
-    if (t.dataset.p === 'radar' && !radarInitialized) {
-      radarInitialized = true;
-      setTimeout(() => {
-        initRadar();
-      }, 100);
-    }
-    if (t.dataset.p === 'space') {
-      initSpace();
-    }
+    activateTab(t.dataset.p);
+    history.replaceState(null, '', '#'+t.dataset.p);
   });
 });
+
+// Open the tab specified in the URL hash (from portal quick-launch links)
+function openHashTab(){
+  const hash = (location.hash || '').replace('#','');
+  const valid = ['streams','news','traffic','radar','space','elections','weather','osint','intel'];
+  if (valid.includes(hash)) activateTab(hash);
+}
+window.addEventListener('hashchange', openHashTab);
+openHashTab();
 
 /* ── INIT ── */
 updateClocks();setInterval(updateClocks,1000);
