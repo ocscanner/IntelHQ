@@ -7,6 +7,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="/IntelHQ/manifest.json">
+
+<!-- iOS home-screen support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Intel HQ">
+<link rel="apple-touch-icon" href="/IntelHQ/assets/oc-scanner-logo.png">
+
+<!-- Android / Chrome theme color -->
+<meta name="theme-color" content="#0a0e1a">
 <style>
 :root {
   --bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#111d28;
@@ -2841,6 +2853,16 @@ loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
 loadAirports();setInterval(loadAirports,5*60*1000);
 loadElectionNews();setInterval(loadElectionNews,15*60*1000);
 setNextElection();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/IntelHQ/sw.js')
+        .then(reg => console.log('[SW] Registered:', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed:', err));
+    });
+  }
 </script>
 </body>
 </html>
