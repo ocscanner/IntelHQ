@@ -2192,11 +2192,19 @@ async function loadLaunches() {
   const listEl = document.getElementById('launch-list');
   const nextEl = document.getElementById('next-launch');
   try {
-    const r = await fetch('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10&mode=list');
+    const r = await fetch('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=20&mode=list');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    const launches = data.results || [];
+    let launches = data.results || [];
     if (!launches.length) throw new Error('No launches');
+
+    // Filter out launches that have already lifted off (give 30 min grace for in-progress)
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    launches = launches
+      .filter(l => new Date(l.net).getTime() > cutoff)
+      .sort((a, b) => new Date(a.net) - new Date(b.net));
+
+    if (!launches.length) throw new Error('No upcoming launches');
 
     // Hero - next launch
     const next = launches[0];
@@ -2215,7 +2223,14 @@ async function loadLaunches() {
       const diff = netDate - now;
       const tEl = document.getElementById('countdown-timer');
       if (!tEl) { clearInterval(nextLaunchTimer); return; }
-      if (diff <= 0) { tEl.textContent = '🚀 LIFTOFF'; tEl.style.color = 'var(--accent2)'; clearInterval(nextLaunchTimer); return; }
+      if (diff <= 0) {
+        tEl.textContent = '🚀 LIFTOFF';
+        tEl.style.color = 'var(--accent2)';
+        clearInterval(nextLaunchTimer);
+        // After liftoff, wait 90s then refresh to advance to the next launch
+        setTimeout(() => loadLaunches(), 90 * 1000);
+        return;
+      }
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
