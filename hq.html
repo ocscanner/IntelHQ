@@ -577,6 +577,55 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       </div>
     </div>
   </div>
+
+  <!-- GOES Satellite + SPC Outlooks -->
+  <div class="two" style="margin-top:18px">
+    <div>
+      <div class="sh"><h2>🛰 GOES-19 Satellite — West CONUS</h2><span class="mtag">NOAA</span></div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000">
+        <img id="goes-img" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/psw/GEOCOLOR/1200x1200.jpg"
+             alt="GOES-19 GeoColor — Pacific Southwest" loading="lazy"
+             style="width:100%;display:block"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
+        <div style="display:none;padding:20px;text-align:center;color:var(--muted);font-family:var(--fm);font-size:.8rem">
+          Satellite image unavailable — <a href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=psw" target="_blank" style="color:var(--accent)">View on NOAA →</a>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="goes-product-bar">
+        <button class="gpill active" onclick="setGoesProduct('GEOCOLOR',this)">GeoColor</button>
+        <button class="gpill" onclick="setGoesProduct('13',this)">Infrared</button>
+        <button class="gpill" onclick="setGoesProduct('09',this)">Water Vapor</button>
+        <button class="gpill" onclick="setGoesProduct('AirMass',this)">Air Mass</button>
+      </div>
+      <div class="pills" style="margin-top:8px">
+        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=psw" target="_blank">NOAA STAR →</a>
+        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/conus.php?sat=G19" target="_blank">Full CONUS →</a>
+      </div>
+    </div>
+    <div>
+      <div class="sh"><h2>⚡ SPC Convective Outlook</h2><span class="mtag">DAY 1</span></div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#0a0e14">
+        <img id="spc-img" src="https://www.spc.noaa.gov/products/outlook/day1otlk.gif"
+             alt="SPC Day 1 Convective Outlook" loading="lazy"
+             style="width:100%;display:block"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
+        <div style="display:none;padding:20px;text-align:center;color:var(--muted);font-family:var(--fm);font-size:.8rem">
+          SPC outlook unavailable — <a href="https://www.spc.noaa.gov/products/outlook/" target="_blank" style="color:var(--accent)">View on SPC →</a>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="spc-day-bar">
+        <button class="gpill active" onclick="setSpcDay('day1',this)">Day 1</button>
+        <button class="gpill" onclick="setSpcDay('day2',this)">Day 2</button>
+        <button class="gpill" onclick="setSpcDay('day3',this)">Day 3</button>
+        <button class="gpill" onclick="setSpcFire(this)">🔥 Fire Wx</button>
+      </div>
+      <div class="pills" style="margin-top:8px">
+        <a class="pill" href="https://www.spc.noaa.gov/products/outlook/" target="_blank">SPC Outlooks →</a>
+        <a class="pill" href="https://www.spc.noaa.gov/products/fire_wx/" target="_blank">Fire Weather →</a>
+        <a class="pill" href="https://www.spc.noaa.gov/products/md/" target="_blank">Mesoscale Disc →</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════ FLIGHTS & TRAFFIC ══════════════════ -->
@@ -1271,6 +1320,55 @@ function updateClocks(){
 /* ── WEATHER ── */
 const WX={0:'Clear ☀',1:'Mainly Clear 🌤',2:'Partly Cloudy ⛅',3:'Overcast ☁',45:'Foggy 🌫',48:'Foggy 🌫',51:'Drizzle 🌦',53:'Drizzle 🌧',55:'Drizzle 🌧',61:'Light Rain 🌦',63:'Rain 🌧',65:'Heavy Rain 🌧',71:'Light Snow 🌨',73:'Snow ❄',75:'Heavy Snow ❄',80:'Showers 🌦',81:'Showers 🌧',82:'Heavy Showers ⛈',95:'Thunderstorm ⛈',96:'Thunderstorm ⛈',99:'Thunderstorm ⛈'};
 function fcIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c===3)return'☁️';if(c<=48)return'🌫️';if(c<=55)return'🌦️';if(c<=65)return'🌧️';if(c<=75)return'❄️';if(c<=82)return'🌧️';return'⛈️';}
+/* ── GOES Satellite & SPC Outlook switchers ── */
+function setGoesProduct(prod, btn){
+  document.querySelectorAll('#goes-product-bar .gpill').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const img=document.getElementById('goes-img');
+  if(!img)return;
+  // NOAA STAR PSW sector path varies by product
+  const map={
+    'GEOCOLOR':'GEOCOLOR/1200x1200.jpg',
+    '13':'13/1200x1200.jpg',
+    '09':'09/1200x1200.jpg',
+    'AirMass':'AirMass/1200x1200.jpg'
+  };
+  img.style.display='block';
+  if(img.nextElementSibling)img.nextElementSibling.style.display='none';
+  img.src=`https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/psw/${map[prod]}?t=${Date.now()}`;
+}
+
+function setSpcDay(day, btn){
+  document.querySelectorAll('#spc-day-bar .gpill').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const img=document.getElementById('spc-img');
+  if(!img)return;
+  img.style.display='block';
+  if(img.nextElementSibling)img.nextElementSibling.style.display='none';
+  img.src=`https://www.spc.noaa.gov/products/outlook/${day}otlk.gif?t=${Date.now()}`;
+}
+
+function setSpcFire(btn){
+  document.querySelectorAll('#spc-day-bar .gpill').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const img=document.getElementById('spc-img');
+  if(!img)return;
+  img.style.display='block';
+  if(img.nextElementSibling)img.nextElementSibling.style.display='none';
+  img.src=`https://www.spc.noaa.gov/products/fire_wx/day1fw.gif?t=${Date.now()}`;
+}
+
+// Auto-refresh satellite & outlook every 10 min when weather tab active
+setInterval(()=>{
+  const wp=document.getElementById('panel-weather');
+  if(wp && wp.classList.contains('active')){
+    const g=document.getElementById('goes-img');
+    const s=document.getElementById('spc-img');
+    if(g && g.style.display!=='none') g.src=g.src.split('?')[0]+'?t='+Date.now();
+    if(s && s.style.display!=='none') s.src=s.src.split('?')[0]+'?t='+Date.now();
+  }
+}, 10*60*1000);
+
 async function loadWeather(){
   try{
     const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.7175&longitude=-117.8311&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FLos_Angeles&forecast_days=7');
@@ -2898,4 +2996,5 @@ setNextElection();
   }
 </script>
 </body>
+</html>
 </html>
