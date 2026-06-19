@@ -384,6 +384,26 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <span id="ticker-text" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Loading latest headlines…</span>
   </div>
 
+  <!-- AI NEWS DIGEST -->
+  <div id="ai-digest-panel" style="background:linear-gradient(135deg,rgba(0,255,157,.05),rgba(0,180,255,.05));border:1px solid rgba(0,255,157,.25);border-radius:8px;padding:14px 18px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <span style="color:var(--accent3);font-family:var(--fh);font-size:.82rem;font-weight:700;letter-spacing:.12em">🤖 AI INTEL DIGEST</span>
+        <span style="background:rgba(0,255,157,.15);color:var(--accent3);font-size:.62rem;padding:2px 7px;border-radius:3px;font-family:var(--fm);letter-spacing:.06em">CLAUDE</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <span id="digest-timestamp" style="color:var(--muted);font-size:.68rem;font-family:var(--fm)"></span>
+        <button class="rbtn" onclick="fetchAIDigest()" style="margin-left:0">↺ Refresh</button>
+      </div>
+    </div>
+    <div id="ai-digest-text" style="color:var(--text2);font-size:.86rem;line-height:1.65;font-family:var(--fu)">
+      <span style="color:var(--muted);font-style:italic">Generating intelligence digest…</span>
+    </div>
+    <div style="margin-top:8px;color:var(--muted);font-size:.62rem;font-family:var(--fm);letter-spacing:.05em">
+      AUTO-REFRESHES EVERY 15 MIN · SOURCES: LIVE RSS FEEDS
+    </div>
+  </div>
+
   <div class="news-cols">
     <div>
       <div class="feed-col-head"><span class="icon">🏛</span><span class="name">US Politics</span><span class="cnt" id="pol-cnt"></span></div>
@@ -581,25 +601,31 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <!-- GOES Satellite + SPC Outlooks -->
   <div class="two" style="margin-top:18px">
     <div>
-      <div class="sh"><h2>🛰 GOES-19 Satellite — West CONUS</h2><span class="mtag">NOAA</span></div>
+      <div class="sh"><h2>🛰 GOES-19 Satellite</h2><span class="mtag">NOAA</span></div>
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000">
-        <img id="goes-img" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/psw/GEOCOLOR/1200x1200.jpg"
-             alt="GOES-19 GeoColor — Pacific Southwest" loading="lazy"
+        <img id="goes-img" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/CONUS/GEOCOLOR/1250x750.jpg"
+             alt="GOES-19 GeoColor" loading="lazy"
              style="width:100%;display:block"
              onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
         <div style="display:none;padding:20px;text-align:center;color:var(--muted);font-family:var(--fm);font-size:.8rem">
-          Satellite image unavailable — <a href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=psw" target="_blank" style="color:var(--accent)">View on NOAA →</a>
+          Satellite image unavailable — <a href="https://www.star.nesdis.noaa.gov/GOES/conus.php?sat=G19" target="_blank" style="color:var(--accent)">View on NOAA →</a>
         </div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="goes-product-bar">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="goes-sector-bar">
+        <button class="gpill active" onclick="setGoesSector('CONUS',this)">🇺🇸 CONUS</button>
+        <button class="gpill" onclick="setGoesSector('psw',this)">SoCal</button>
+        <button class="gpill" onclick="setGoesSector('wus',this)">West</button>
+        <button class="gpill" onclick="setGoesSector('FD',this)">Full Disk</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px" id="goes-product-bar">
         <button class="gpill active" onclick="setGoesProduct('GEOCOLOR',this)">GeoColor</button>
         <button class="gpill" onclick="setGoesProduct('13',this)">Infrared</button>
         <button class="gpill" onclick="setGoesProduct('09',this)">Water Vapor</button>
         <button class="gpill" onclick="setGoesProduct('AirMass',this)">Air Mass</button>
       </div>
       <div class="pills" style="margin-top:8px">
-        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=psw" target="_blank">NOAA STAR →</a>
-        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/conus.php?sat=G19" target="_blank">Full CONUS →</a>
+        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/conus.php?sat=G19" target="_blank">NOAA CONUS →</a>
+        <a class="pill" href="https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G19" target="_blank">Full Disk →</a>
       </div>
     </div>
     <div>
@@ -1321,21 +1347,45 @@ function updateClocks(){
 const WX={0:'Clear ☀',1:'Mainly Clear 🌤',2:'Partly Cloudy ⛅',3:'Overcast ☁',45:'Foggy 🌫',48:'Foggy 🌫',51:'Drizzle 🌦',53:'Drizzle 🌧',55:'Drizzle 🌧',61:'Light Rain 🌦',63:'Rain 🌧',65:'Heavy Rain 🌧',71:'Light Snow 🌨',73:'Snow ❄',75:'Heavy Snow ❄',80:'Showers 🌦',81:'Showers 🌧',82:'Heavy Showers ⛈',95:'Thunderstorm ⛈',96:'Thunderstorm ⛈',99:'Thunderstorm ⛈'};
 function fcIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c===3)return'☁️';if(c<=48)return'🌫️';if(c<=55)return'🌦️';if(c<=65)return'🌧️';if(c<=75)return'❄️';if(c<=82)return'🌧️';return'⛈️';}
 /* ── GOES Satellite & SPC Outlook switchers ── */
-function setGoesProduct(prod, btn){
-  document.querySelectorAll('#goes-product-bar .gpill').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
+let goesSector = 'CONUS';
+let goesProduct = 'GEOCOLOR';
+
+function goesURL(){
+  // URL structure differs: CONUS, Full Disk (FD), and named SECTORs
+  const sizes = {
+    'CONUS': '1250x750',
+    'FD':    '1808x1808',
+    'psw':   '1200x1200',
+    'wus':   '1200x1200'
+  };
+  const size = sizes[goesSector] || '1200x1200';
+  if (goesSector === 'CONUS')
+    return `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/CONUS/${goesProduct}/${size}.jpg`;
+  if (goesSector === 'FD')
+    return `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/${goesProduct}/${size}.jpg`;
+  return `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/${goesSector}/${goesProduct}/${size}.jpg`;
+}
+
+function refreshGoes(){
   const img=document.getElementById('goes-img');
   if(!img)return;
-  // NOAA STAR PSW sector path varies by product
-  const map={
-    'GEOCOLOR':'GEOCOLOR/1200x1200.jpg',
-    '13':'13/1200x1200.jpg',
-    '09':'09/1200x1200.jpg',
-    'AirMass':'AirMass/1200x1200.jpg'
-  };
   img.style.display='block';
   if(img.nextElementSibling)img.nextElementSibling.style.display='none';
-  img.src=`https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/psw/${map[prod]}?t=${Date.now()}`;
+  img.src=goesURL();
+}
+
+function setGoesSector(sector, btn){
+  goesSector = sector;
+  document.querySelectorAll('#goes-sector-bar .gpill').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  refreshGoes();
+}
+
+function setGoesProduct(prod, btn){
+  goesProduct = prod;
+  document.querySelectorAll('#goes-product-bar .gpill').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  refreshGoes();
 }
 
 function setSpcDay(day, btn){
@@ -1345,7 +1395,7 @@ function setSpcDay(day, btn){
   if(!img)return;
   img.style.display='block';
   if(img.nextElementSibling)img.nextElementSibling.style.display='none';
-  img.src=`https://www.spc.noaa.gov/products/outlook/${day}otlk.gif?t=${Date.now()}`;
+  img.src=`https://www.spc.noaa.gov/products/outlook/${day}otlk.gif`;
 }
 
 function setSpcFire(btn){
@@ -1355,17 +1405,20 @@ function setSpcFire(btn){
   if(!img)return;
   img.style.display='block';
   if(img.nextElementSibling)img.nextElementSibling.style.display='none';
-  img.src=`https://www.spc.noaa.gov/products/fire_wx/day1fw.gif?t=${Date.now()}`;
+  img.src=`https://www.spc.noaa.gov/products/fire_wx/day1fw.gif`;
 }
 
 // Auto-refresh satellite & outlook every 10 min when weather tab active
 setInterval(()=>{
   const wp=document.getElementById('panel-weather');
   if(wp && wp.classList.contains('active')){
-    const g=document.getElementById('goes-img');
-    const s=document.getElementById('spc-img');
-    if(g && g.style.display!=='none') g.src=g.src.split('?')[0]+'?t='+Date.now();
-    if(s && s.style.display!=='none') s.src=s.src.split('?')[0]+'?t='+Date.now();
+    ['goes-img','spc-img'].forEach(id=>{
+      const im=document.getElementById(id);
+      if(im && im.style.display!=='none'){
+        const base=im.src.split('?')[0];
+        im.src=base+'?_='+Date.now();
+      }
+    });
   }
 }, 10*60*1000);
 
@@ -1440,6 +1493,48 @@ async function loadLocalNews(){
     a.innerHTML=`<div class="src">${it.src}</div><div class="ttl">${it.title}</div><div class="ts">${it.pub?timeAgo(new Date(it.pub)):''}</div>`;
     el.appendChild(a);
   });
+}
+
+/* ── AI NEWS DIGEST ── */
+async function fetchAIDigest() {
+  const digestEl = document.getElementById('ai-digest-text');
+  const tsEl = document.getElementById('digest-timestamp');
+  if (!digestEl) return;
+
+  digestEl.innerHTML = '<span style="color:var(--muted);font-style:italic">Generating intelligence digest…</span>';
+
+  // Pull headlines straight from the columns already rendered/loaded
+  const headlines = [];
+  document.querySelectorAll('#col-politics .ttl2, #col-world .ttl2, #col-imm .ttl2').forEach(el => {
+    const t = el.textContent.trim();
+    if (t.length > 8) headlines.push(t);
+  });
+
+  if (headlines.length < 3) {
+    digestEl.innerHTML = '<span style="color:var(--muted)">Waiting for news feeds to finish loading — try refreshing in a moment.</span>';
+    return;
+  }
+
+  try {
+    const res = await fetch('https://oc-radar-proxy.ocscannernews.workers.dev/ai-digest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headlines })
+    });
+    const data = await res.json();
+
+    if (data.digest) {
+      digestEl.textContent = data.digest;
+      digestEl.style.fontStyle = 'normal';
+      digestEl.style.color = 'var(--text2)';
+      if (tsEl) tsEl.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    } else {
+      digestEl.innerHTML = `<span style="color:var(--danger)">Digest unavailable${data.error ? ': ' + data.error : ''}.</span>`;
+    }
+  } catch (e) {
+    digestEl.innerHTML = '<span style="color:var(--danger)">Error reaching AI service.</span>';
+    console.log('[AI Digest] Error:', e.message);
+  }
 }
 
 /* ── NEWS COLUMNS ── */
@@ -2968,6 +3063,8 @@ loadWeather();setInterval(loadWeather,10*60*1000);
 loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
+setTimeout(fetchAIDigest, 6000); // wait for news columns to populate first
+setInterval(fetchAIDigest, 15*60*1000);
 loadQuakes();loadFires();loadFEMA();
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
@@ -2996,5 +3093,4 @@ setNextElection();
   }
 </script>
 </body>
-</html>
 </html>
