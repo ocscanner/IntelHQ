@@ -1472,7 +1472,14 @@ async function loadNWS(){
 }
 
 /* ── LOCAL NEWS ── */
-const LOCAL_FEEDS=[{n:'OC Register',u:'https://www.ocregister.com/feed/'},{n:'Voice of OC',u:'https://voiceofoc.org/feed/'},{n:'ABC7 LA',u:'https://abc7.com/feed/'}];
+const LOCAL_FEEDS=[
+  {n:'OC Register',  u:'https://www.ocregister.com/feed/'},
+  {n:'Voice of OC',  u:'https://voiceofoc.org/feed/'},
+  {n:'ABC7 LA',      u:'https://abc7.com/feed/'},
+  {n:'LA Times CA',  u:'https://www.latimes.com/local/rss2.0.xml'},
+  {n:'KTLA',         u:'https://ktla.com/feed/'},
+  {n:'LAist',        u:'https://laist.com/index.rss'},
+];
 async function loadLocalNews(){
   const el=document.getElementById('local-feed');el.innerHTML='<div class="loader">Fetching…</div>';
   const items=[];
@@ -1539,35 +1546,44 @@ async function fetchAIDigest() {
 /* ── NEWS COLUMNS ── */
 const NEWS_SOURCES={
   politics:[
-    {n:'Fox News',         c:'src-fox',   u:'https://rss.politico.com/politics-news.xml'},
-    {n:'Fox Breaking',     c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/'},
+    {n:'Fox Politics',     c:'src-fox',   u:'https://moxie.foxnews.com/google-publisher/politics.xml'},
+    {n:'Washington Times', c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/'},
     {n:'Breitbart',        c:'src-breit', u:'https://www.breitbart.com/feed/'},
     {n:'Daily Wire',       c:'src-breit', u:'https://www.dailywire.com/feeds/rss.xml'},
     {n:'National Review',  c:'src-wash',  u:'https://www.nationalreview.com/feed/'},
     {n:'Washington Examiner',c:'src-wash',u:'https://www.washingtonexaminer.com/feed'},
+    {n:'The Federalist',   c:'src-breit', u:'https://thefederalist.com/feed/'},
+    {n:'Free Beacon',      c:'src-wash',  u:'https://freebeacon.com/feed/'},
+    {n:'NY Post',          c:'src-fox',   u:'https://nypost.com/politics/feed/'},
+    {n:'RealClearPolitics',c:'src-hill',  u:'https://www.realclearpolitics.com/index.xml'},
     {n:'The Hill',         c:'src-hill',  u:'https://thehill.com/feed'},
     {n:'Just the News',    c:'src-just',  u:'https://justthenews.com/feeds/all-stories'},
-    {n:'Politico',         c:'src-hill',  u:'https://rss.politico.com/politico.xml'},
-    {n:'AP Politics',      c:'src-ap',    u:'https://rsshub.app/apnews/topics/politics'},
+    {n:'Politico',         c:'src-hill',  u:'https://rss.politico.com/politics-news.xml'},
+    {n:'AP Politics',      c:'src-ap',    u:'https://feeds.npr.org/1014/rss.xml'},
   ],
   world:[
-    {n:'Fox World',        c:'src-fox',   u:'https://feeds.reuters.com/reuters/worldNews'},
+    {n:'Breaking Defense', c:'src-def',   u:'https://breakingdefense.com/feed/'},
     {n:'Military Times',   c:'src-mil',   u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
     {n:'Defense News',     c:'src-def',   u:'https://www.defensenews.com/arc/outboundfeeds/rss/'},
+    {n:'The War Zone',     c:'src-mil',   u:'https://www.twz.com/feed'},
+    {n:'War on the Rocks', c:'src-def',   u:'https://warontherocks.com/feed/'},
     {n:'Stars & Stripes',  c:'src-mil',   u:'https://www.stripes.com/arcio/rss/'},
     {n:'Foreign Policy',   c:'src-def',   u:'https://foreignpolicy.com/feed/'},
-    {n:'Reuters World',    c:'src-ap',    u:'https://feeds.reuters.com/reuters/worldNews'},
-    {n:'AP World',         c:'src-ap',    u:'https://rsshub.app/apnews/topics/world-news'},
-    {n:'VOA News',         c:'src-wash',  u:'https://www.voanews.com/api/zpqoeuqpqu'},
+    {n:'Al Jazeera',       c:'src-ap',    u:'https://www.aljazeera.com/xml/rss/all.xml'},
+    {n:'UPI World',        c:'src-ap',    u:'https://rss.upi.com/news/tn_int.rss'},
+    {n:'NPR World',        c:'src-ap',    u:'https://feeds.npr.org/1004/rss.xml'},
+    {n:'DoD News',         c:'src-def',   u:'https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=20'},
   ],
   immigration:[
     {n:'Breitbart Border', c:'src-breit', u:'https://www.breitbart.com/immigration/feed/'},
-    {n:'Fox National',     c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/immigration/'},
+    {n:'Washington Times', c:'src-fox',   u:'https://www.washingtontimes.com/rss/headlines/news/immigration/'},
+    {n:'NY Post',          c:'src-fox',   u:'https://nypost.com/tag/immigration/feed/'},
     {n:'Washington Examiner',c:'src-wash',u:'https://www.washingtonexaminer.com/feed'},
     {n:'Just the News',    c:'src-just',  u:'https://justthenews.com/feeds/all-stories'},
     {n:'DHS News',         c:'src-ap',    u:'https://www.dhs.gov/dhs-articles/rss.xml'},
     {n:'ICE Releases',     c:'src-ap',    u:'https://www.ice.gov/news/rss'},
-    {n:'AP Immigration',   c:'src-ap',    u:'https://rsshub.app/apnews/topics/immigration'},
+    {n:'CBP Newsroom',     c:'src-ap',    u:'https://www.cbp.gov/newsroom/rss/national-news.xml'},
+    {n:'NPR National',     c:'src-ap',    u:'https://feeds.npr.org/1003/rss.xml'},
   ]
 };
 const POL_KW=['trump','biden','congress','senate','house','republican','democrat','gop','white house','legislation','vote','election','president','political','bill','scotus','supreme court','tariff','maga'];
@@ -1684,19 +1700,34 @@ async function loadQuakes(){
 /* ── FIRES ── */
 async function loadFires(){
   const el=document.getElementById('fire-feed');
-  try{
-    const xml=new DOMParser().parseFromString(await proxyFetchText('https://inciweb.nwcg.gov/feeds/rss/incidents/'),'text/xml');
-    const items=Array.from(xml.querySelectorAll('item')).slice(0,6);el.innerHTML='';
-    if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
-    items.forEach(it=>{
-      const title=it.querySelector('title')?.textContent||'Incident';
-      const link=it.querySelector('link')?.textContent||'#';
-      const pub=it.querySelector('pubDate')?.textContent||'';
-      const div=document.createElement('div');div.className='iit fire';
-      div.innerHTML=`<div class="itype">🔥 FIRE</div><div class="itit" style="cursor:pointer" onclick="window.open('${link}','_blank')">${title}</div><div class="imet">${pub?timeAgo(new Date(pub)):''}</div>`;
-      el.appendChild(div);
-    });
-  }catch(e){el.innerHTML='<div class="loader">Unable to load fire data.</div>';}
+  const FIRE_FEEDS=[
+    'https://www.fire.ca.gov/api/rss/incidents',          // CAL FIRE active incidents (CA-specific)
+    'https://inciweb.nwcg.gov/feeds/rss/incidents/',      // InciWeb nationwide
+  ];
+  const items=[];const seen=new Set();
+  for(const url of FIRE_FEEDS){
+    try{
+      const xml=new DOMParser().parseFromString(await proxyFetchText(url),'text/xml');
+      Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
+        const title=it.querySelector('title')?.textContent||'Incident';
+        const link=it.querySelector('link')?.textContent||'#';
+        const pub=it.querySelector('pubDate')?.textContent||'';
+        const key=title.slice(0,40);if(seen.has(key))return;seen.add(key);
+        // Prioritize CA-relevant incidents
+        const isCA=/calif|ca |, ca|socal|orange|los angeles|riverside|san bernardino|san diego|ventura/i.test(title);
+        items.push({title,link,pub:pub?new Date(pub):new Date(0),isCA});
+      });
+    }catch(e){}
+  }
+  // CA fires first, then by recency
+  items.sort((a,b)=>(b.isCA-a.isCA)||(b.pub-a.pub));
+  el.innerHTML='';
+  if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
+  items.slice(0,8).forEach(it=>{
+    const div=document.createElement('div');div.className='iit fire';
+    div.innerHTML=`<div class="itype">🔥 FIRE${it.isCA?' · CA':''}</div><div class="itit" style="cursor:pointer" onclick="window.open('${it.link}','_blank')">${it.title}</div><div class="imet">${it.pub&&it.pub.getTime()>0?timeAgo(it.pub):''}</div>`;
+    el.appendChild(div);
+  });
 }
 
 /* ── FEMA ── */
@@ -1744,7 +1775,7 @@ const ELECTION_FEEDS=[
   {n:'The Hill',       c:'src-hill',  u:'https://thehill.com/feed'},
   {n:'Wash. Examiner', c:'src-wash',  u:'https://www.washingtonexaminer.com/feed'},
   {n:'National Review',c:'src-wash',  u:'https://www.nationalreview.com/feed/'},
-  {n:'AP Politics',    c:'src-ap',    u:'https://rsshub.app/apnews/topics/politics'},
+  {n:'AP Politics',    c:'src-ap',    u:'https://feeds.npr.org/1014/rss.xml'},
 ];
 const ELECTION_KW=['election','vote','ballot','primary','candidate','campaign','poll','senate','house','congress','gop','democrat','republican','trump','2026','2028','race','district','runoff','caucus','delegate','electoral','fec','donor','fundrais'];
 
@@ -1868,16 +1899,17 @@ async function loadMarketTicker() {
 
 /* ── STREAMS TICKER ── */
 const TICKER_FEEDS = [
-  {n:'Fox News',    u:'https://www.washingtontimes.com/rss/headlines/news/'},
-  {n:'Breitbart',   u:'https://www.breitbart.com/feed/'},
-  {n:'AP News',     u:'https://rsshub.app/apnews/topics/politics'},
-  {n:'The Hill',    u:'https://thehill.com/feed'},
-  {n:'Fox World',   u:'https://feeds.reuters.com/reuters/worldNews'},
+  {n:'Fox Politics',   u:'https://moxie.foxnews.com/google-publisher/politics.xml'},
+  {n:'Breitbart',      u:'https://www.breitbart.com/feed/'},
+  {n:'AP Politics',    u:'https://feeds.npr.org/1014/rss.xml'},
+  {n:'The Hill',       u:'https://thehill.com/feed'},
+  {n:'Al Jazeera',     u:'https://www.aljazeera.com/xml/rss/all.xml'},
+  {n:'UPI World',      u:'https://rss.upi.com/news/tn_int.rss'},
   {n:'Wash. Examiner', u:'https://www.washingtonexaminer.com/feed'},
   {n:'Military Times', u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
-  {n:'OC Register', u:'https://www.ocregister.com/feed/'},
+  {n:'OC Register',    u:'https://www.ocregister.com/feed/'},
   {n:'Breitbart Border', u:'https://www.breitbart.com/immigration/feed/'},
-  {n:'Just the News', u:'https://justthenews.com/feeds/all-stories'},
+  {n:'Just the News',  u:'https://justthenews.com/feeds/all-stories'},
 ];
 
 async function loadTicker() {
