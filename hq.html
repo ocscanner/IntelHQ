@@ -1824,12 +1824,12 @@ function setNextElection(){
 
 /* ── MARKET TICKER ── */
 const CRYPTO_IDS = 'bitcoin,dogecoin,ethereum,solana';
-const STOCK_SYMBOLS = ['TSLA','AAPL','NVDA','MSFT','META','JPM','XOM','SPY','GLD','SLV'];
+const STOCK_SYMBOLS = ['SPCX','TSLA','AAPL','NVDA','MSFT','META','JPM','XOM','SPY','GLD','SLV'];
 
 // Labels for display
 const SYMBOL_LABELS = {
   bitcoin:'BTC', dogecoin:'DOGE', ethereum:'ETH', solana:'SOL',
-  TSLA:'TSLA', AAPL:'AAPL', NVDA:'NVDA', MSFT:'MSFT',
+  SPCX:'SPACEX', TSLA:'TSLA', AAPL:'AAPL', NVDA:'NVDA', MSFT:'MSFT',
   META:'META', JPM:'JPM', XOM:'XOM', SPY:'S&P500', GLD:'GOLD', SLV:'SILVER'
 };
 
@@ -1950,7 +1950,7 @@ async function loadTicker() {
 
   // Adjust animation speed based on content width
   const totalWidth = inner.scrollWidth / 2;
-  const speed = Math.max(60, totalWidth / 80); // ~80px per second
+  const speed = Math.max(120, totalWidth / 30); // ~30px per second — readable pace
   inner.style.animationDuration = speed + 's';
 }
 
