@@ -1478,8 +1478,7 @@ async function loadLocalNews(){
   const items=[];
   for(const f of LOCAL_FEEDS){
     try{
-      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
+      const xml=new DOMParser().parseFromString(await proxyFetchText(f.u),'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,4).forEach(it=>{
         items.push({src:f.n,title:it.querySelector('title')?.textContent||'',link:it.querySelector('link')?.textContent||'#',pub:it.querySelector('pubDate')?.textContent||''});
       });
@@ -1576,13 +1575,40 @@ const WRL_KW=['ukraine','russia','israel','hamas','china','iran','military','nat
 const IMM_KW=['border','immigration','migrant','asylum','dhs','cbp','ice','deporta','visa','illegal','undocumented','border patrol','cartel','smuggling','refugee','sanctuary','fentanyl'];
 
 function matchKW(text,kws){const t=text.toLowerCase();return kws.some(k=>t.includes(k));}
+/* ── RESILIENT FEED PROXY ──
+   Tries multiple proxies in order so one being down doesn't kill all feeds.
+   Returns the raw feed text (XML), or '' on total failure. */
+const FEED_PROXIES = [
+  u => `https://oc-radar-proxy.ocscannernews.workers.dev/rss?url=${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+];
+
+async function proxyFetchText(url){
+  for(const make of FEED_PROXIES){
+    const proxied = make(url);
+    try{
+      const r = await fetch(proxied, { signal:(()=>{const c=new AbortController();setTimeout(()=>c.abort(),9000);return c.signal;})() });
+      if(!r.ok) continue;
+      // worker + allorigins return JSON {contents}; corsproxy returns raw text
+      if(proxied.includes('/rss?') || proxied.includes('allorigins')){
+        const j = await r.json();
+        const text = j.contents || '';
+        if(text && text.length > 40) return text;
+      } else {
+        const text = await r.text();
+        if(text && text.length > 40) return text;
+      }
+    }catch(e){ /* try next proxy */ }
+  }
+  return '';
+}
+
 async function fetchFeed(url){
   try{
-    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url));
-    const j=await r.json();
-    const text=j.contents||'';
-    if(!text)return[];
-    return Array.from(new DOMParser().parseFromString(text,'text/xml').querySelectorAll('item')).slice(0,8);
+    const text = await proxyFetchText(url);
+    if(!text) return [];
+    return Array.from(new DOMParser().parseFromString(text,'text/xml').querySelectorAll('item, entry')).slice(0,8);
   }catch(e){return[];}
 }
 async function loadNewsColumns(){
@@ -1659,8 +1685,7 @@ async function loadQuakes(){
 async function loadFires(){
   const el=document.getElementById('fire-feed');
   try{
-    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://inciweb.nwcg.gov/feeds/rss/incidents/'));
-    const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
+    const xml=new DOMParser().parseFromString(await proxyFetchText('https://inciweb.nwcg.gov/feeds/rss/incidents/'),'text/xml');
     const items=Array.from(xml.querySelectorAll('item')).slice(0,6);el.innerHTML='';
     if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
     items.forEach(it=>{
@@ -1729,8 +1754,7 @@ async function loadElectionNews(){
   const items=[];const seen=new Set();
   for(const f of ELECTION_FEEDS){
     try{
-      const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(f.u));
-      const _j=await r.json();const xml=new DOMParser().parseFromString(_j.contents||'','text/xml');
+      const xml=new DOMParser().parseFromString(await proxyFetchText(f.u),'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
         const title=it.querySelector('title')?.textContent||'';
         const link=it.querySelector('link')?.textContent||'#';
@@ -1816,9 +1840,8 @@ async function loadMarketTicker() {
   const stockResults = await Promise.allSettled(
     STOCK_SYMBOLS.map(async sym => {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), {signal:(() => { const _c = new AbortController(); setTimeout(() => _c.abort(), 8000); return _c.signal; })()});
-      const j = await r.json();
-      const parsed = j.contents ? JSON.parse(j.contents) : j;
+      const raw = await proxyFetchText(url);
+      const parsed = raw ? JSON.parse(raw) : null;
       const meta = parsed?.chart?.result?.[0]?.meta;
       if (!meta) return null;
       const price = meta.regularMarketPrice;
@@ -1862,9 +1885,7 @@ async function loadTicker() {
   const seen = new Set();
   await Promise.allSettled(TICKER_FEEDS.map(async f => {
     try {
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
-      const d = await r.json();
-      const _j2=await r.json();const xml = new DOMParser().parseFromString(_j2.contents||'','text/xml');
+      const xml = new DOMParser().parseFromString(await proxyFetchText(f.u),'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0, 6).forEach(it => {
         const title = it.querySelector('title')?.textContent?.trim() || '';
         const link  = it.querySelector('link')?.textContent?.trim() || '#';
@@ -2527,9 +2548,7 @@ async function loadSpaceNews() {
   const items = [];
   await Promise.allSettled(feeds.map(async f => {
     try {
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(f.u));
-      const j = await r.json();
-      const xml = new DOMParser().parseFromString(j.contents || '', 'text/xml');
+      const xml = new DOMParser().parseFromString(await proxyFetchText(f.u), 'text/xml');
       Array.from(xml.querySelectorAll('item')).slice(0,5).forEach(it => {
         items.push({
           src: f.n,
