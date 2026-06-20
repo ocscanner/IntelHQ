@@ -853,6 +853,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
             <div class="ac-stat"><span>EL </span><span id="iss-el">--</span></div>
           </div>
           <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-top:5px">Next pass over OC: <span id="iss-next-pass" style="color:var(--accent)">Calculating…</span></div>
+          <div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--border)">
+            <div style="font-family:var(--fm);font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">📡 Next Visible Passes (48h)</div>
+            <div id="iss-pass-list"><div style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">Computing passes…</div></div>
+          </div>
         </div>
 
         <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click dot or card to select</div>
@@ -2048,6 +2052,17 @@ const CANVAS_SIZE   = 360;
 const CENTER        = CANVAS_SIZE / 2;
 const R             = CENTER - 10;
 
+// Aircraft trail history: { hex: [{lat, lon, t}, ...] } — newest last
+const radarTrails   = {};
+const TRAIL_MAX     = 12;            // points kept per aircraft
+const TRAIL_MAX_AGE = 5 * 60 * 1000; // drop points older than 5 min
+
+// Follow mode: when an aircraft is selected, recenter the scope on it
+let radarFollow     = false;
+// Dynamic center offset (in miles E/N from home) used when following
+let radarCenterLat  = null;
+let radarCenterLon  = null;
+
 // Military callsign prefixes — US & allied forces
 const MIL_PREFIXES = [
   // US Navy & Marines
@@ -2080,17 +2095,44 @@ function isMilitary(ac) {
 // Miles per degree latitude
 const MI_PER_DEG = 69.0;
 
-function latLonToRadar(lat, lon) {
-  const dx = (lon - RADAR_LON) * MI_PER_DEG * Math.cos(RADAR_LAT * Math.PI / 180);
-  const dy = (lat - RADAR_LAT) * MI_PER_DEG;
+// Active scope center — home by default, or the followed aircraft's position
+function activeCenter() {
+  if (radarFollow && radarCenterLat != null && radarCenterLon != null) {
+    return { lat: radarCenterLat, lon: radarCenterLon };
+  }
+  return { lat: RADAR_LAT, lon: RADAR_LON };
+}
+
+function latLonToRadar(lat, lon, clip = true) {
+  const c = activeCenter();
+  const dx = (lon - c.lon) * MI_PER_DEG * Math.cos(c.lat * Math.PI / 180);
+  const dy = (lat - c.lat) * MI_PER_DEG;
   const dist = Math.sqrt(dx*dx + dy*dy);
-  if (dist > RADAR_RADIUS) return null;
+  if (clip && dist > RADAR_RADIUS) return null;
   const scale = R / RADAR_RADIUS;
   return {
     x: CENTER + dx * scale,
     y: CENTER - dy * scale,
     dist
   };
+}
+
+// Great-circle distance (miles) and bearing (deg from true north) home → target
+function distanceBearing(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const R_MI = 3958.8;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  const dist = R_MI * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  let brng = (toDeg(Math.atan2(y, x)) + 360) % 360;
+  return { dist, bearing: brng };
+}
+
+function bearingToCompass(b) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(b / 22.5) % 16];
 }
 
 function drawRadar() {
@@ -2171,6 +2213,28 @@ function drawRadar() {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // Aircraft trails — fading polyline of recent positions
+  radarAircraft.forEach(ac => {
+    const tr = radarTrails[ac.hex];
+    if (!tr || tr.length < 2) return;
+    const isSelected = radarSelected && ac.hex === radarSelected;
+    const isMil = isMilitary(ac);
+    const baseColor = isSelected ? '0,255,157' : isMil ? '255,59,48' : '0,224,96';
+    // Project each trail point through the current scope center
+    for (let i = 1; i < tr.length; i++) {
+      const p0 = latLonToRadar(tr[i-1].lat, tr[i-1].lon, false);
+      const p1 = latLonToRadar(tr[i].lat,   tr[i].lon,   false);
+      if (!p0 || !p1) continue;
+      const alpha = (i / tr.length) * (isSelected ? 0.85 : 0.45); // older = fainter
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = `rgba(${baseColor},${alpha.toFixed(3)})`;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.stroke();
+    }
+  });
+
   // Aircraft dots
   radarAircraft.forEach(ac => {
     if (!ac._pos) return;
@@ -2226,11 +2290,32 @@ function drawRadar() {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Center dot
+  // Center dot — represents the scope center (home, or followed aircraft)
   ctx.beginPath();
   ctx.arc(CENTER, CENTER, 3, 0, Math.PI * 2);
-  ctx.fillStyle = '#00ff9d';
+  ctx.fillStyle = radarFollow ? '#00b4ff' : '#00ff9d';
   ctx.fill();
+
+  // When following, show where HOME is relative to the followed aircraft
+  if (radarFollow) {
+    const home = latLonToRadar(RADAR_LAT, RADAR_LON, false);
+    if (home) {
+      ctx.beginPath();
+      ctx.arc(home.x, home.y, 4, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,255,157,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.font = '8px Share Tech Mono, monospace';
+      ctx.fillStyle = 'rgba(0,255,157,0.7)';
+      ctx.textAlign = 'left';
+      ctx.fillText('HOME', home.x + 6, home.y + 3);
+    }
+    // "TRACKING" banner
+    ctx.font = 'bold 9px Share Tech Mono, monospace';
+    ctx.fillStyle = 'rgba(0,180,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('◉ FOLLOWING TARGET', CENTER, 14);
+  }
 }
 
 function animateRadar() {
@@ -2257,17 +2342,18 @@ function parseAircraft(raw) {
   }
   else if (Array.isArray(raw)) list = raw;
 
-  return list.map(ac => {
+  const now = Date.now();
+  const parsed = list.map(ac => {
     const lat = ac.lat ?? ac.latitude;
     const lon = ac.lon ?? ac.longitude ?? ac.lng;
     const alt = ac.alt_baro ?? ac.baro_altitude ?? ac.altitude ?? ac.baro_alt;
     const spd = ac.gs ?? ac.ground_speed ?? ac.velocity;
     const hdg = ac.track ?? ac.true_track ?? ac.heading;
     const cs  = (ac.flight ?? ac.callsign ?? ac.hex ?? '').trim();
-    const pos = (lat != null && lon != null) ? latLonToRadar(lat, lon) : null;
+    const hex = ac.hex || ac.icao24 || '';
 
     return {
-      hex:      ac.hex || ac.icao24 || '',
+      hex,
       flight:   cs,
       lat, lon,
       alt_ft:   alt != null ? Math.round(typeof alt === 'string' ? parseFloat(alt) : alt * (alt < 1000 ? 3.281 : 1)) : null,
@@ -2277,9 +2363,55 @@ function parseAircraft(raw) {
       reg:      ac.r ?? ac.registration ?? '',
       military: isMilitary({military: ac.military, flight: ac.flight ?? ac.callsign, hex: ac.hex ?? ac.icao24}),
       ground:   ac.alt_baro === 'ground' || ac.on_ground === true,
-      _pos:     pos,
+      lat_raw:  lat, lon_raw: lon,
     };
-  }).filter(ac => ac._pos !== null && !ac.ground);
+  }).filter(ac => ac.lat_raw != null && ac.lon_raw != null && !ac.ground);
+
+  // Record trail points for each aircraft (in real lat/lon, projection-independent)
+  parsed.forEach(ac => {
+    if (!ac.hex) return;
+    const tr = radarTrails[ac.hex] || (radarTrails[ac.hex] = []);
+    const last = tr[tr.length - 1];
+    if (!last || last.lat !== ac.lat_raw || last.lon !== ac.lon_raw) {
+      tr.push({ lat: ac.lat_raw, lon: ac.lon_raw, t: now });
+      if (tr.length > TRAIL_MAX) tr.shift();
+    }
+  });
+
+  // If following a selected aircraft, recenter the scope on it
+  if (radarFollow && radarSelected) {
+    const followed = parsed.find(a => a.hex === radarSelected);
+    if (followed) { radarCenterLat = followed.lat_raw; radarCenterLon = followed.lon_raw; }
+  }
+
+  // Now compute screen positions (after center may have shifted).
+  // When following, don't clip — we want to see the followed plane + nearby.
+  parsed.forEach(ac => { ac._pos = latLonToRadar(ac.lat_raw, ac.lon_raw, !radarFollow); });
+
+  // Prune stale trails (aircraft gone, or old points)
+  for (const hex in radarTrails) {
+    radarTrails[hex] = radarTrails[hex].filter(p => now - p.t < TRAIL_MAX_AGE);
+    if (!radarTrails[hex].length) delete radarTrails[hex];
+  }
+
+  return parsed.filter(ac => ac._pos !== null);
+}
+
+function selectAircraft(hex) {
+  if (radarSelected === hex) {
+    // Deselect — stop following, recenter home
+    radarSelected = null;
+    radarFollow = false;
+    radarCenterLat = radarCenterLon = null;
+  } else {
+    radarSelected = hex;
+    radarFollow = true;
+    const ac = radarAircraft.find(a => a.hex === hex);
+    if (ac) { radarCenterLat = ac.lat_raw; radarCenterLon = ac.lon_raw; }
+  }
+  // Recompute positions immediately so the view snaps without waiting for next fetch
+  radarAircraft.forEach(ac => { ac._pos = latLonToRadar(ac.lat_raw, ac.lon_raw, !radarFollow); });
+  renderDataPanel();
 }
 
 function renderDataPanel() {
@@ -2305,6 +2437,35 @@ function renderDataPanel() {
   if(fastEl)  fastEl.textContent   = maxSpd > 0 ? maxSpd : '--';
   if(milEl)   milEl.textContent    = milCnt;
 
+  panel.innerHTML = '';
+
+  // ── Selected aircraft readout: distance + bearing from home ──
+  if (radarSelected) {
+    const sel = radarAircraft.find(a => a.hex === radarSelected);
+    if (sel && sel.lat_raw != null) {
+      const db = distanceBearing(RADAR_LAT, RADAR_LON, sel.lat_raw, sel.lon_raw);
+      const compass = bearingToCompass(db.bearing);
+      const readout = document.createElement('div');
+      readout.style.cssText = 'background:rgba(0,255,157,.07);border:1px solid rgba(0,255,157,.25);border-radius:6px;padding:9px 11px;margin-bottom:9px';
+      readout.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <span style="font-family:var(--fh);font-weight:700;color:var(--accent3);letter-spacing:.05em">🎯 ${sel.flight || sel.hex}</span>
+          <span style="font-family:var(--fm);font-size:.62rem;color:var(--accent3)">${radarFollow ? '◉ TRACKING' : ''}</span>
+        </div>
+        <div class="ac-stats">
+          <div class="ac-stat"><span>RANGE </span>${db.dist.toFixed(1)} mi</div>
+          <div class="ac-stat"><span>BRG </span>${Math.round(db.bearing)}° ${compass}</div>
+          <div class="ac-stat"><span>ALT </span>${sel.alt_ft ? sel.alt_ft.toLocaleString()+' ft' : '--'}</div>
+          <div class="ac-stat"><span>SPD </span>${sel.spd_kt ? sel.spd_kt+' kt' : '--'}</div>
+        </div>
+        <div style="margin-top:6px;text-align:right">
+          <button class="rbtn" onclick="selectAircraft('${sel.hex}')" style="margin:0;font-size:.68rem">✕ Stop tracking</button>
+        </div>
+      `;
+      panel.appendChild(readout);
+    }
+  }
+
   // Sort: selected first, then by distance
   const sorted = [...radarAircraft].sort((a,b) => {
     if (a.hex === radarSelected) return -1;
@@ -2312,16 +2473,12 @@ function renderDataPanel() {
     return (a._pos?.dist || 99) - (b._pos?.dist || 99);
   });
 
-  panel.innerHTML = '';
   sorted.forEach(ac => {
     const isSel = ac.hex === radarSelected;
     const isMil = ac.military;
     const card  = document.createElement('div');
     card.className = `ac-card${isSel?' selected':''}${isMil?' military':''}`;
-    card.onclick   = () => {
-      radarSelected = isSel ? null : ac.hex;
-      renderDataPanel();
-    };
+    card.onclick   = () => selectAircraft(ac.hex);
 
     const alt = ac.alt_ft ? ac.alt_ft.toLocaleString() + ' ft' : '--';
     const spd = ac.spd_kt ? ac.spd_kt + ' kt' : '--';
@@ -2409,8 +2566,7 @@ function initRadar() {
       const d = Math.sqrt((ac._pos.x - mx)**2 + (ac._pos.y - my)**2);
       if (d < minDist) { minDist = d; closest = ac.hex; }
     });
-    radarSelected = closest;
-    renderDataPanel();
+    if (closest) selectAircraft(closest);
   });
 }
 
@@ -2716,6 +2872,91 @@ function computeSatPositions(tles) {
   return results;
 }
 
+/* ── ISS PASS PREDICTIONS ──
+   Steps the ISS orbit forward and finds upcoming passes above a min elevation.
+   Pure satellite.js math — no API. */
+function predictISSPasses(opts = {}) {
+  if (!satLib || !allTLEs.length) return [];
+  const issTle = allTLEs.find(t => t.name.includes('ISS') || t.name.includes('ZARYA'));
+  if (!issTle) return [];
+
+  const minEl    = opts.minEl ?? 10;        // degrees — visible-pass threshold
+  const hoursAhead = opts.hours ?? 48;      // search window
+  const stepSec  = opts.step ?? 30;         // coarse step in seconds
+  const wantPasses = opts.count ?? 4;
+
+  let satrec;
+  try { satrec = satLib.twoline2satrec(issTle.l1, issTle.l2); } catch(e) { return []; }
+  const obsGd = { latitude: satLib.degreesToRadians(RADAR_LAT), longitude: satLib.degreesToRadians(RADAR_LON), height: SAT_ALT };
+
+  const elAt = (date) => {
+    const pv = satLib.propagate(satrec, date);
+    if (!pv.position) return null;
+    const gmst = satLib.gstime(date);
+    const ecf  = satLib.eciToEcf(pv.position, gmst);
+    const la   = satLib.ecfToLookAngles(obsGd, ecf);
+    return { el: satLib.radiansToDegrees(la.elevation), az: satLib.radiansToDegrees(la.azimuth) };
+  };
+
+  const passes = [];
+  const start = Date.now();
+  const end   = start + hoursAhead * 3600 * 1000;
+  let t = start;
+  let inPass = false, passStart = null, passPeak = 0, peakAz = 0, startAz = 0;
+
+  while (t < end && passes.length < wantPasses) {
+    const date = new Date(t);
+    const look = elAt(date);
+    if (!look) { t += stepSec * 1000; continue; }
+
+    if (look.el >= minEl && !inPass) {
+      inPass = true; passStart = t; passPeak = look.el; peakAz = look.az; startAz = look.az;
+    } else if (inPass) {
+      if (look.el > passPeak) { passPeak = look.el; peakAz = look.az; }
+      if (look.el < minEl) {
+        // pass ended
+        passes.push({
+          start: new Date(passStart),
+          end:   new Date(t),
+          durationMin: Math.round((t - passStart) / 60000),
+          maxEl: Math.round(passPeak),
+          startCompass: bearingToCompass(startAz),
+          peakCompass:  bearingToCompass(peakAz),
+          endCompass:   bearingToCompass(look.az),
+        });
+        inPass = false;
+      }
+    }
+    t += stepSec * 1000;
+  }
+  return passes;
+}
+
+function renderISSPasses() {
+  const el = document.getElementById('iss-next-pass');
+  if (!el) return;
+  const passes = predictISSPasses({ minEl: 10, count: 4, hours: 48 });
+  if (!passes.length) {
+    el.textContent = 'No visible passes in next 48h';
+    return;
+  }
+  const fmt = d => d.toLocaleString(undefined, { weekday:'short', hour:'2-digit', minute:'2-digit' });
+  // First pass inline (compact), full list below the card
+  const next = passes[0];
+  el.textContent = `${fmt(next.start)} · ${next.durationMin}min · max ${next.maxEl}° (${next.startCompass}→${next.endCompass})`;
+
+  // Render the full list into the dedicated container if present
+  const listEl = document.getElementById('iss-pass-list');
+  if (listEl) {
+    listEl.innerHTML = passes.map((p, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;${i<passes.length-1?'border-bottom:1px solid var(--border)':''}">
+        <span style="font-family:var(--fm);font-size:.72rem;color:var(--text)">${fmt(p.start)}</span>
+        <span style="font-family:var(--fm);font-size:.68rem;color:var(--muted)">${p.durationMin}min · ↑${p.maxEl}° · ${p.startCompass}→${p.endCompass}</span>
+      </div>
+    `).join('');
+  }
+}
+
 function satToCanvas(az, el) {
   // el 90=center, 0=edge
   const r     = SAT_R * (1 - el / 90);
@@ -2866,14 +3107,23 @@ function renderSatPanel() {
   if (issEl)  issEl.textContent  = iss ? '✅' : '❌';
   if (highEl) highEl.textContent = maxAlt ? maxAlt.toLocaleString() : '--';
 
-  // ISS card
+  // ISS card — show whenever we have TLE data (passes work even if not overhead now)
   const issCard = document.getElementById('iss-card');
-  if (iss && issCard) {
+  const issTleLoaded = allTLEs.some(t => t.name.includes('ISS') || t.name.includes('ZARYA'));
+  if (issCard && (iss || issTleLoaded)) {
     issCard.style.display = '';
-    document.getElementById('iss-alt').textContent = iss.altMi + ' mi';
-    document.getElementById('iss-spd').textContent = iss.spdKmps + ' km/s';
-    document.getElementById('iss-az').textContent  = Math.round(iss.az) + '°';
-    document.getElementById('iss-el').textContent  = Math.round(iss.el) + '°';
+    if (iss) {
+      document.getElementById('iss-alt').textContent = iss.altMi + ' mi';
+      document.getElementById('iss-spd').textContent = iss.spdKmps + ' km/s';
+      document.getElementById('iss-az').textContent  = Math.round(iss.az) + '°';
+      document.getElementById('iss-el').textContent  = Math.round(iss.el) + '°';
+    } else {
+      // Not currently overhead — show dashes for live position
+      ['iss-alt','iss-spd','iss-az','iss-el'].forEach(id => {
+        const e = document.getElementById(id); if (e) e.textContent = '— not overhead';
+      });
+    }
+    renderISSPasses();
   } else if (issCard) {
     issCard.style.display = 'none';
   }
