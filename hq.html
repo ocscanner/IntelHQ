@@ -121,6 +121,9 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 
 /* RADAR DISPLAY */
 .radar-container{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#radar-air-section .radar-container{grid-template-columns:auto 1fr}
+.radar-scope canvas{max-width:100%;height:auto}
+@media(max-width:760px){#radar-air-section .radar-container{grid-template-columns:1fr}}
 @media(max-width:700px){.radar-container{grid-template-columns:1fr}}
 .radar-scope{position:relative;display:flex;align-items:center;justify-content:center}
 .radar-scope canvas{border-radius:50%;display:block}
@@ -756,7 +759,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
     <div class="radar-container">
       <div class="radar-scope">
-        <canvas id="radar-canvas" width="380" height="380"></canvas>
+        <canvas id="radar-canvas" width="460" height="460"></canvas>
       </div>
       <div>
         <div class="radar-stat-row">
@@ -2048,7 +2051,7 @@ let radarSelected   = null;
 let radarSweepAngle = 0;
 let radarAnimFrame  = null;
 let radarCanvas, radarCtx;
-const CANVAS_SIZE   = 360;
+const CANVAS_SIZE   = 460;
 const CENTER        = CANVAS_SIZE / 2;
 const R             = CENTER - 10;
 
@@ -2544,9 +2547,10 @@ function initRadar() {
   if (!radarCanvas) return;
 
   const container = radarCanvas.parentElement;
-  const size = Math.min(container.offsetWidth || 380, 380);
-  radarCanvas.width  = size;
-  radarCanvas.height = size;
+  // Air radar is intentionally larger; cap at 460 to match drawing constants
+  const size = Math.min(container.offsetWidth || CANVAS_SIZE, CANVAS_SIZE);
+  radarCanvas.width  = CANVAS_SIZE;
+  radarCanvas.height = CANVAS_SIZE;
 
   radarCtx = radarCanvas.getContext('2d');
   updateRadarSubtitles();
@@ -3123,7 +3127,7 @@ function renderSatPanel() {
         const e = document.getElementById(id); if (e) e.textContent = '— not overhead';
       });
     }
-    renderISSPasses();
+    try { renderISSPasses(); } catch(e) { console.log('[ISS passes] error (non-fatal):', e.message); }
   } else if (issCard) {
     issCard.style.display = 'none';
   }
@@ -3207,8 +3211,10 @@ async function refreshSatellites() {
   document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Computing positions…</div>';
   try {
     if (!satLib) satLib = await loadSatelliteJS();
+    console.log('[Sat] refreshSatellites — allTLEs:', allTLEs.length, 'satLib:', !!satLib);
     if (allTLEs.length) {
       satObjects = computeSatPositions(allTLEs);
+      console.log('[Sat] computed positions (above 15° elev):', satObjects.length);
       renderSatPanel();
       drawSatRadar();
       const el = document.getElementById('sat-last-update');
@@ -3218,6 +3224,7 @@ async function refreshSatellites() {
       await loadAllTLEs();
     }
   } catch(e) {
+    console.log('[Sat] refreshSatellites ERROR:', e.message, e.stack);
     document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Error computing positions</div>';
   }
 }
