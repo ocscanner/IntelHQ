@@ -400,7 +400,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
       <span style="color:var(--muted);font-style:italic">Generating intelligence digest…</span>
     </div>
     <div style="margin-top:8px;color:var(--muted);font-size:.62rem;font-family:var(--fm);letter-spacing:.05em">
-      AUTO-REFRESHES EVERY 15 MIN · SOURCES: LIVE RSS FEEDS
+      AI DIGEST UPDATES 3× DAILY (8AM · 2PM · 9PM PT) · STORIES REFRESH LIVE · SOURCES: RSS FEEDS
     </div>
   </div>
 
@@ -3115,7 +3115,7 @@ loadNWS();setInterval(loadNWS,5*60*1000);
 loadLocalNews();setInterval(loadLocalNews,10*60*1000);
 loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
 setTimeout(fetchAIDigest, 6000); // wait for news columns to populate first
-setInterval(fetchAIDigest, 15*60*1000);
+setInterval(fetchAIDigest, 8*60*60*1000); // 8h — worker caches server-side, so this is cheap
 loadQuakes();loadFires();loadFEMA();
 loadTicker();setInterval(loadTicker, 10*60*1000);
 loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
