@@ -120,10 +120,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
 /* RADAR DISPLAY */
-.radar-container{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
-#radar-air-section .radar-container{grid-template-columns:auto 1fr}
+.radar-container{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+#radar-air-section .radar-container{grid-template-columns:520px 1fr;gap:24px;align-items:start}
 .radar-scope canvas{max-width:100%;height:auto}
-@media(max-width:760px){#radar-air-section .radar-container{grid-template-columns:1fr}}
+@media(max-width:900px){#radar-air-section .radar-container{grid-template-columns:1fr}}
 @media(max-width:700px){.radar-container{grid-template-columns:1fr}}
 .radar-scope{position:relative;display:flex;align-items:center;justify-content:center}
 .radar-scope canvas{border-radius:50%;display:block}
@@ -206,6 +206,20 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .ni-sm .src2{font-size:.63rem;font-family:var(--fm);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px}
 .ni-sm .ttl2{font-size:.82rem;color:var(--text);font-family:var(--fu);font-weight:500;line-height:1.28}
 .ni-sm .ts2{font-size:.68rem;color:var(--muted);font-family:var(--fm);margin-top:2px}
+
+/* Larger fonts on the Live News page + election feed for readability */
+#panel-news .feed-col-head .name{font-size:1.02rem}
+#panel-news .feed-col-head .icon{font-size:1.3rem}
+#panel-news .feed-col-head .cnt{font-size:.74rem}
+#panel-news .ni-sm{padding:9px 12px}
+#panel-news .ni-sm .src2,
+#panel-elections #election-news-feed .src2{font-size:.72rem;margin-bottom:3px}
+#panel-news .ni-sm .ttl2,
+#panel-elections #election-news-feed .ttl2{font-size:.98rem;line-height:1.34}
+#panel-news .ni-sm .ts2,
+#panel-elections #election-news-feed .ts2{font-size:.76rem;margin-top:3px}
+#panel-news #ai-digest-text{font-size:.98rem !important;line-height:1.7 !important}
+#panel-news .sh h2{font-size:1.05rem}
 .src-fox{color:#ff9500}.src-breit{color:#ff4d2e}.src-wash{color:#8ab0c0}.src-hill{color:#af52de}.src-just{color:#00ff9d}.src-ap{color:#00b4ff}.src-mil{color:#00ff9d}.src-def{color:#00b4ff}.src-epoch{color:#ffb700}
 
 /* ALERTS */
@@ -345,8 +359,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
   <button class="ntab" data-p="radar">📡 Radar</button>
   <button class="ntab" data-p="space">🚀 Space</button>
-  <button class="ntab" data-p="news">📰 News & Politics <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
-  <button class="ntab" data-p="elections">🗳 Elections</button>
+  <button class="ntab" data-p="news">📰 Live News <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
+  <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
@@ -759,7 +773,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
     <div class="radar-container">
       <div class="radar-scope">
-        <canvas id="radar-canvas" width="460" height="460"></canvas>
+        <canvas id="radar-canvas" width="500" height="500"></canvas>
       </div>
       <div>
         <div class="radar-stat-row">
@@ -984,6 +998,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
   </div>
 
+  <!-- Election News Feed (top priority) -->
+  <div class="sh"><h2>📰 Election News Feed</h2><span class="ltag">LIVE</span><button class="rbtn" onclick="loadElectionNews()">↺ Refresh</button></div>
+  <div id="election-news-feed" class="nfeed" style="max-height:520px;margin-bottom:20px"><div class="loader">Loading election news…</div></div>
+
   <!-- Quick links row -->
   <div class="sh"><h2>⚡ Live Results & Trackers</h2><span class="mtag">PRIMARY SOURCES</span></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-bottom:18px">
@@ -1032,10 +1050,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <a class="ol" href="https://cal-access.sos.ca.gov/" target="_blank" rel="noopener"><span class="oi">🏛</span><div><span>CAL-ACCESS</span><span class="od">CA campaign finance filings</span></div></a>
     <a class="ol" href="https://www.followthemoney.org/" target="_blank" rel="noopener"><span class="oi">💵</span><div><span>Follow the Money</span><span class="od">State-level campaign finance</span></div></a>
   </div>
-
-  <!-- Election News Feed -->
-  <div class="sh"><h2>📰 Election News Feed</h2><span class="ltag">LIVE</span><button class="rbtn" onclick="loadElectionNews()">↺ Refresh</button></div>
-  <div id="election-news-feed" class="nfeed" style="max-height:500px"><div class="loader">Loading election news…</div></div>
 
   <!-- Future: Live results embed placeholder -->
   <div style="margin-top:20px">
@@ -1776,13 +1790,20 @@ async function loadAirports(){
 
 /* ── ELECTION NEWS ── */
 const ELECTION_FEEDS=[
-  {n:'Fox Politics',   c:'src-fox',   u:'https://rss.politico.com/politics-news.xml'},
+  {n:'Fox Politics',   c:'src-fox',   u:'https://moxie.foxnews.com/google-publisher/politics.xml'},
   {n:'Breitbart',      c:'src-breit', u:'https://www.breitbart.com/feed/'},
-  {n:'Politico',       c:'src-hill',  u:'https://rss.politico.com/politico.xml'},
+  {n:'Politico',       c:'src-hill',  u:'https://rss.politico.com/politics-news.xml'},
   {n:'The Hill',       c:'src-hill',  u:'https://thehill.com/feed'},
   {n:'Wash. Examiner', c:'src-wash',  u:'https://www.washingtonexaminer.com/feed'},
   {n:'National Review',c:'src-wash',  u:'https://www.nationalreview.com/feed/'},
+  {n:'The Federalist', c:'src-breit', u:'https://thefederalist.com/feed/'},
+  {n:'RealClearPolitics',c:'src-hill',u:'https://www.realclearpolitics.com/index.xml'},
+  {n:'Daily Wire',     c:'src-breit', u:'https://www.dailywire.com/feeds/rss.xml'},
+  {n:'NY Post',        c:'src-fox',   u:'https://nypost.com/politics/feed/'},
+  {n:'Just the News',  c:'src-just',  u:'https://justthenews.com/feeds/all-stories'},
+  {n:'Free Beacon',    c:'src-wash',  u:'https://freebeacon.com/feed/'},
   {n:'AP Politics',    c:'src-ap',    u:'https://feeds.npr.org/1014/rss.xml'},
+  {n:'NPR Politics',   c:'src-ap',    u:'https://feeds.npr.org/1012/rss.xml'},
 ];
 const ELECTION_KW=['election','vote','ballot','primary','candidate','campaign','poll','senate','house','congress','gop','democrat','republican','trump','2026','2028','race','district','runoff','caucus','delegate','electoral','fec','donor','fundrais'];
 
@@ -1790,10 +1811,10 @@ async function loadElectionNews(){
   const el=document.getElementById('election-news-feed');
   el.innerHTML='<div class="loader">Loading election news…</div>';
   const items=[];const seen=new Set();
-  for(const f of ELECTION_FEEDS){
+  await Promise.allSettled(ELECTION_FEEDS.map(async f=>{
     try{
       const xml=new DOMParser().parseFromString(await proxyFetchText(f.u),'text/xml');
-      Array.from(xml.querySelectorAll('item')).slice(0,8).forEach(it=>{
+      Array.from(xml.querySelectorAll('item')).slice(0,10).forEach(it=>{
         const title=it.querySelector('title')?.textContent||'';
         const link=it.querySelector('link')?.textContent||'#';
         const pub=it.querySelector('pubDate')?.textContent||'';
@@ -1802,7 +1823,7 @@ async function loadElectionNews(){
           items.push({src:f.n,cls:f.c,title,link,pub:pub?new Date(pub):new Date(0)});
       });
     }catch(e){}
-  }
+  }));
   items.sort((a,b)=>b.pub-a.pub);
   if(!items.length){el.innerHTML='<div class="loader">No election stories found — try refreshing.</div>';return;}
   el.innerHTML='';
@@ -2051,7 +2072,7 @@ let radarSelected   = null;
 let radarSweepAngle = 0;
 let radarAnimFrame  = null;
 let radarCanvas, radarCtx;
-const CANVAS_SIZE   = 460;
+const CANVAS_SIZE   = 500;
 const CENTER        = CANVAS_SIZE / 2;
 const R             = CENTER - 10;
 
