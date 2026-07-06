@@ -364,6 +364,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
+  <button class="ntab" data-p="status">📶 Status</button>
 </div>
 
 <!-- ══════════════════ STREAMS ══════════════════ -->
@@ -581,7 +582,13 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 <div id="panel-weather" class="panel">
   <div class="two">
     <div>
-      <div class="sh"><h2>☀ Conditions — Orange County, CA</h2><span class="ltag">LIVE</span></div>
+      <div class="sh"><h2>☀ Conditions — <span id="wx-loc-name">Orange County, CA</span></h2><span class="ltag">LIVE</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <input id="wx-loc-input" type="text" placeholder="Search city… (e.g. Las Vegas)" style="flex:1;min-width:160px;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--fm);font-size:.8rem;outline:none" onkeydown="if(event.key==='Enter')wxSearchLocation()"/>
+        <button class="rbtn" style="margin:0" onclick="wxSearchLocation()">🔍 Go</button>
+        <button class="rbtn" style="margin:0;color:var(--accent3);border-color:rgba(0,255,157,.3)" onclick="wxUseMyLocation()">📍 My Location</button>
+        <button class="rbtn" style="margin:0" onclick="wxSetLocation(33.7175,-117.8311,'Orange County, CA')">🏠 Home</button>
+      </div>
       <div class="wxg">
         <div class="wxs"><div class="wv" id="wx-temp">--°</div><div class="wl">Temp</div></div>
         <div class="wxs"><div class="wv" id="wx-feels">--°</div><div class="wl">Feels Like</div></div>
@@ -605,7 +612,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div>
       <div class="sh"><h2>🗺 NEXRAD Radar — SoCal</h2></div>
       <div class="rdrwrap">
-        <iframe src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=7&overlay=radar&product=radar&level=surface&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true&message=true" loading="lazy" title="SoCal Radar" allow="fullscreen"></iframe>
+        <iframe id="wx-radar-frame" src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=7&overlay=radar&product=radar&level=surface&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true&message=true" loading="lazy" title="Weather Radar" allow="fullscreen"></iframe>
       </div>
       <div class="pills" style="margin-top:8px">
         <a class="pill" href="https://radar.weather.gov/station/KSOX/standard" target="_blank">NWS KSOX →</a>
@@ -1154,6 +1161,34 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   </div>
 </div>
 
+<!-- ══════════════════ STATUS ══════════════════ -->
+<div id="panel-status" class="panel">
+  <div class="sh"><h2>📶 System Status</h2><span class="ltag">LIVE</span><span id="status-updated" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:6px"></span><button class="rbtn" onclick="renderStatusPanel()">↺ Refresh</button></div>
+
+  <div class="two">
+    <div>
+      <div class="sh"><h2>🛰 Data Sources</h2><span class="mtag">HEALTH</span></div>
+      <div id="status-source-list" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div class="empty">No source activity recorded yet.</div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:10px;font-family:var(--fm);font-size:.68rem;color:var(--muted);flex-wrap:wrap">
+        <span><span style="color:var(--accent3)">●</span> OK — recent success</span>
+        <span><span style="color:var(--warn)">●</span> Stale — no success in 30m</span>
+        <span><span style="color:var(--danger)">●</span> Failing — last attempt errored</span>
+      </div>
+    </div>
+    <div>
+      <div class="sh"><h2>⏱ Refresh Schedule</h2><span class="mtag">SCHEDULER</span></div>
+      <div id="status-task-list" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:420px;overflow-y:auto">
+        <div class="empty">Scheduler starting…</div>
+      </div>
+      <div style="margin-top:10px;font-family:var(--fm);font-size:.68rem;color:var(--muted)">
+        All refresh tasks pause automatically when this tab is in the background, and resume staggered when you return — this prevents rate-limiting from simultaneous fetches.
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FOCUS OVERLAY -->
 <div id="fo"><button id="fc" onclick="closeFocus()">×</button><iframe id="fi" title="Focused Stream" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; autoplay" allowfullscreen></iframe></div>
 
@@ -1443,9 +1478,47 @@ setInterval(()=>{
   }
 }, 10*60*1000);
 
+/* ── WEATHER LOCATION (adjustable for travel) ── */
+let WX_LAT = 33.7175, WX_LON = -117.8311, WX_NAME = 'Orange County, CA';
+
+function wxSetLocation(lat, lon, name){
+  WX_LAT = lat; WX_LON = lon; WX_NAME = name;
+  const nameEl = document.getElementById('wx-loc-name');
+  if (nameEl) nameEl.textContent = name;
+  // Re-point the Windy radar embed
+  const frame = document.getElementById('wx-radar-frame');
+  if (frame) frame.src = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=7&overlay=radar&product=radar&level=surface&lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}&detailLat=${lat.toFixed(2)}&detailLon=${lon.toFixed(2)}&marker=true&message=true`;
+  loadWeather();
+}
+
+async function wxSearchLocation(){
+  const input = document.getElementById('wx-loc-input');
+  const q = (input?.value || '').trim();
+  if (!q) return;
+  try{
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&format=json`);
+    const d = await r.json();
+    const hit = d.results?.[0];
+    if (!hit){ input.value = ''; input.placeholder = 'Not found — try again'; return; }
+    const label = [hit.name, hit.admin1, hit.country_code].filter(Boolean).join(', ');
+    wxSetLocation(hit.latitude, hit.longitude, label);
+    input.value = '';
+    input.placeholder = 'Search city… (e.g. Las Vegas)';
+  }catch(e){ console.log('[WX] geocode error:', e.message); }
+}
+
+function wxUseMyLocation(){
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => wxSetLocation(pos.coords.latitude, pos.coords.longitude, 'Current Location'),
+    err => console.log('[WX] geolocation denied/failed:', err.message),
+    { enableHighAccuracy:false, timeout:12000, maximumAge:300000 }
+  );
+}
+
 async function loadWeather(){
   try{
-    const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.7175&longitude=-117.8311&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FLos_Angeles&forecast_days=7');
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
     const d=await r.json();const c=d.current;
     const t=Math.round(c.temperature_2m),f=Math.round(c.apparent_temperature),h=c.relative_humidity_2m,w=Math.round(c.wind_speed_10m),vis=c.visibility?(c.visibility/1000).toFixed(1)+' mi':'--',desc=WX[c.weather_code]||'Unknown';
     document.getElementById('sb-wx').textContent=t+'°F · '+desc.split(' ')[0];
@@ -1462,7 +1535,8 @@ async function loadWeather(){
         row.appendChild(el);
       });
     }
-  }catch(e){document.getElementById('sb-wx').textContent='Unavailable';}
+    markHealth('Weather (Open-Meteo)', true);
+  }catch(e){markHealth('Weather (Open-Meteo)', false, e.message);document.getElementById('sb-wx').textContent='Unavailable';}
 }
 
 /* ── NWS ALERTS ── */
@@ -1489,7 +1563,8 @@ async function loadNWS(){
         el.appendChild(div);
       });
     });
-  }catch(e){['nws-alerts','wx-alerts'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty">⚠ Unable to load. <a href="https://alerts.weather.gov/" target="_blank" style="color:var(--accent)">Check manually →</a></div>';});}
+    markHealth('NWS Alerts', true);
+  }catch(e){markHealth('NWS Alerts', false, e.message);['nws-alerts','wx-alerts'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty">⚠ Unable to load. <a href="https://alerts.weather.gov/" target="_blank" style="color:var(--accent)">Check manually →</a></div>';});}
 }
 
 /* ── LOCAL NEWS ── */
@@ -1551,6 +1626,7 @@ async function fetchAIDigest() {
     const data = await res.json();
 
     if (data.digest) {
+      markHealth('AI Digest (Worker)', true);
       digestEl.textContent = data.digest;
       digestEl.style.fontStyle = 'normal';
       digestEl.style.color = 'var(--text2)';
@@ -1699,6 +1775,7 @@ async function loadNewsColumns(){
   });
   if(cols.politics.length)document.getElementById('ticker-text').textContent=cols.politics[0].title;
   document.getElementById('news-badge').style.display='inline';
+  markHealth('News Feeds (RSS)', document.querySelectorAll('#panel-news .ni-sm').length > 0);
 }
 
 /* ── QUAKES ── */
@@ -1770,21 +1847,30 @@ async function loadFEMA(){
 
 /* ── AIRPORTS ── */
 async function loadAirports(){
-  // FAA NAS Status API blocks CORS — route through our worker proxy
-  for(const code of['LAX','SNA','LGB','ONT','SAN']){
-    const el=document.getElementById('ap-'+code.toLowerCase());if(!el)continue;
-    try{
-      // Try via corsproxy first, fallback to worker
-      const faaUrl = `https://nasstatus.faa.gov/api/airport-status/${code}`;
-      const r=await fetch(faaUrl, {signal:(() => { const _c = new AbortController(); setTimeout(() => _c.abort(), 5000); return _c.signal; })()});
-      const d=await r.json();
-      const delays=d.status?.delay?.delays||[];
-      el.textContent=delays.length?'⚠ Delays':'✅ No Delays';
-      el.className='astat '+(delays.length?'adly':'aok');
-    }catch(e){
-      el.textContent='— Check FAA';
-      el.className='astat';
-    }
+  // FAA blocks browser CORS — one worker call covers all airports, no console noise
+  const codes = ['LAX','SNA','LGB','ONT','SAN'];
+  try{
+    const r = await fetch(`https://oc-radar-proxy.ocscannernews.workers.dev/airports?codes=${codes.join(',')}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    markHealth('Airports (FAA)', true);
+    codes.forEach(code=>{
+      const el=document.getElementById('ap-'+code.toLowerCase());if(!el)return;
+      const info=d[code];
+      if(info && info.ok){
+        el.textContent=info.delays?'⚠ Delays':'✅ No Delays';
+        el.className='astat '+(info.delays?'adly':'aok');
+      }else{
+        el.textContent='— Check FAA';
+        el.className='astat';
+      }
+    });
+  }catch(e){
+    markHealth('Airports (FAA)', false, e.message);
+    codes.forEach(code=>{
+      const el=document.getElementById('ap-'+code.toLowerCase());
+      if(el){el.textContent='— Check FAA';el.className='astat';}
+    });
   }
 }
 
@@ -1923,6 +2009,7 @@ async function loadMarketTicker() {
   const html = items.map(it => buildMarketItem(it.sym, it.price, it.chg)).join('');
   // Duplicate for seamless scroll
   el.innerHTML = html + html;
+  markHealth('Markets (Yahoo/CoinGecko)', true);
 }
 
 /* ── STREAMS TICKER ── */
@@ -1980,6 +2067,7 @@ async function loadTicker() {
   const totalWidth = inner.scrollWidth / 2;
   const speed = Math.max(120, totalWidth / 30); // ~30px per second — readable pace
   inner.style.animationDuration = speed + 's';
+  markHealth('Headline Ticker', true);
 }
 
 /* ══════════════════════════════════════
@@ -2069,6 +2157,7 @@ function updateMyLocation() {
 
 let radarAircraft   = [];
 let radarSelected   = null;
+let radarStaleCount = 0;  // consecutive empty fetches (prevents flicker)
 let radarSweepAngle = 0;
 let radarAnimFrame  = null;
 let radarCanvas, radarCtx;
@@ -2543,11 +2632,29 @@ async function fetchRadarData() {
       if (!r.ok) continue;
       const data = await r.json();
       console.log('[Radar] Keys:', Object.keys(data), 'ac:', data.ac?.length ?? 'none');
-      radarAircraft = parseAircraft(data);
-      console.log('[Radar] Parsed:', radarAircraft.length, 'aircraft');
-      renderDataPanel();
-      const el = document.getElementById('radar-last-update');
-      if (el) el.textContent = new Date().toLocaleTimeString();
+      const parsed = parseAircraft(data);
+      // Only replace the displayed set when we actually got aircraft.
+      // A momentary empty/slow response shouldn't blank the radar — keep the
+      // previous planes on screen until real data arrives.
+      if (parsed.length > 0) {
+        radarAircraft = parsed;
+        renderDataPanel();
+        const el = document.getElementById('radar-last-update');
+        if (el) el.textContent = new Date().toLocaleTimeString();
+        radarStaleCount = 0;
+      } else {
+        // Empty result — keep existing planes, but if it stays empty for
+        // several cycles, accept that the sky really is clear.
+        radarStaleCount++;
+        if (radarStaleCount >= 4) {
+          radarAircraft = parsed;
+          renderDataPanel();
+          const el = document.getElementById('radar-last-update');
+          if (el) el.textContent = new Date().toLocaleTimeString();
+        }
+      }
+      console.log('[Radar] Parsed:', parsed.length, 'aircraft (displaying', radarAircraft.length + ')');
+      markHealth('Flights (ADS-B)', true);
       return;
     } catch(e) {
       console.log('[Radar] Error:', e.message);
@@ -2555,6 +2662,7 @@ async function fetchRadarData() {
     }
   }
   console.log('[Radar] All URLs failed');
+  markHealth('Flights (ADS-B)', false, 'all sources failed');
   const el = document.getElementById('radar-last-update');
   if (el) el.textContent = 'Retrying…';
   const panel = document.getElementById('radar-data-panel');
@@ -2577,7 +2685,7 @@ function initRadar() {
   updateRadarSubtitles();
   animateRadar();
   fetchRadarData();
-  setInterval(fetchRadarData, 15000);
+  sched('Flight Radar', fetchRadarData, 15000, false);
 
   // Click on canvas to select aircraft
   radarCanvas.addEventListener('click', e => {
@@ -2790,9 +2898,9 @@ function initSpace() {
   loadISS();
   loadSpaceWeather();
   loadSpaceNews();
-  setInterval(loadISS, 5000);
-  setInterval(loadSpaceWeather, 5 * 60 * 1000);
-  setInterval(loadLaunches, 10 * 60 * 1000);
+  sched('ISS Telemetry', loadISS, 5000, false);
+  sched('Space Weather', loadSpaceWeather, 5 * 60 * 1000, false);
+  sched('Launches', loadLaunches, 10 * 60 * 1000, false);
 }
 
 /* ══════════════════════════════════════
@@ -3203,6 +3311,7 @@ async function fetchTLEGroup(group) {
     if (!text || (!text.includes('1 ') && !text.includes('2 '))) throw new Error('No TLE data in response');
     const result = parseTLE(text, group);
     console.log('[TLE]', group.key, 'parsed:', result.length, 'satellites');
+    markHealth('Satellites (TLE)', true);
     return result;
   } catch(e) {
     console.log('[TLE]', group.key, 'failed:', e.message);
@@ -3338,8 +3447,8 @@ async function initSatelliteRadar() {
     console.log('[Sat] Loading TLEs...');
     await loadAllTLEs();
     console.log('[Sat] TLEs loaded:', allTLEs.length, 'objects');
-    setInterval(refreshSatellites, 10000);
-    setInterval(loadAllTLEs, 5 * 60 * 1000);
+    sched('Satellite Tracker', refreshSatellites, 10000, false);
+    sched('TLE Refresh', loadAllTLEs, 5 * 60 * 1000, false);
   } catch(e) {
     console.log('[Sat] Error:', e.message);
     document.getElementById('sat-data-panel').innerHTML =
@@ -3377,28 +3486,128 @@ document.querySelectorAll('.ntab').forEach(t=>{
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['streams','news','traffic','radar','space','elections','weather','osint','intel'];
+  const valid = ['streams','news','traffic','radar','space','elections','weather','osint','intel','status'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);
 openHashTab();
 
+/* ══════════════════════════════════════
+   SOURCE HEALTH TRACKER  (feeds the Status tab)
+══════════════════════════════════════ */
+const SRC_HEALTH = {}; // { name: { ok, lastSuccess, lastAttempt, lastError } }
+
+function markHealth(name, ok, errMsg){
+  const h = SRC_HEALTH[name] || (SRC_HEALTH[name] = { ok:null, lastSuccess:0, lastAttempt:0, lastError:'' });
+  h.lastAttempt = Date.now();
+  h.ok = ok;
+  if (ok) { h.lastSuccess = Date.now(); h.lastError = ''; }
+  else if (errMsg) h.lastError = String(errMsg).slice(0, 120);
+}
+
+function healthAge(ts){
+  if(!ts) return 'never';
+  const m = Math.floor((Date.now()-ts)/60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m/60);
+  if (h < 24) return h + 'h ' + (m%60) + 'm ago';
+  return Math.floor(h/24) + 'd ago';
+}
+
+function renderStatusPanel(){
+  const el = document.getElementById('status-source-list');
+  if (!el) return;
+  const names = Object.keys(SRC_HEALTH).sort();
+  if (!names.length){ el.innerHTML = '<div class="empty">No source activity recorded yet.</div>'; return; }
+  el.innerHTML = '';
+  names.forEach(name=>{
+    const h = SRC_HEALTH[name];
+    const staleMs = Date.now() - h.lastSuccess;
+    // green: ok & fresh · yellow: ok but aging (>2× no success in 30m) · red: last attempt failed
+    let color = 'var(--accent3)', label = 'OK';
+    if (h.ok === false) { color = 'var(--danger)'; label = 'FAILING'; }
+    else if (!h.lastSuccess || staleMs > 30*60*1000) { color = 'var(--warn)'; label = 'STALE'; }
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--border)';
+    row.innerHTML = `
+      <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;box-shadow:0 0 8px ${color}"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--fu);font-weight:600;color:var(--text);font-size:.92rem">${name}</div>
+        <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">Last success: ${healthAge(h.lastSuccess)}${h.lastError?' · '+h.lastError:''}</div>
+      </div>
+      <span style="font-family:var(--fm);font-size:.66rem;letter-spacing:.08em;color:${color};border:1px solid ${color};padding:2px 8px;border-radius:3px">${label}</span>`;
+    el.appendChild(row);
+  });
+  const ts = document.getElementById('status-updated');
+  if (ts) ts.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  // Scheduler task list
+  const tl = document.getElementById('status-task-list');
+  if (tl){
+    tl.innerHTML = SCHED_TASKS.map(t=>{
+      const next = Math.max(0, Math.round((t.nextRun - Date.now())/1000));
+      return `<div style="display:flex;justify-content:space-between;padding:5px 12px;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.72rem">
+        <span style="color:var(--text2)">${t.name}</span>
+        <span style="color:var(--muted)">every ${Math.round(t.ms/60000)>=1?Math.round(t.ms/60000)+'m':Math.round(t.ms/1000)+'s'} · next in ${next>=60?Math.round(next/60)+'m':next+'s'}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ══════════════════════════════════════
+   VISIBILITY-AWARE SCHEDULER
+   One master tick replaces scattered setIntervals. Tasks pause while the
+   tab is hidden and resume STAGGERED on return — no thundering herd of
+   simultaneous fetches (which is what got us rate-limited by CelesTrak).
+══════════════════════════════════════ */
+const SCHED_TASKS = [];
+
+function sched(name, fn, ms, runNow = true){
+  const task = { name, fn, ms, nextRun: Date.now() + (runNow ? 0 : ms) };
+  SCHED_TASKS.push(task);
+  return task;
+}
+
+setInterval(() => {
+  if (document.hidden) return;           // pause everything while backgrounded
+  const now = Date.now();
+  for (const t of SCHED_TASKS) {
+    if (now >= t.nextRun) {
+      t.nextRun = now + t.ms;
+      try { t.fn(); } catch(e) { console.log('[Sched]', t.name, 'error:', e.message); }
+    }
+  }
+}, 2000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  // Tab just became visible — stagger any overdue tasks 1.5s apart
+  const now = Date.now();
+  let offset = 0;
+  for (const t of SCHED_TASKS) {
+    if (now >= t.nextRun) { t.nextRun = now + offset; offset += 1500; }
+  }
+});
+
 /* ── INIT ── */
-updateClocks();setInterval(updateClocks,1000);
+updateClocks();setInterval(updateClocks,1000);   // clock stays a plain interval (cheap, must never pause)
 buildGroupBar();renderStreams();
 renderAviationStreams();
 renderNewsStreams();
-loadWeather();setInterval(loadWeather,10*60*1000);
-loadNWS();setInterval(loadNWS,5*60*1000);
-loadLocalNews();setInterval(loadLocalNews,10*60*1000);
-loadNewsColumns();setInterval(loadNewsColumns,15*60*1000);
+loadWeather();          sched('Weather',        loadWeather,        10*60*1000, false);
+loadNWS();              sched('NWS Alerts',     loadNWS,             5*60*1000, false);
+loadLocalNews();        sched('Local News',     loadLocalNews,      10*60*1000, false);
+loadNewsColumns();      sched('News Columns',   loadNewsColumns,    15*60*1000, false);
 setTimeout(fetchAIDigest, 6000); // wait for news columns to populate first
-setInterval(fetchAIDigest, 8*60*60*1000); // 8h — worker caches server-side, so this is cheap
+                        sched('AI Digest',      fetchAIDigest,     8*60*60*1000, false);
 loadQuakes();loadFires();loadFEMA();
-loadTicker();setInterval(loadTicker, 10*60*1000);
-loadMarketTicker();setInterval(loadMarketTicker, 60*1000);
-loadAirports();setInterval(loadAirports,5*60*1000);
-loadElectionNews();setInterval(loadElectionNews,15*60*1000);
+                        sched('Quakes',         loadQuakes,         10*60*1000, false);
+                        sched('Fires',          loadFires,          15*60*1000, false);
+loadTicker();           sched('News Ticker',    loadTicker,         10*60*1000, false);
+loadMarketTicker();     sched('Markets',        loadMarketTicker,       60*1000, false);
+loadAirports();         sched('Airports',       loadAirports,        5*60*1000, false);
+loadElectionNews();     sched('Election News',  loadElectionNews,   15*60*1000, false);
+sched('Status Panel',   renderStatusPanel,      15*1000);
 setNextElection();
 </script>
 <script>
@@ -3420,9 +3629,6 @@ setNextElection();
         .catch(err => console.warn('[SW] Registration failed:', err));
     });
   }
-</script>
-</body>
-</html>
 </script>
 </body>
 </html>
