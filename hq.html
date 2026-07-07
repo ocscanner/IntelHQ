@@ -788,6 +788,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
           <div class="radar-stat"><div class="rs-val" id="r-highest">--</div><div class="rs-lbl">Highest ft</div></div>
           <div class="radar-stat"><div class="rs-val" id="r-fastest">--</div><div class="rs-lbl">Fastest kt</div></div>
           <div class="radar-stat"><div class="rs-val" id="r-mil">--</div><div class="rs-lbl">Military</div></div>
+          <div class="radar-stat"><div class="rs-val" id="r-heli" style="color:#00b4ff">--</div><div class="rs-lbl">Helicopters</div></div>
         </div>
         <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Click dot or card to highlight</div>
         <div class="radar-data-panel" id="radar-data-panel">
@@ -797,7 +798,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
     <!-- Legend -->
     <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;font-family:var(--fm);font-size:.72rem;color:var(--muted)">
-      <span><span style="color:#00e060">●</span> Commercial / Private</span>
+      <span><span style="color:#00e060">●</span> Fixed-Wing</span>
+      <span><span style="color:#00b4ff">■</span> Helicopter</span>
       <span><span style="color:#ff3b30">●</span> Military</span>
       <span><span style="color:#00ff9d">●</span> Selected</span>
       <span style="margin-left:auto">Data: airplanes.live / adsb.lol / OpenSky</span>
@@ -2205,6 +2207,25 @@ function isMilitary(ac) {
   return false;
 }
 
+// Known helicopter ICAO type designators (common civil + law enforcement/EMS rotorcraft)
+const HELI_TYPES = new Set([
+  'EC35','EC30','EC20','EC45','EC55','EC25','H135','H145','H125','H120','H130','H155','H160','H175',
+  'AS50','AS55','AS65','AS32','AS3B','A139','A109','A119','A169','A189','B06','B407','B412','B429',
+  'B430','B505','B427','B222','B230','B47','R22','R44','R66','S76','S92','S70','H60','UH60','H64',
+  'H47','CH47','MD50','MD52','MD60','MD90','MD90','MD53','GAZL','LYNX','PUMA','EXPL','EXEC','A600',
+  'S61','S64','K126','MI8','MI17','MI24','H500','H269','B06T','B47T','R66T'
+]);
+
+function isHelicopter(ac) {
+  // Emitter category A7 = Rotorcraft (most reliable when present)
+  const cat = (ac.category || '').toString().toUpperCase();
+  if (cat === 'A7') return true;
+  // Fall back to ICAO type code lookup
+  const t = (ac.type || '').toString().toUpperCase().trim();
+  if (t && HELI_TYPES.has(t)) return true;
+  return false;
+}
+
 // Miles per degree latitude
 const MI_PER_DEG = 69.0;
 
@@ -2332,7 +2353,8 @@ function drawRadar() {
     if (!tr || tr.length < 2) return;
     const isSelected = radarSelected && ac.hex === radarSelected;
     const isMil = isMilitary(ac);
-    const baseColor = isSelected ? '0,255,157' : isMil ? '255,59,48' : '0,224,96';
+    const isHeli = ac.helicopter;
+    const baseColor = isSelected ? '0,255,157' : isMil ? '255,59,48' : isHeli ? '0,180,255' : '0,224,96';
     // Project each trail point through the current scope center
     for (let i = 1; i < tr.length; i++) {
       const p0 = latLonToRadar(tr[i-1].lat, tr[i-1].lon, false);
@@ -2354,9 +2376,10 @@ function drawRadar() {
     const {x, y} = ac._pos;
     const isSelected = radarSelected && ac.hex === radarSelected;
     const isMil = isMilitary(ac);
+    const isHeli = ac.helicopter;
 
-    // Dot color
-    let dotColor = isMil ? '#ff3b30' : isSelected ? '#00ff9d' : '#00e060';
+    // Dot color: selected=neon green, military=red, helicopter=blue, fixed-wing=green
+    let dotColor = isSelected ? '#00ff9d' : isMil ? '#ff3b30' : isHeli ? '#00b4ff' : '#00e060';
     let dotSize  = isSelected ? 5 : 3.5;
 
     // Glow
@@ -2367,11 +2390,19 @@ function drawRadar() {
       ctx.fill();
     }
 
-    // Dot
-    ctx.beginPath();
-    ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-    ctx.fillStyle = dotColor;
-    ctx.fill();
+    // Marker: helicopters get a small square, everything else a dot
+    if (isHeli && !isSelected) {
+      const s = dotSize * 1.6;
+      ctx.beginPath();
+      ctx.rect(x - s/2, y - s/2, s, s);
+      ctx.fillStyle = dotColor;
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+      ctx.fillStyle = dotColor;
+      ctx.fill();
+    }
 
     // Heading line
     if (ac.track != null) {
@@ -2473,8 +2504,10 @@ function parseAircraft(raw) {
       spd_kt:   spd != null ? Math.round(spd) : null,
       track:    hdg,
       type:     ac.t ?? ac.type ?? '',
+      category: ac.category ?? ac.emitter_category ?? '',
       reg:      ac.r ?? ac.registration ?? '',
       military: isMilitary({military: ac.military, flight: ac.flight ?? ac.callsign, hex: ac.hex ?? ac.icao24}),
+      helicopter: isHelicopter({category: ac.category ?? ac.emitter_category, type: ac.t ?? ac.type}),
       ground:   ac.alt_baro === 'ground' || ac.on_ground === true,
       lat_raw:  lat, lon_raw: lon,
     };
@@ -2533,6 +2566,7 @@ function renderDataPanel() {
   const highEl    = document.getElementById('r-highest');
   const fastEl    = document.getElementById('r-fastest');
   const milEl     = document.getElementById('r-mil');
+  const heliEl    = document.getElementById('r-heli');
 
   if (!radarAircraft.length) {
     panel.innerHTML = '<div class="radar-empty">No aircraft detected in range</div>';
@@ -2544,11 +2578,13 @@ function renderDataPanel() {
   const maxAlt  = Math.max(...radarAircraft.filter(a=>a.alt_ft).map(a=>a.alt_ft));
   const maxSpd  = Math.max(...radarAircraft.filter(a=>a.spd_kt).map(a=>a.spd_kt));
   const milCnt  = radarAircraft.filter(a=>a.military).length;
+  const heliCnt = radarAircraft.filter(a=>a.helicopter).length;
 
   if(totalEl) totalEl.textContent  = radarAircraft.length;
   if(highEl)  highEl.textContent   = maxAlt > 0 ? maxAlt.toLocaleString() : '--';
   if(fastEl)  fastEl.textContent   = maxSpd > 0 ? maxSpd : '--';
   if(milEl)   milEl.textContent    = milCnt;
+  if(heliEl)  heliEl.textContent   = heliCnt;
 
   panel.innerHTML = '';
 
@@ -2589,8 +2625,11 @@ function renderDataPanel() {
   sorted.forEach(ac => {
     const isSel = ac.hex === radarSelected;
     const isMil = ac.military;
+    const isHeli = ac.helicopter;
     const card  = document.createElement('div');
     card.className = `ac-card${isSel?' selected':''}${isMil?' military':''}`;
+    // Color the left edge by class (military red takes priority, then heli blue, then fixed-wing green)
+    if (!isSel) card.style.borderLeft = `3px solid ${isMil ? '#ff3b30' : isHeli ? '#00b4ff' : '#00e060'}`;
     card.onclick   = () => selectAircraft(ac.hex);
 
     const alt = ac.alt_ft ? ac.alt_ft.toLocaleString() + ' ft' : '--';
@@ -2606,6 +2645,7 @@ function renderDataPanel() {
           <span class="ac-callsign">${cs}</span>
           ${typ ? `<span class="ac-type">${typ}</span>` : ''}
           ${isMil ? '<span style="color:var(--danger);font-size:.65rem;font-family:var(--fm);margin-left:6px">MIL</span>' : ''}
+          ${isHeli && !isMil ? '<span style="color:#00b4ff;font-size:.65rem;font-family:var(--fm);margin-left:6px">🚁 HELI</span>' : ''}
         </div>
         <span style="font-family:var(--fm);font-size:.65rem;color:var(--muted)">${dst}</span>
       </div>
