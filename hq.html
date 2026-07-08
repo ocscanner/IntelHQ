@@ -362,6 +362,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="news">📰 Live News <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
   <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
+  <button class="ntab" data-p="firecams">🔥 Fire Cams</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
   <button class="ntab" data-p="status">📶 Status</button>
@@ -1160,6 +1161,46 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <a class="ol" href="https://cal-access.sos.ca.gov/" target="_blank"><span class="oi">💰</span><div><span>CAL-ACCESS</span><span class="od">CA campaign finance data</span></div></a>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════ FIRE CAMS ══════════════════ -->
+<div id="panel-firecams" class="panel">
+  <div class="sh"><h2>🔥 ALERTCalifornia Wildfire Cameras</h2><span class="ltag">LIVE</span></div>
+  <div style="font-family:var(--fm);font-size:.74rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
+    1,200+ pan-tilt-zoom wildfire cameras statewide with near-infrared night vision, operated by UC San Diego + CAL FIRE. HPWREN network covers Orange, LA, Riverside, San Diego & Inyo counties.
+  </div>
+
+  <!-- Embed attempt (may be blocked by ALERTCalifornia's frame policy) -->
+  <div style="position:relative;width:100%;height:600px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:#000;margin-bottom:8px">
+    <iframe id="firecam-frame" src="https://cameras.alertcalifornia.org/" title="ALERTCalifornia Cameras" style="width:100%;height:100%;border:0" loading="lazy" allow="fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div id="firecam-fallback" style="display:none;position:absolute;inset:0;background:var(--bg2);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px">
+      <div style="font-size:2.4rem">🎥</div>
+      <div style="font-family:var(--fh);font-weight:700;font-size:1.15rem;color:var(--text);letter-spacing:.04em">Live Map Opens in a New Window</div>
+      <div style="font-family:var(--fm);font-size:.78rem;color:var(--muted);max-width:440px;line-height:1.6">ALERTCalifornia doesn't allow its camera map to be embedded directly. Use the buttons below to open the full interactive camera network — it opens instantly in a new tab.</div>
+      <a href="https://cameras.alertcalifornia.org/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;font-family:var(--fh);font-weight:700;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;color:#021018;background:linear-gradient(135deg,var(--accent),var(--accent3));padding:13px 30px;border-radius:7px;box-shadow:0 0 26px rgba(0,180,255,.3)">🔥 Open Camera Map →</a>
+    </div>
+  </div>
+  <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-bottom:18px">If the map above is blank or shows an error, ALERTCalifornia has blocked embedding — use the links below (they always work).</div>
+
+  <!-- Reliable link cards -->
+  <div class="sh"><h2>🔗 Camera Network Links</h2><span class="mtag">DIRECT</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-bottom:18px">
+    <a class="ol" href="https://cameras.alertcalifornia.org/" target="_blank" rel="noopener"><span class="oi">🗺</span><div><span>Camera Map (Quilt)</span><span class="od">All 1,200+ cameras statewide</span></div></a>
+    <a class="ol" href="https://cameras.alertcalifornia.org/?zoom=9&center=33.7,-117.8" target="_blank" rel="noopener"><span class="oi">🍊</span><div><span>Orange County Area</span><span class="od">Zoomed to SoCal / OC region</span></div></a>
+    <a class="ol" href="https://status.alertcalifornia.org/" target="_blank" rel="noopener"><span class="oi">📊</span><div><span>Camera Status</span><span class="od">Network health & hibernating cams</span></div></a>
+    <a class="ol" href="https://alertcalifornia.org/" target="_blank" rel="noopener"><span class="oi">🏛</span><div><span>ALERTCalifornia Home</span><span class="od">UC San Diego program info</span></div></a>
+    <a class="ol" href="https://alertcalifornia.org/camera-user-guide/" target="_blank" rel="noopener"><span class="oi">📖</span><div><span>Camera User Guide</span><span class="od">How to pan/tilt/zoom & read cams</span></div></a>
+    <a class="ol" href="http://hpwren.ucsd.edu/cameras/" target="_blank" rel="noopener"><span class="oi">📡</span><div><span>HPWREN Cameras</span><span class="od">SoCal partner camera network</span></div></a>
+  </div>
+
+  <!-- Complementary SoCal fire resources -->
+  <div class="sh"><h2>🚒 SoCal Fire Resources</h2><span class="mtag">RELATED</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px">
+    <a class="ol" href="https://www.fire.ca.gov/incidents" target="_blank" rel="noopener"><span class="oi">🔥</span><div><span>CAL FIRE Incidents</span><span class="od">Active incident map & list</span></div></a>
+    <a class="ol" href="https://ocfa.org/" target="_blank" rel="noopener"><span class="oi">🚒</span><div><span>OC Fire Authority</span><span class="od">ocfa.org — local incidents</span></div></a>
+    <a class="ol" href="https://inciweb.wildfire.gov/" target="_blank" rel="noopener"><span class="oi">📍</span><div><span>InciWeb</span><span class="od">National incident information</span></div></a>
+    <a class="ol" href="https://www.watchduty.org/" target="_blank" rel="noopener"><span class="oi">🐕</span><div><span>Watch Duty</span><span class="od">Real-time wildfire alerts app</span></div></a>
   </div>
 </div>
 
@@ -3514,6 +3555,29 @@ function activateTab(pid){
   if (pid === 'space') {
     initSpace();
   }
+  if (pid === 'firecams') {
+    initFireCams();
+  }
+}
+
+let fireCamsChecked = false;
+function initFireCams(){
+  if (fireCamsChecked) return;
+  fireCamsChecked = true;
+  const frame = document.getElementById('firecam-frame');
+  const fallback = document.getElementById('firecam-fallback');
+  if (!frame || !fallback) return;
+  // If the iframe fails to load (X-Frame-Options / CSP block), show fallback.
+  // We can't read cross-origin frame contents, so we use a load-timeout heuristic:
+  // if 'load' hasn't fired within 4s, assume it's blocked.
+  let loaded = false;
+  frame.addEventListener('load', () => { loaded = true; });
+  frame.addEventListener('error', () => showFireFallback());
+  setTimeout(() => { if (!loaded) showFireFallback(); }, 4500);
+  function showFireFallback(){
+    frame.style.display = 'none';
+    fallback.style.display = 'flex';
+  }
 }
 
 document.querySelectorAll('.ntab').forEach(t=>{
@@ -3526,7 +3590,7 @@ document.querySelectorAll('.ntab').forEach(t=>{
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['streams','news','traffic','radar','space','elections','weather','osint','intel','status'];
+  const valid = ['streams','news','traffic','radar','space','elections','weather','firecams','osint','intel','status'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);
