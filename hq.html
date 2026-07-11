@@ -337,6 +337,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <div class="sdiv"></div>
   <div class="sbi"><span class="lbl">OC Weather</span><span class="val" id="sb-wx">--</span></div>
   <div class="sdiv"></div>
+  <div class="sbi"><span class="lbl">OC Sun</span><span class="val" id="sb-sun">🌅 --:-- · 🌇 --:--</span></div>
+  <div class="sdiv"></div>
   <div class="sbi alrt" id="sb-alrt" style="display:none"><div class="pdot y"></div><span class="lbl">ALERT</span><span class="val" id="sb-alrt-txt">--</span></div>
 </div>
 
@@ -365,9 +367,9 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="space">🚀 Space</button>
   <button class="ntab" data-p="military">🎖 Military</button>
   <button class="ntab" data-p="news">📰 Live News <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
-  <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
-  <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="firecams">🔥 Fire Cams</button>
+  <button class="ntab" data-p="weather">⛈ Weather</button>
+  <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
   <button class="ntab" data-p="status">📶 Status</button>
@@ -601,6 +603,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
         <div class="wxs"><div class="wv" id="wx-humid">--%</div><div class="wl">Humidity</div></div>
         <div class="wxs"><div class="wv" id="wx-wind">--</div><div class="wl">Wind</div></div>
         <div class="wxs"><div class="wv" id="wx-vis">--</div><div class="wl">Visibility</div></div>
+        <div class="wxs"><div class="wv" id="wx-sunrise" style="color:#ffb700">--:--</div><div class="wl">🌅 Sunrise</div></div>
+        <div class="wxs"><div class="wv" id="wx-sunset" style="color:#ff6b4d">--:--</div><div class="wl">🌇 Sunset</div></div>
         <div class="wxs"><div class="wv" id="wx-desc">--</div><div class="wl">Conditions</div></div>
       </div>
       <div class="sh" style="margin-top:14px"><h2>📅 7-Day Forecast</h2></div>
@@ -1518,6 +1522,36 @@ function confirmAdd(){
 }
 
 /* ── CLOCKS ── */
+/* ── SUNRISE / SUNSET (NOAA solar calculation — no API needed) ── */
+function sunTimes(lat, lng, date = new Date()){
+  const rad=Math.PI/180, J1970=2440588, J2000=2451545, dayMs=864e5;
+  const lw=-lng*rad, phi=lat*rad;
+  const toJulian=d=>d.valueOf()/dayMs-0.5+J1970;
+  const fromJulian=j=>new Date((j+0.5-J1970)*dayMs);
+  const d=toJulian(date)-J2000;
+  const n=Math.round(d-0.0009-lw/(2*Math.PI));
+  const ds=0.0009+lw/(2*Math.PI)+n;
+  const M=rad*(357.5291+0.98560028*ds);
+  const C=rad*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M));
+  const P=rad*102.9372;
+  const Lsun=M+C+P+Math.PI;
+  const Jtransit=J2000+ds+0.0053*Math.sin(M)-0.0069*Math.sin(2*Lsun);
+  const dec=Math.asin(Math.sin(Lsun)*Math.sin(rad*23.4397));
+  const cosH=(Math.sin(-0.833*rad)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec));
+  if(cosH>1||cosH<-1) return null; // polar day/night
+  const H=Math.acos(cosH);
+  return { sunrise: fromJulian(Jtransit-H/(2*Math.PI)), sunset: fromJulian(Jtransit+H/(2*Math.PI)) };
+}
+
+function updateOCSun(){
+  const el=document.getElementById('sb-sun');
+  if(!el)return;
+  const st=sunTimes(33.7175,-117.8311);
+  if(!st){el.textContent='--';return;}
+  const f=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'}).replace(' AM','a').replace(' PM','p');
+  el.textContent=`🌅 ${f(st.sunrise)} · 🌇 ${f(st.sunset)}`;
+}
+
 function updateClocks(){
   const n=new Date();
   document.getElementById('sb-local').textContent=fmt(n,Intl.DateTimeFormat().resolvedOptions().timeZone,true);
@@ -1651,7 +1685,7 @@ function wxUseMyLocation(){
 
 async function loadWeather(){
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
     const d=await r.json();const c=d.current;
     const t=Math.round(c.temperature_2m),f=Math.round(c.apparent_temperature),h=c.relative_humidity_2m,w=Math.round(c.wind_speed_10m),vis=c.visibility?(c.visibility/1000).toFixed(1)+' mi':'--',desc=WX[c.weather_code]||'Unknown';
     document.getElementById('sb-wx').textContent=t+'°F · '+desc.split(' ')[0];
@@ -1667,6 +1701,14 @@ async function loadWeather(){
         el.innerHTML=`<div class="fn">${i===0?'Today':dn[day.getDay()]}</div><div class="fi">${fcIcon(d.daily.weather_code[i])}</div><div class="fhi">${Math.round(d.daily.temperature_2m_max[i])}°</div><div class="flo">${Math.round(d.daily.temperature_2m_min[i])}°</div>`;
         row.appendChild(el);
       });
+    }
+    // Sunrise/sunset for the selected location (Open-Meteo returns these in the
+    // location's own timezone thanks to timezone=auto — no conversion needed)
+    if(d.daily?.sunrise?.[0] && d.daily?.sunset?.[0]){
+      const t12=s=>{const[h,m]=s.split('T')[1].split(':');const hr=+h;return `${((hr+11)%12)+1}:${m} ${hr>=12?'PM':'AM'}`;};
+      const sr=document.getElementById('wx-sunrise'), ss=document.getElementById('wx-sunset');
+      if(sr)sr.textContent=t12(d.daily.sunrise[0]);
+      if(ss)ss.textContent=t12(d.daily.sunset[0]);
     }
     markHealth('Weather (Open-Meteo)', true);
   }catch(e){markHealth('Weather (Open-Meteo)', false, e.message);document.getElementById('sb-wx').textContent='Unavailable';}
@@ -3982,6 +4024,7 @@ document.addEventListener('visibilitychange', () => {
 
 /* ── INIT ── */
 updateClocks();setInterval(updateClocks,1000);   // clock stays a plain interval (cheap, must never pause)
+updateOCSun();          sched('OC Sun Times',    updateOCSun,        60*60*1000, false);
 buildGroupBar();renderStreams();
 renderAviationStreams();
 renderNewsStreams();
