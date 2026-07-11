@@ -1027,7 +1027,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="sh"><h2>⚓ U.S. Carrier & Fleet Positions</h2><span class="mtag">USNI DATA</span><button class="rbtn" onclick="renderFleetMap()">↺</button></div>
     <div id="fleet-map" style="width:100%;height:420px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:#0a0e14"></div>
     <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:8px;line-height:1.5">
-      <span style="color:#00b4ff">▲</span> Carrier Strike Group · <span style="color:#ffb700">■</span> Amphibious Ready Group · Approximate positions from public USNI Fleet Tracker data. <a href="https://news.usni.org/category/fleet-tracker" target="_blank" style="color:var(--accent)">Latest USNI report →</a>
+      <span style="color:#00b4ff">▲</span> Carrier Strike Group · <span style="color:#ffb700">■</span> Amphibious Ready Group · bright = deployed, dim = in port · <span id="fleet-asof"></span> · <a href="https://news.usni.org/category/fleet-tracker" target="_blank" style="color:var(--accent)">Latest USNI report →</a>
     </div>
   </div>
 
@@ -2044,9 +2044,9 @@ let milAirMap = null, milAirLayer = null, milAirRegion = 'socal';
 let milAirInited = false;
 
 const MILAIR_REGIONS = {
-  socal: { lat:33.8, lon:-118.0, zoom:7,  dist:250 },
-  west:  { lat:37.0, lon:-119.0, zoom:5,  dist:700 },
-  conus: { lat:39.5, lon:-98.0,  zoom:4,  dist:2000 },
+  socal: { lat:33.8, lon:-118.0, zoom:7, bounds:{latMin:31.5, latMax:36.5, lonMin:-121.5, lonMax:-113.5} },
+  west:  { lat:39.0, lon:-115.0, zoom:5, bounds:{latMin:30.0, latMax:49.5, lonMin:-125.5, lonMax:-100.0} },
+  conus: { lat:39.5, lon:-98.0,  zoom:4, bounds:{latMin:24.0, latMax:50.0, lonMin:-125.5, lonMax:-66.0} },
 };
 
 function initMilAirMap(){
@@ -2063,7 +2063,6 @@ function initMilAirMap(){
 
 function setMilAirRegion(region, btn){
   milAirRegion = region;
-  document.querySelectorAll('#milair-map').forEach(()=>{});
   if (btn){ btn.parentElement.querySelectorAll('.gpill').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
   const r = MILAIR_REGIONS[region];
   if (milAirMap) milAirMap.setView([r.lat, r.lon], r.zoom);
@@ -2076,37 +2075,48 @@ async function loadMilAir(){
   const statusEl = document.getElementById('milair-status');
   const countEl  = document.getElementById('milair-count');
   try{
-    // Pull traffic for the region, then filter to military only
-    const url = `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${r.lat}&lon=${r.lon}&dist=${r.dist}`;
-    const resp = await fetch(url);
+    // Dedicated military endpoint: ALL military aircraft globally in one call.
+    // The API does the military identification (dbFlags) — far more complete
+    // than callsign/hex heuristics. We filter to the selected region here.
+    const resp = await fetch('https://oc-radar-proxy.ocscannernews.workers.dev/mil');
     if (!resp.ok) throw new Error('HTTP '+resp.status);
     const data = await resp.json();
-    const all = data.ac || data.aircraft || [];
-    const mil = all.filter(ac => isMilitary({military: ac.military, flight: ac.flight ?? ac.callsign, hex: ac.hex ?? ac.icao24}));
+    const all = data.ac || [];
+    const b = r.bounds;
+    const inRegion = all.filter(ac => {
+      const lat = ac.lat ?? ac.latitude, lon = ac.lon ?? ac.longitude;
+      return lat != null && lon != null &&
+             lat >= b.latMin && lat <= b.latMax &&
+             lon >= b.lonMin && lon <= b.lonMax;
+    });
 
     milAirLayer.clearLayers();
-    let plotted = 0;
-    mil.forEach(ac => {
+    inRegion.forEach(ac => {
       const lat = ac.lat ?? ac.latitude, lon = ac.lon ?? ac.longitude;
-      if (lat == null || lon == null) return;
-      const cs = (ac.flight ?? ac.callsign ?? ac.hex ?? '').trim();
-      const alt = ac.alt_baro ?? ac.alt ?? '';
-      const spd = ac.gs ?? ac.speed ?? '';
+      const cs  = (ac.flight ?? ac.callsign ?? '').trim() || (ac.hex||'').toUpperCase();
+      const alt = ac.alt_baro === 'ground' ? 'GROUND' : (ac.alt_baro ?? ac.alt ?? '--');
+      const spd = ac.gs != null ? Math.round(ac.gs) : '--';
       const typ = ac.t ?? ac.type ?? '';
       const track = ac.track ?? ac.heading ?? 0;
-      // Arrow marker rotated to heading
+      const onGround = ac.alt_baro === 'ground';
       const icon = L.divIcon({
         className: 'milair-icon',
-        html: `<div style="transform:rotate(${track}deg);color:#ff3b30;font-size:16px;line-height:1;text-shadow:0 0 4px rgba(255,59,48,.8)">▲</div>`,
+        html: `<div style="transform:rotate(${track}deg);color:${onGround?'#8a2f2a':'#ff3b30'};font-size:16px;line-height:1;text-shadow:0 0 4px rgba(255,59,48,.7)">▲</div>`,
         iconSize: [16,16], iconAnchor:[8,8]
       });
       const m = L.marker([lat, lon], { icon }).addTo(milAirLayer);
-      m.bindPopup(`<b style="color:#ff3b30">${cs || 'UNKNOWN'}</b><br>${typ?typ+'<br>':''}Alt: ${alt||'--'} ft<br>Spd: ${spd||'--'} kt<br>Hex: ${ac.hex||ac.icao24||'--'}`);
-      plotted++;
+      m.bindPopup(
+        `<b style="color:#ff3b30">${cs}</b>${typ?` · <span style="color:#888">${typ}</span>`:''}<br>`+
+        `Alt: ${typeof alt==='number'?alt.toLocaleString()+' ft':alt}<br>`+
+        `Spd: ${spd} kt · Hdg: ${Math.round(track)}°<br>`+
+        `Hex: ${ac.hex||'--'}${ac.r?` · Reg: ${ac.r}`:''}`
+      );
     });
 
-    if (countEl) countEl.textContent = `(${plotted} tracked)`;
-    if (statusEl) statusEl.textContent = plotted ? `${plotted} military aircraft in view` : 'No military aircraft in region right now';
+    if (countEl) countEl.textContent = `(${inRegion.length} in region · ${all.length} global)`;
+    if (statusEl) statusEl.textContent = inRegion.length
+      ? `${inRegion.length} military aircraft in view — click any marker for details`
+      : `None over this region right now (${all.length} tracked globally — try CONUS)`;
     markHealth('Military Aircraft Map', true);
   }catch(e){
     if (statusEl) statusEl.textContent = 'Feed error — retrying next cycle';
@@ -2119,14 +2129,27 @@ async function loadMilAir(){
    Update these coordinates periodically from the latest USNI report. */
 let fleetMap = null, fleetLayer = null, fleetInited = false;
 
-// Approximate positions — refresh from https://news.usni.org/category/fleet-tracker
+// Positions from USNI Fleet & Marine Tracker, July 7, 2026 report.
+// Update from https://news.usni.org/category/fleet-tracker (published weekly).
+const FLEET_AS_OF = 'July 7, 2026';
 const FLEET_POSITIONS = [
-  { name:'USS George Washington (CVN-73)', type:'CSG', lat:34.5, lon:140.3, note:'Yokosuka / Philippine Sea area' },
-  { name:'USS Abraham Lincoln (CVN-72)',   type:'CSG', lat:15.0, lon:62.0,  note:'Arabian Sea' },
-  { name:'USS Gerald R. Ford (CVN-78)',    type:'CSG', lat:38.0, lon:16.0,  note:'Mediterranean' },
-  { name:'USS George H.W. Bush (CVN-77)',  type:'CSG', lat:36.0, lon:-72.0, note:'W. Atlantic (deployed)' },
-  { name:'Tripoli ARG (LHA-7)',            type:'ARG', lat:7.3,  lon:72.4,  note:'Diego Garcia / en route ME' },
-  { name:'Iwo Jima ARG (LHD-7)',           type:'ARG', lat:25.0, lon:-77.0, note:'Caribbean' },
+  // ── Deployed / underway ──
+  { name:'USS George Washington (CVN-73)',  type:'CSG', status:'deployed', lat:19.5, lon:131.0,  note:'Philippine Sea — first patrol of 2026 (CVW-5, CG-62, DDG-65, DDG-86)' },
+  { name:'USS Abraham Lincoln (CVN-72)',    type:'CSG', status:'deployed', lat:14.5, lon:63.5,   note:'Arabian Sea — Operation Epic Fury (CVW-9)' },
+  { name:'USS George H.W. Bush (CVN-77)',   type:'CSG', status:'deployed', lat:17.5, lon:59.0,   note:'Arabian Sea — dual-carrier ops with Lincoln' },
+  { name:'USS Dwight D. Eisenhower (CVN-69)',type:'CSG',status:'deployed', lat:34.0, lon:-72.0,  note:'W. Atlantic — departed Norfolk mid-June' },
+  { name:'USS Nimitz (CVN-68)',             type:'CSG', status:'deployed', lat:28.0, lon:-77.5,  note:'En route Norfolk after Southern Seas 2026 — decommissioning 2027' },
+  { name:'Tripoli ARG (LHA-7)',             type:'ARG', status:'deployed', lat:23.0, lon:60.5,   note:'CENTCOM AOR — with LPD-18, LSD-47, 31st MEU' },
+  { name:'Boxer ARG (LHD-4)',               type:'ARG', status:'deployed', lat:12.0, lon:114.0,  note:'South China Sea — with 11th MEU' },
+  { name:'Iwo Jima ARG (LPD-28)',           type:'ARG', status:'deployed', lat:15.0, lon:-74.5,  note:'Caribbean — Fort Lauderdale, end of 10-month deployment' },
+  { name:'USS Essex (LHD-2)',               type:'ARG', status:'deployed', lat:21.2, lon:-157.5, note:'Hawaii — RIMPAC 2026' },
+  // ── In port / homeport ──
+  { name:'USS Carl Vinson (CVN-70)',        type:'CSG', status:'inport',   lat:32.7, lon:-117.2, note:'In port San Diego — returned July 1' },
+  { name:'USS Theodore Roosevelt (CVN-71)', type:'CSG', status:'inport',   lat:32.9, lon:-117.4, note:'In port San Diego' },
+  { name:'USS Gerald R. Ford (CVN-78)',     type:'CSG', status:'inport',   lat:36.9, lon:-76.3,  note:'In port Norfolk — returned from Med deployment' },
+  { name:'USS Kearsarge (LHD-3)',           type:'ARG', status:'inport',   lat:40.7, lon:-74.0,  note:'New York — International Naval Review 250' },
+  { name:'USS Makin Island (LHD-8)',        type:'ARG', status:'inport',   lat:32.6, lon:-117.1, note:'In port San Diego — returned July 2' },
+  { name:'USS America (LHA-6)',             type:'ARG', status:'inport',   lat:33.16, lon:129.7, note:'Sasebo, Japan — forward deployed' },
 ];
 
 function initFleetMap(){
@@ -2145,16 +2168,20 @@ function renderFleetMap(){
   fleetLayer.clearLayers();
   FLEET_POSITIONS.forEach(v => {
     const isCSG = v.type === 'CSG';
+    const deployed = v.status === 'deployed';
     const color = isCSG ? '#00b4ff' : '#ffb700';
     const symbol = isCSG ? '▲' : '■';
     const icon = L.divIcon({
       className:'fleet-icon',
-      html:`<div style="color:${color};font-size:15px;line-height:1;text-shadow:0 0 5px ${color}">${symbol}</div>`,
+      html:`<div style="color:${color};opacity:${deployed?1:.45};font-size:${deployed?15:12}px;line-height:1;${deployed?`text-shadow:0 0 5px ${color}`:''}">${symbol}</div>`,
       iconSize:[15,15], iconAnchor:[7,7]
     });
     L.marker([v.lat, v.lon], { icon }).addTo(fleetLayer)
-      .bindPopup(`<b style="color:${color}">${v.name}</b><br>${v.type} · ${v.note}`);
+      .bindPopup(`<b style="color:${color}">${v.name}</b><br>${v.type} · ${deployed?'<span style="color:#00ff9d">DEPLOYED</span>':'<span style="color:#888">IN PORT</span>'}<br>${v.note}`);
   });
+  const cnt = FLEET_POSITIONS.filter(v=>v.status==='deployed').length;
+  const el = document.getElementById('fleet-asof');
+  if (el) el.textContent = `${cnt} groups deployed · USNI data as of ${FLEET_AS_OF}`;
   markHealth('Fleet Map (USNI)', true);
 }
 
