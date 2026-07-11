@@ -19,6 +19,10 @@
 
 <!-- Android / Chrome theme color -->
 <meta name="theme-color" content="#0a0e1a">
+
+<!-- Leaflet (maps) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
   --bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#111d28;
@@ -359,6 +363,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
   <button class="ntab" data-p="radar">📡 Radar</button>
   <button class="ntab" data-p="space">🚀 Space</button>
+  <button class="ntab" data-p="military">🎖 Military</button>
   <button class="ntab" data-p="news">📰 Live News <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
   <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
@@ -991,6 +996,91 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     </div>
   </div>
 
+</div>
+
+<!-- ══════════════════ MILITARY / DEFENSE ══════════════════ -->
+<div id="panel-military" class="panel">
+  <div class="sh"><h2>🎖 Military & Defense Intelligence</h2><span class="mtag">OSINT</span></div>
+  <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
+    Open-source defense monitoring — aggregated public news, official military releases, naval movements, and global conflict tracking. All sources are public and verifiable.
+  </div>
+
+  <!-- LIVE MILITARY AIRCRAFT MAP -->
+  <div style="margin-bottom:18px">
+    <div class="sh"><h2>✈ Live Military Aircraft</h2><span class="ltag">LIVE</span><span id="milair-count" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:4px"></span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="gpill active" onclick="setMilAirRegion('socal',this)">SoCal</button>
+        <button class="gpill" onclick="setMilAirRegion('west',this)">West US</button>
+        <button class="gpill" onclick="setMilAirRegion('conus',this)">CONUS</button>
+      </div>
+    </div>
+    <div id="milair-map" style="width:100%;height:460px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:#0a0e14"></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:var(--fm);font-size:.68rem;color:var(--muted)">
+      <span><span style="color:#ff3b30">●</span> Military aircraft</span>
+      <span id="milair-status">Initializing…</span>
+      <span style="margin-left:auto">Source: ADS-B via OC Scanner proxy · updates 20s</span>
+    </div>
+  </div>
+
+  <!-- NAVAL FLEET POSITION MAP -->
+  <div style="margin-bottom:18px">
+    <div class="sh"><h2>⚓ U.S. Carrier & Fleet Positions</h2><span class="mtag">USNI DATA</span><button class="rbtn" onclick="renderFleetMap()">↺</button></div>
+    <div id="fleet-map" style="width:100%;height:420px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:#0a0e14"></div>
+    <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:8px;line-height:1.5">
+      <span style="color:#00b4ff">▲</span> Carrier Strike Group · <span style="color:#ffb700">■</span> Amphibious Ready Group · Approximate positions from public USNI Fleet Tracker data. <a href="https://news.usni.org/category/fleet-tracker" target="_blank" style="color:var(--accent)">Latest USNI report →</a>
+    </div>
+  </div>
+
+  <div class="two">
+    <!-- Defense News Feed -->
+    <div>
+      <div class="sh"><h2>📰 Defense News</h2><span class="ltag">LIVE</span><button class="rbtn" onclick="loadMilitaryNews()">↺ Refresh</button></div>
+      <div id="military-news-feed" class="nfeed" style="max-height:560px"><div class="loader">Loading defense news…</div></div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- Naval / Fleet Tracking -->
+      <div class="sh"><h2>⚓ Naval & Fleet Tracking</h2><span class="mtag">MARITIME</span></div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:16px">
+        <a class="ol" href="https://news.usni.org/category/fleet-tracker" target="_blank" rel="noopener"><span class="oi">🚢</span><div><span>USNI Fleet & Marine Tracker</span><span class="od">Weekly carrier/ARG positions (authoritative)</span></div></a>
+        <a class="ol" href="https://www.marinetraffic.com/en/ais/home/centerx:-118.2/centery:33.7/zoom:8" target="_blank" rel="noopener"><span class="oi">📡</span><div><span>MarineTraffic (AIS)</span><span class="od">Live public vessel positions</span></div></a>
+        <a class="ol" href="https://nosi.org/" target="_blank" rel="noopener"><span class="oi">🌊</span><div><span>Naval Open Source Intel</span><span class="od">Curated naval OSINT digest</span></div></a>
+        <a class="ol" href="https://news.usni.org/" target="_blank" rel="noopener"><span class="oi">📖</span><div><span>USNI News</span><span class="od">U.S. Naval Institute — analysis</span></div></a>
+      </div>
+
+      <!-- Official Command Releases -->
+      <div class="sh"><h2>🏛 Official Commands</h2><span class="mtag">.MIL</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <a class="ol" href="https://www.war.gov/News/Releases/" target="_blank" rel="noopener"><span class="oi">🇺🇸</span><div><span>DoW Releases</span><span class="od">Dept. of War</span></div></a>
+        <a class="ol" href="https://www.centcom.mil/MEDIA/PRESS-RELEASES/" target="_blank" rel="noopener"><span class="oi">🏜</span><div><span>CENTCOM</span><span class="od">Middle East</span></div></a>
+        <a class="ol" href="https://www.pacom.mil/Media/News/" target="_blank" rel="noopener"><span class="oi">🌏</span><div><span>INDOPACOM</span><span class="od">Indo-Pacific</span></div></a>
+        <a class="ol" href="https://www.eucom.mil/newsroom" target="_blank" rel="noopener"><span class="oi">🇪🇺</span><div><span>EUCOM</span><span class="od">Europe</span></div></a>
+        <a class="ol" href="https://www.africom.mil/newsroom" target="_blank" rel="noopener"><span class="oi">🌍</span><div><span>AFRICOM</span><span class="od">Africa</span></div></a>
+        <a class="ol" href="https://www.northcom.mil/Newsroom/" target="_blank" rel="noopener"><span class="oi">🛡</span><div><span>NORTHCOM</span><span class="od">Homeland</span></div></a>
+      </div>
+
+      <!-- Conflict Monitoring -->
+      <div class="sh"><h2>🌐 Global Conflict Monitoring</h2><span class="mtag">OSINT</span></div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">
+        <a class="ol" href="https://acleddata.com/" target="_blank" rel="noopener"><span class="oi">📊</span><div><span>ACLED</span><span class="od">Armed conflict location & event data</span></div></a>
+        <a class="ol" href="https://liveuamap.com/" target="_blank" rel="noopener"><span class="oi">🗺</span><div><span>Liveuamap</span><span class="od">Live conflict map (multiple theaters)</span></div></a>
+        <a class="ol" href="https://www.understandingwar.org/" target="_blank" rel="noopener"><span class="oi">🎓</span><div><span>Institute for the Study of War</span><span class="od">Daily campaign assessments</span></div></a>
+        <a class="ol" href="https://www.criticalthreats.org/" target="_blank" rel="noopener"><span class="oi">⚠</span><div><span>Critical Threats Project</span><span class="od">Iran, threat network analysis</span></div></a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Military Aviation (ties to your radar) -->
+  <div style="margin-top:18px">
+    <div class="sh"><h2>✈ Military Aviation Tracking</h2><span class="mtag">ADS-B</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+      <a class="ol" href="#radar" onclick="activateTab('radar');return false;"><span class="oi">📡</span><div><span>Your Local Mil Radar</span><span class="od">Military aircraft over OC (red on radar)</span></div></a>
+      <a class="ol" href="https://globe.adsbexchange.com/?dbFlags=1" target="_blank" rel="noopener"><span class="oi">🌐</span><div><span>ADSBexchange — Mil Only</span><span class="od">Global military aircraft filter</span></div></a>
+      <a class="ol" href="https://theaircurrent.com/" target="_blank" rel="noopener"><span class="oi">📰</span><div><span>The Air Current</span><span class="od">Aviation intelligence & analysis</span></div></a>
+      <a class="ol" href="https://www.twz.com/" target="_blank" rel="noopener"><span class="oi">⚡</span><div><span>The War Zone</span><span class="od">Military aviation deep-dives</span></div></a>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════ ELECTIONS ══════════════════ -->
@@ -1935,6 +2025,166 @@ const ELECTION_FEEDS=[
   {n:'NPR Politics',   c:'src-ap',    u:'https://feeds.npr.org/1012/rss.xml'},
 ];
 const ELECTION_KW=['election','vote','ballot','primary','candidate','campaign','poll','senate','house','congress','gop','democrat','republican','trump','2026','2028','race','district','runoff','caucus','delegate','electoral','fec','donor','fundrais'];
+
+const MILITARY_FEEDS=[
+  {n:'Breaking Defense', c:'src-def',  u:'https://breakingdefense.com/feed/'},
+  {n:'Defense News',     c:'src-def',  u:'https://www.defensenews.com/arc/outboundfeeds/rss/'},
+  {n:'The War Zone',     c:'src-mil',  u:'https://www.twz.com/feed'},
+  {n:'Military Times',   c:'src-mil',  u:'https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml'},
+  {n:'USNI News',        c:'src-def',  u:'https://news.usni.org/feed'},
+  {n:'War on the Rocks', c:'src-def',  u:'https://warontherocks.com/feed/'},
+  {n:'Naval News',       c:'src-mil',  u:'https://www.navalnews.com/feed/'},
+  {n:'Stars & Stripes',  c:'src-mil',  u:'https://www.stripes.com/arcio/rss/'},
+  {n:'DoW News',         c:'src-ap',   u:'https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=20'},
+  {n:'Defense One',      c:'src-def',  u:'https://www.defenseone.com/rss/all/'},
+];
+
+/* ── LIVE MILITARY AIRCRAFT MAP ── */
+let milAirMap = null, milAirLayer = null, milAirRegion = 'socal';
+let milAirInited = false;
+
+const MILAIR_REGIONS = {
+  socal: { lat:33.8, lon:-118.0, zoom:7,  dist:250 },
+  west:  { lat:37.0, lon:-119.0, zoom:5,  dist:700 },
+  conus: { lat:39.5, lon:-98.0,  zoom:4,  dist:2000 },
+};
+
+function initMilAirMap(){
+  if (milAirInited || typeof L === 'undefined') return;
+  const r = MILAIR_REGIONS[milAirRegion];
+  milAirMap = L.map('milair-map', { zoomControl:true, attributionControl:false }).setView([r.lat, r.lon], r.zoom);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 12, subdomains:'abcd'
+  }).addTo(milAirMap);
+  milAirLayer = L.layerGroup().addTo(milAirMap);
+  milAirInited = true;
+  loadMilAir();
+}
+
+function setMilAirRegion(region, btn){
+  milAirRegion = region;
+  document.querySelectorAll('#milair-map').forEach(()=>{});
+  if (btn){ btn.parentElement.querySelectorAll('.gpill').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+  const r = MILAIR_REGIONS[region];
+  if (milAirMap) milAirMap.setView([r.lat, r.lon], r.zoom);
+  loadMilAir();
+}
+
+async function loadMilAir(){
+  if (!milAirMap || !milAirLayer) return;
+  const r = MILAIR_REGIONS[milAirRegion];
+  const statusEl = document.getElementById('milair-status');
+  const countEl  = document.getElementById('milair-count');
+  try{
+    // Pull traffic for the region, then filter to military only
+    const url = `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${r.lat}&lon=${r.lon}&dist=${r.dist}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    const data = await resp.json();
+    const all = data.ac || data.aircraft || [];
+    const mil = all.filter(ac => isMilitary({military: ac.military, flight: ac.flight ?? ac.callsign, hex: ac.hex ?? ac.icao24}));
+
+    milAirLayer.clearLayers();
+    let plotted = 0;
+    mil.forEach(ac => {
+      const lat = ac.lat ?? ac.latitude, lon = ac.lon ?? ac.longitude;
+      if (lat == null || lon == null) return;
+      const cs = (ac.flight ?? ac.callsign ?? ac.hex ?? '').trim();
+      const alt = ac.alt_baro ?? ac.alt ?? '';
+      const spd = ac.gs ?? ac.speed ?? '';
+      const typ = ac.t ?? ac.type ?? '';
+      const track = ac.track ?? ac.heading ?? 0;
+      // Arrow marker rotated to heading
+      const icon = L.divIcon({
+        className: 'milair-icon',
+        html: `<div style="transform:rotate(${track}deg);color:#ff3b30;font-size:16px;line-height:1;text-shadow:0 0 4px rgba(255,59,48,.8)">▲</div>`,
+        iconSize: [16,16], iconAnchor:[8,8]
+      });
+      const m = L.marker([lat, lon], { icon }).addTo(milAirLayer);
+      m.bindPopup(`<b style="color:#ff3b30">${cs || 'UNKNOWN'}</b><br>${typ?typ+'<br>':''}Alt: ${alt||'--'} ft<br>Spd: ${spd||'--'} kt<br>Hex: ${ac.hex||ac.icao24||'--'}`);
+      plotted++;
+    });
+
+    if (countEl) countEl.textContent = `(${plotted} tracked)`;
+    if (statusEl) statusEl.textContent = plotted ? `${plotted} military aircraft in view` : 'No military aircraft in region right now';
+    markHealth('Military Aircraft Map', true);
+  }catch(e){
+    if (statusEl) statusEl.textContent = 'Feed error — retrying next cycle';
+    markHealth('Military Aircraft Map', false, e.message);
+  }
+}
+
+/* ── NAVAL FLEET POSITION MAP ──
+   Approximate carrier/ARG positions from public USNI Fleet Tracker reporting.
+   Update these coordinates periodically from the latest USNI report. */
+let fleetMap = null, fleetLayer = null, fleetInited = false;
+
+// Approximate positions — refresh from https://news.usni.org/category/fleet-tracker
+const FLEET_POSITIONS = [
+  { name:'USS George Washington (CVN-73)', type:'CSG', lat:34.5, lon:140.3, note:'Yokosuka / Philippine Sea area' },
+  { name:'USS Abraham Lincoln (CVN-72)',   type:'CSG', lat:15.0, lon:62.0,  note:'Arabian Sea' },
+  { name:'USS Gerald R. Ford (CVN-78)',    type:'CSG', lat:38.0, lon:16.0,  note:'Mediterranean' },
+  { name:'USS George H.W. Bush (CVN-77)',  type:'CSG', lat:36.0, lon:-72.0, note:'W. Atlantic (deployed)' },
+  { name:'Tripoli ARG (LHA-7)',            type:'ARG', lat:7.3,  lon:72.4,  note:'Diego Garcia / en route ME' },
+  { name:'Iwo Jima ARG (LHD-7)',           type:'ARG', lat:25.0, lon:-77.0, note:'Caribbean' },
+];
+
+function initFleetMap(){
+  if (fleetInited || typeof L === 'undefined') return;
+  fleetMap = L.map('fleet-map', { zoomControl:true, attributionControl:false, worldCopyJump:true }).setView([25, 20], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 8, subdomains:'abcd'
+  }).addTo(fleetMap);
+  fleetLayer = L.layerGroup().addTo(fleetMap);
+  fleetInited = true;
+  renderFleetMap();
+}
+
+function renderFleetMap(){
+  if (!fleetMap || !fleetLayer) return;
+  fleetLayer.clearLayers();
+  FLEET_POSITIONS.forEach(v => {
+    const isCSG = v.type === 'CSG';
+    const color = isCSG ? '#00b4ff' : '#ffb700';
+    const symbol = isCSG ? '▲' : '■';
+    const icon = L.divIcon({
+      className:'fleet-icon',
+      html:`<div style="color:${color};font-size:15px;line-height:1;text-shadow:0 0 5px ${color}">${symbol}</div>`,
+      iconSize:[15,15], iconAnchor:[7,7]
+    });
+    L.marker([v.lat, v.lon], { icon }).addTo(fleetLayer)
+      .bindPopup(`<b style="color:${color}">${v.name}</b><br>${v.type} · ${v.note}`);
+  });
+  markHealth('Fleet Map (USNI)', true);
+}
+
+async function loadMilitaryNews(){
+  const el=document.getElementById('military-news-feed');
+  if(!el)return;
+  el.innerHTML='<div class="loader">Loading defense news…</div>';
+  const items=[];const seen=new Set();
+  await Promise.allSettled(MILITARY_FEEDS.map(async f=>{
+    try{
+      const xml=new DOMParser().parseFromString(await proxyFetchText(f.u),'text/xml');
+      Array.from(xml.querySelectorAll('item, entry')).slice(0,8).forEach(it=>{
+        const title=it.querySelector('title')?.textContent||'';
+        const link=it.querySelector('link')?.textContent||it.querySelector('link')?.getAttribute('href')||'#';
+        const pub=it.querySelector('pubDate, published, updated')?.textContent||'';
+        const key=title.slice(0,50);if(!title||seen.has(key))return;seen.add(key);
+        items.push({src:f.n,cls:f.c,title,link,pub:pub?new Date(pub):new Date(0)});
+      });
+    }catch(e){}
+  }));
+  items.sort((a,b)=>b.pub-a.pub);
+  markHealth('Defense News (RSS)', items.length>0);
+  if(!items.length){el.innerHTML='<div class="loader">Defense news unavailable — try refreshing.</div>';return;}
+  el.innerHTML='';
+  items.slice(0,40).forEach(it=>{
+    const a=document.createElement('a');a.className='ni-sm';a.href=it.link;a.target='_blank';a.rel='noopener noreferrer';
+    a.innerHTML=`<div class="src2 ${it.cls}">${it.src}</div><div class="ttl2">${it.title}</div><div class="ts2">${it.pub.getTime()>0?timeAgo(it.pub):''}</div>`;
+    el.appendChild(a);
+  });
+}
 
 async function loadElectionNews(){
   const el=document.getElementById('election-news-feed');
@@ -3558,7 +3808,17 @@ function activateTab(pid){
   if (pid === 'firecams') {
     initFireCams();
   }
+  if (pid === 'military' && !militaryInitialized) {
+    militaryInitialized = true;
+    loadMilitaryNews();
+    // Maps need the container visible & sized before init
+    setTimeout(() => { initMilAirMap(); initFleetMap(); }, 200);
+  } else if (pid === 'military') {
+    // Re-fix map sizing on return to tab
+    setTimeout(() => { if (milAirMap) milAirMap.invalidateSize(); if (fleetMap) fleetMap.invalidateSize(); }, 150);
+  }
 }
+let militaryInitialized = false;
 
 let fireCamsChecked = false;
 function initFireCams(){
@@ -3590,7 +3850,7 @@ document.querySelectorAll('.ntab').forEach(t=>{
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['streams','news','traffic','radar','space','elections','weather','firecams','osint','intel','status'];
+  const valid = ['streams','news','traffic','radar','space','military','elections','weather','firecams','osint','intel','status'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);
@@ -3711,6 +3971,9 @@ loadTicker();           sched('News Ticker',    loadTicker,         10*60*1000, 
 loadMarketTicker();     sched('Markets',        loadMarketTicker,       60*1000, false);
 loadAirports();         sched('Airports',       loadAirports,        5*60*1000, false);
 loadElectionNews();     sched('Election News',  loadElectionNews,   15*60*1000, false);
+                        sched('Defense News',   loadMilitaryNews,   15*60*1000, false);
+                        sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
+                        sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
 sched('Status Panel',   renderStatusPanel,      15*1000);
 setNextElection();
 </script>
