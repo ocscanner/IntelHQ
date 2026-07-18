@@ -20,6 +20,9 @@
 <!-- Android / Chrome theme color -->
 <meta name="theme-color" content="#0a0e1a">
 
+<!-- Apply saved theme before first paint (prevents flash) -->
+<script>try{if(localStorage.getItem('ocs-theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
+
 <!-- Leaflet (maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -32,6 +35,15 @@
   --warn:#ffb700;--danger:#ff3b30;
   --fm:'Share Tech Mono',monospace;--fu:'Barlow Condensed',sans-serif;--fh:'Rajdhani',sans-serif;
 }
+/* ── Light theme ── */
+html[data-theme="light"] {
+  --bg:#eef2f6;--bg2:#e3e9ef;--bg3:#d9e2ea;--card:#ffffff;
+  --border:rgba(0,90,160,.16);--border2:rgba(0,90,160,.30);
+  --accent:#0077cc;--accent2:#d63a1e;--accent3:#00875a;
+  --muted:#5a7484;--text:#12222e;--text2:#33505f;
+  --warn:#b57e00;--danger:#c62b20;
+}
+html[data-theme="light"] body{background:var(--bg)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow-x:hidden}
 body{font-family:var(--fu);background:var(--bg);color:var(--text);font-size:17px;line-height:1.6}
@@ -166,7 +178,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .tfr-card a:hover{text-decoration:underline}
 
 /* MARKET TICKER */
-.market-ticker-wrap{width:100%;background:#080f16;border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
+.market-ticker-wrap{width:100%;background:var(--bg2);border:1px solid rgba(0,255,157,.15);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:14px;height:38px}
 .market-ticker-label{background:rgba(0,255,157,.12);color:var(--accent3);font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase;border-right:1px solid rgba(0,255,157,.15)}
 .market-track{flex:1;overflow:hidden;display:flex;align-items:center;position:relative}
 .market-inner{display:flex;align-items:center;white-space:nowrap;animation:ticker-scroll 80s linear infinite;will-change:transform}
@@ -356,6 +368,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <a class="hl" href="https://alerts.weather.gov/" target="_blank" rel="noopener">⚡ NWS Alerts</a>
     <a class="hl" href="https://www.ocsd.org/" target="_blank" rel="noopener">🚔 OCSD</a>
     <a class="hl" href="https://www.ocfa.org/" target="_blank" rel="noopener">🔥 OCFA</a>
+    <button class="hl" id="theme-toggle" onclick="toggleTheme()" style="cursor:pointer;background:none" title="Toggle light/dark theme">🌙</button>
   </div>
 </div>
 
@@ -1349,6 +1362,25 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 </div>
 
 <script>
+/* ── THEME (dark/light toggle, persisted) ── */
+(function(){
+  const saved = localStorage.getItem('ocs-theme');
+  if (saved === 'light') document.documentElement.setAttribute('data-theme','light');
+})();
+function toggleTheme(){
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  if (isLight) { html.removeAttribute('data-theme'); localStorage.setItem('ocs-theme','dark'); }
+  else { html.setAttribute('data-theme','light'); localStorage.setItem('ocs-theme','light'); }
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = isLight ? '🌙' : '☀';
+}
+// Set correct icon on load
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('theme-toggle');
+  if (btn && document.documentElement.getAttribute('data-theme') === 'light') btn.textContent = '☀';
+});
+
 /* ═══════════════════════════════════════
    CHANNEL DATA — all YouTube embeds
 ═══════════════════════════════════════ */
