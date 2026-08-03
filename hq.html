@@ -1044,7 +1044,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="sh"><h2>⚓ U.S. Carrier & Fleet Positions</h2><span class="mtag">USNI DATA</span><button class="rbtn" onclick="renderFleetMap()">↺</button></div>
     <div id="fleet-map" style="width:100%;height:420px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:#0a0e14"></div>
     <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:8px;line-height:1.5">
-      <span style="color:#00b4ff">▲</span> Carrier Strike Group · <span style="color:#ffb700">■</span> Amphibious Ready Group · bright = deployed, dim = in port · <span id="fleet-asof"></span> · <a href="https://news.usni.org/category/fleet-tracker" target="_blank" style="color:var(--accent)">Latest USNI report →</a>
+      <span style="color:#00b4ff">▲</span> Carrier Strike Group · <span style="color:#ffb700">■</span> Amphibious Ready Group · <span style="color:#00ff9d">◆</span> Independent surface units · bright = deployed, dim = in port · <span id="fleet-asof"></span> · <a href="https://news.usni.org/category/fleet-tracker" target="_blank" style="color:var(--accent)">Latest USNI report →</a>
     </div>
   </div>
 
@@ -1522,7 +1522,13 @@ function playStream(key,enc){
     url=`https://www.youtube-nocookie.com/embed/live_stream?channel=${chMatch[1]}&autoplay=1&mute=1&playsinline=1`;
   }
   const b=document.getElementById('sb-'+key);if(!b)return;
-  b.innerHTML=`<iframe src="${url}" title="Stream" loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; autoplay" allowfullscreen style="width:100%;height:100%;border:0"></iframe>`;
+  // Where to send the user if the embed won't play (stream ended, ID changed,
+  // or YouTube blocks the embed) — channel URLs go to the channel's /live page.
+  const watchUrl = chMatch
+    ? `https://www.youtube.com/channel/${chMatch[1]}/live`
+    : (ytId(url) ? `https://www.youtube.com/watch?v=${ytId(url)}` : url);
+  b.innerHTML=`<iframe src="${url}" title="Stream" loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; autoplay" allowfullscreen style="width:100%;height:100%;border:0"></iframe>
+    <a href="${watchUrl}" target="_blank" rel="noopener" style="position:absolute;right:6px;bottom:6px;z-index:3;background:rgba(0,0,0,.72);color:#cfe6f5;font-family:var(--fm);font-size:.6rem;letter-spacing:.04em;padding:3px 7px;border-radius:4px;text-decoration:none;border:1px solid rgba(255,255,255,.18)">Not loading? Open ↗</a>`;
 }
 function stopStream(key){
   const b=document.getElementById('sb-'+key);if(!b)return;
@@ -2205,25 +2211,25 @@ let fleetMap = null, fleetLayer = null, fleetInited = false;
 
 // Positions from USNI Fleet & Marine Tracker, July 7, 2026 report.
 // Update from https://news.usni.org/category/fleet-tracker (published weekly).
-const FLEET_AS_OF = 'July 7, 2026';
+const FLEET_AS_OF = 'July 27, 2026 (+ Jul 30 update)';
 const FLEET_POSITIONS = [
   // ── Deployed / underway ──
-  { name:'USS George Washington (CVN-73)',  type:'CSG', status:'deployed', lat:19.5, lon:131.0,  note:'Philippine Sea — first patrol of 2026 (CVW-5, CG-62, DDG-65, DDG-86)' },
-  { name:'USS Abraham Lincoln (CVN-72)',    type:'CSG', status:'deployed', lat:14.5, lon:63.5,   note:'Arabian Sea — Operation Epic Fury (CVW-9)' },
-  { name:'USS George H.W. Bush (CVN-77)',   type:'CSG', status:'deployed', lat:17.5, lon:59.0,   note:'Arabian Sea — dual-carrier ops with Lincoln' },
-  { name:'USS Dwight D. Eisenhower (CVN-69)',type:'CSG',status:'deployed', lat:34.0, lon:-72.0,  note:'W. Atlantic — departed Norfolk mid-June' },
-  { name:'USS Nimitz (CVN-68)',             type:'CSG', status:'deployed', lat:28.0, lon:-77.5,  note:'En route Norfolk after Southern Seas 2026 — decommissioning 2027' },
-  { name:'Tripoli ARG (LHA-7)',             type:'ARG', status:'deployed', lat:23.0, lon:60.5,   note:'CENTCOM AOR — with LPD-18, LSD-47, 31st MEU' },
-  { name:'Boxer ARG (LHD-4)',               type:'ARG', status:'deployed', lat:12.0, lon:114.0,  note:'South China Sea — with 11th MEU' },
-  { name:'Iwo Jima ARG (LPD-28)',           type:'ARG', status:'deployed', lat:15.0, lon:-74.5,  note:'Caribbean — Fort Lauderdale, end of 10-month deployment' },
-  { name:'USS Essex (LHD-2)',               type:'ARG', status:'deployed', lat:21.2, lon:-157.5, note:'Hawaii — RIMPAC 2026' },
-  // ── In port / homeport ──
-  { name:'USS Carl Vinson (CVN-70)',        type:'CSG', status:'inport',   lat:32.7, lon:-117.2, note:'In port San Diego — returned July 1' },
-  { name:'USS Theodore Roosevelt (CVN-71)', type:'CSG', status:'inport',   lat:32.9, lon:-117.4, note:'In port San Diego' },
-  { name:'USS Gerald R. Ford (CVN-78)',     type:'CSG', status:'inport',   lat:36.9, lon:-76.3,  note:'In port Norfolk — returned from Med deployment' },
-  { name:'USS Kearsarge (LHD-3)',           type:'ARG', status:'inport',   lat:40.7, lon:-74.0,  note:'New York — International Naval Review 250' },
-  { name:'USS Makin Island (LHD-8)',        type:'ARG', status:'inport',   lat:32.6, lon:-117.1, note:'In port San Diego — returned July 2' },
-  { name:'USS America (LHA-6)',             type:'ARG', status:'inport',   lat:33.16, lon:129.7, note:'Sasebo, Japan — forward deployed' },
+  { name:'USS George Washington (CVN-73)',   type:'CSG', status:'deployed', lat:16.05, lon:108.22, note:'Da Nang, Vietnam — port visit (first since 2023); CVW-5, CG-62, DDG-65, DDG-86' },
+  { name:'USS Abraham Lincoln (CVN-72)',     type:'CSG', status:'deployed', lat:15.0,  lon:63.0,   note:'Arabian Sea — Operation Epic Fury (CSG-3, CVW-9)' },
+  { name:'USS George H.W. Bush (CVN-77)',    type:'CSG', status:'deployed', lat:18.0,  lon:59.5,   note:'Arabian Sea — CSG-10, CVW-7 (dual-carrier ops)' },
+  { name:'USS Theodore Roosevelt (CVN-71)',  type:'CSG', status:'deployed', lat:21.3,  lon:-158.0, note:'Off Pearl Harbor — RIMPAC 2026' },
+  { name:'USS Dwight D. Eisenhower (CVN-69)',type:'CSG', status:'deployed', lat:34.5,  lon:-72.0,  note:'Western Atlantic — departed Norfolk' },
+  { name:'Boxer ARG (LHD-4)',                type:'ARG', status:'deployed', lat:19.0,  lon:61.5,   note:'Arabian Sea — with LSD-45, LPD-27, 11th MEU' },
+  { name:'USS Essex (LHD-2)',                type:'ARG', status:'deployed', lat:21.0,  lon:-157.6, note:'Hawaiian op areas — RIMPAC 2026' },
+  { name:'USS San Antonio (LPD-17)',         type:'ARG', status:'deployed', lat:14.0,  lon:-70.0,  note:'Caribbean — with DDG-100; 24th MEU spread across region' },
+  // ── Independent surface groups ──
+  { name:'DDGs — Mediterranean',             type:'DDG', status:'deployed', lat:36.0,  lon:15.0,   note:'USS Roosevelt (DDG-80), USS Paul Ignatius (DDG-117) — Rota-based' },
+  { name:'USS Gonzalez (DDG-66)',            type:'DDG', status:'deployed', lat:19.5,  lon:38.5,   note:'Red Sea — independently deployed' },
+  { name:'DDGs — Indian Ocean',              type:'DDG', status:'deployed', lat:5.0,   lon:75.0,   note:'DDG-89, DDG-87, DDG-53' },
+  { name:'LCS — South China Sea',            type:'DDG', status:'deployed', lat:12.0,  lon:114.0,  note:'USS Santa Barbara (LCS-32)' },
+  // ── In port ──
+  { name:'Tripoli ARG (LHA-7)',              type:'ARG', status:'inport',   lat:33.16, lon:129.72, note:'Returned Sasebo, Japan Jul 27 — 6-month 5th/7th Fleet patrol complete' },
+  { name:'LCS — Singapore',                  type:'DDG', status:'inport',   lat:1.29,  lon:103.85, note:'USS Canberra (LCS-30), USS Tulsa (LCS-16)' },
 ];
 
 function initFleetMap(){
@@ -2241,10 +2247,9 @@ function renderFleetMap(){
   if (!fleetMap || !fleetLayer) return;
   fleetLayer.clearLayers();
   FLEET_POSITIONS.forEach(v => {
-    const isCSG = v.type === 'CSG';
     const deployed = v.status === 'deployed';
-    const color = isCSG ? '#00b4ff' : '#ffb700';
-    const symbol = isCSG ? '▲' : '■';
+    const color = v.type === 'CSG' ? '#00b4ff' : v.type === 'ARG' ? '#ffb700' : '#00ff9d';
+    const symbol = v.type === 'CSG' ? '▲' : v.type === 'ARG' ? '■' : '◆';
     const icon = L.divIcon({
       className:'fleet-icon',
       html:`<div style="color:${color};opacity:${deployed?1:.45};font-size:${deployed?15:12}px;line-height:1;${deployed?`text-shadow:0 0 5px ${color}`:''}">${symbol}</div>`,
