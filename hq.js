@@ -34,7 +34,7 @@ window.CHANNEL_GROUPS = {
   aviation: { label:"Aviation / Space", channels:[
     {name:"LAX Runways 24L/24R", type:"youtube", url:"https://www.youtube.com/embed/n4I0d44oBEs?autoplay=1&mute=1&playsinline=1"},
     {name:"LAX Runways 25L/25R", type:"youtube", url:"https://www.youtube.com/embed/KzsNnyN8D_Q?autoplay=1&mute=1&playsinline=1"},
-    {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/_-Qg5jD-PfA?autoplay=1&mute=1&playsinline=1"},
+    {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/iIUCaiiMmNs?autoplay=1&mute=1&playsinline=1"},
     {name:"Space / Launch Cam", type:"youtube", url:"https://www.youtube.com/embed/mhJRzQsLZGg?autoplay=1&mute=1&playsinline=1"},
     {name:"Space Live Feed",    type:"youtube", url:"https://www.youtube.com/embed/Jm8wRjD3xVA?autoplay=1&mute=1&playsinline=1"},
   ]}
@@ -44,7 +44,7 @@ window.CHANNEL_GROUPS = {
 const AVIATION_CHANNELS = [
   {name:"LAX Runways 24L/24R", type:"youtube", url:"https://www.youtube.com/embed/n4I0d44oBEs?autoplay=1&mute=1&playsinline=1"},
   {name:"LAX Runways 25L/25R", type:"youtube", url:"https://www.youtube.com/embed/KzsNnyN8D_Q?autoplay=1&mute=1&playsinline=1"},
-  {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/cn8_34TuMaM?autoplay=1&mute=1&playsinline=1"},
+  {name:"LAS Airport Live",   type:"youtube", url:"https://www.youtube.com/embed/V7_orOtu-oo?autoplay=1&mute=1&playsinline=1"},
   {name:"Space / Launch Cam", type:"youtube", url:"https://www.youtube.com/embed/mhJRzQsLZGg?autoplay=1&mute=1&playsinline=1"},
   {name:"Space Live Feed",    type:"youtube", url:"https://www.youtube.com/embed/Jm8wRjD3xVA?autoplay=1&mute=1&playsinline=1"},
 ];
@@ -152,10 +152,11 @@ function renderNewsStreams(){
 
 function playStream(key,enc){
   let url=decodeURIComponent(enc);
-  // Normalize channel-based live streams to the working nocookie embed endpoint
+  // Normalize channel-based live streams. The standard youtube.com embed
+  // handles live_stream?channel= more reliably than the nocookie domain.
   const chMatch=url.match(/channel=([A-Za-z0-9_-]+)/);
   if(url.includes('live_stream')&&chMatch){
-    url=`https://www.youtube-nocookie.com/embed/live_stream?channel=${chMatch[1]}&autoplay=1&mute=1&playsinline=1`;
+    url=`https://www.youtube.com/embed/live_stream?channel=${chMatch[1]}&autoplay=1&mute=1&playsinline=1`;
   }
   const b=document.getElementById('sb-'+key);if(!b)return;
   // Where to send the user if the embed won't play (stream ended, ID changed,
