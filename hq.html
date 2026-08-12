@@ -117,28 +117,28 @@
   <button class="ntab" data-p="status">📶 Status</button>
 </div>
 
+<!-- PERSISTENT NEWS TICKER (shows on all pages) -->
+<div class="ticker-wrap" id="global-ticker">
+  <div class="ticker-label">⚡ LIVE</div>
+  <div class="ticker-track">
+    <div class="ticker-inner" id="ticker-inner">
+      <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading headlines…</span>
+    </div>
+  </div>
+</div>
+
+<!-- PERSISTENT MARKET TICKER (shows on all pages) -->
+<div class="market-ticker-wrap" id="global-market">
+  <div class="market-ticker-label">📈 MARKETS</div>
+  <div class="market-track">
+    <div class="market-inner" id="market-inner">
+      <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading market data…</span>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════ STREAMS ══════════════════ -->
 <div id="panel-streams" class="panel active">
-
-  <!-- NEWS TICKER -->
-  <div class="ticker-wrap">
-    <div class="ticker-label">⚡ LIVE</div>
-    <div class="ticker-track">
-      <div class="ticker-inner" id="ticker-inner">
-        <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading headlines…</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- MARKET TICKER -->
-  <div class="market-ticker-wrap">
-    <div class="market-ticker-label">📈 MARKETS</div>
-    <div class="market-track">
-      <div class="market-inner" id="market-inner">
-        <span style="color:var(--muted);font-family:var(--fm);font-size:.78rem;padding:0 20px">Loading market data…</span>
-      </div>
-    </div>
-  </div>
 
   <div class="gbar" id="gbar"></div>
   <div id="sg"></div>
