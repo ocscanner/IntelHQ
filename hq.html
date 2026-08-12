@@ -56,6 +56,9 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .sbi .val{color:var(--accent);font-weight:700;font-size:1rem}
 .sbi.alrt .val{color:var(--warn);animation:blink 1.2s step-end infinite}
 .sdiv{width:1px;height:20px;background:var(--border2);flex-shrink:0}
+.sb-link{border-radius:5px;padding:2px 8px;margin:0 -2px;transition:background .15s}
+.sb-link:hover{background:var(--bg3)}
+.sb-link:hover .lbl{color:var(--text)}
 .pdot{width:9px;height:9px;border-radius:50%;background:var(--accent3);animation:pulse 1.6s ease-in-out infinite;flex-shrink:0}
 .pdot.y{background:var(--warn)}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,255,157,.4)}50%{opacity:.6;box-shadow:0 0 8px 4px rgba(0,255,157,.15)}}
@@ -73,7 +76,26 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .hl:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,180,255,.1)}
 
 /* NAV */
-#nav{display:flex;gap:2px;padding:0 20px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+#nav{display:none}
+/* ── Group navigation bar ── */
+#navgroups{display:flex;gap:6px;padding:8px 20px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:wrap;position:relative;z-index:40}
+.ngroup{position:relative}
+.ngbtn{font-family:var(--fh);font-size:.9rem;font-weight:700;letter-spacing:.06em;color:var(--text2);background:var(--bg2);border:1px solid var(--border2);border-radius:7px;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .18s;white-space:nowrap}
+.ngbtn:hover{color:var(--text);border-color:var(--accent)}
+.ngroup.open .ngbtn{color:var(--accent);border-color:var(--accent);background:var(--bg3)}
+.ngroup.hasactive .ngbtn{color:var(--accent)}
+.ngcaret{font-size:.7rem;transition:transform .18s}
+.ngroup.open .ngcaret{transform:rotate(180deg)}
+.ngmenu{display:none;position:absolute;top:calc(100% + 5px);left:0;min-width:210px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px;box-shadow:0 12px 34px rgba(0,0,0,.5);z-index:50}
+.ngroup.open .ngmenu{display:block}
+.ngitem{width:100%;text-align:left;font-family:var(--fu);font-size:.92rem;font-weight:500;letter-spacing:.03em;color:var(--text2);background:none;border:none;border-radius:5px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;transition:all .15s}
+.ngitem:hover{background:var(--bg3);color:var(--text)}
+.ngitem.active{background:rgba(0,180,255,.12);color:var(--accent)}
+@media(max-width:640px){
+  #navgroups{gap:5px;padding:7px 10px}
+  .ngbtn{font-size:.82rem;padding:8px 12px;flex:1;justify-content:center;min-width:0}
+  .ngmenu{min-width:min(240px,calc(100vw - 24px))}
+}
 #nav::-webkit-scrollbar{display:none}
 .ntab{padding:10px 15px;font-family:var(--fu);font-size:.83rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;display:flex;align-items:center;gap:6px}
 .ntab:hover{color:var(--text)}
@@ -347,7 +369,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   <div class="sdiv"></div>
   <div class="sbi"><span class="lbl">UTC</span><span class="val" id="sb-utc">--:--:--</span></div>
   <div class="sdiv"></div>
-  <div class="sbi"><span class="lbl">OC Weather</span><span class="val" id="sb-wx">--</span></div>
+  <div class="sbi sb-link" onclick="activateTab('weather');history.replaceState(null,'','#weather')" title="Open Weather tab" style="cursor:pointer"><span class="lbl">⛈ Weather</span><span class="val" id="sb-wx">--</span></div>
   <div class="sdiv"></div>
   <div class="sbi"><span class="lbl">OC Sun</span><span class="val" id="sb-sun">🌅 --:-- · 🌇 --:--</span></div>
   <div class="sdiv"></div>
@@ -373,6 +395,41 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 </div>
 
 <!-- NAV TABS -->
+<div id="navgroups">
+  <div class="ngroup" data-g="ops">
+    <button class="ngbtn" onclick="toggleGroup('ops')">📡 Live Ops <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-ops">
+      <button class="ngitem" data-p="streams">🎥 Streams</button>
+      <button class="ngitem" data-p="traffic">✈ Flights &amp; Traffic</button>
+      <button class="ngitem" data-p="radar">📡 Radar</button>
+      <button class="ngitem" data-p="firecams">🔥 Fire Cams</button>
+    </div>
+  </div>
+  <div class="ngroup" data-g="intel">
+    <button class="ngbtn" onclick="toggleGroup('intel')">🛰 Intel <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-intel">
+      <button class="ngitem" data-p="space">🚀 Space</button>
+      <button class="ngitem" data-p="military">🎖 Military</button>
+      <button class="ngitem" data-p="osint">🔍 OSINT</button>
+      <button class="ngitem" data-p="intel">🚨 Intel</button>
+    </div>
+  </div>
+  <div class="ngroup" data-g="news">
+    <button class="ngbtn" onclick="toggleGroup('news')">📰 News <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-news">
+      <button class="ngitem" data-p="news">📰 Live News</button>
+      <button class="ngitem" data-p="elections">🗳 Politics &amp; Elections</button>
+      <button class="ngitem" data-p="weather">⛈ Weather</button>
+    </div>
+  </div>
+  <div class="ngroup" data-g="system">
+    <button class="ngbtn" onclick="toggleGroup('system')">📶 System <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-system">
+      <button class="ngitem" data-p="status">📶 Status</button>
+    </div>
+  </div>
+</div>
+
 <div id="nav">
   <button class="ntab active" data-p="streams">🎥 Streams</button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
@@ -441,6 +498,15 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div style="margin-top:8px;color:var(--muted);font-size:.62rem;font-family:var(--fm);letter-spacing:.05em">
       AI DIGEST UPDATES 3× DAILY (8AM · 2PM · 9PM PT) · STORIES REFRESH LIVE · SOURCES: RSS FEEDS
     </div>
+  </div>
+
+  <!-- POTUS DAILY SCHEDULE -->
+  <div class="sh"><h2>🇺🇸 President's Public Schedule</h2><span class="ltag">LIVE</span><span id="potus-updated" style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-left:4px"></span><button class="rbtn" onclick="loadPotusSchedule()">↺ Refresh</button></div>
+  <div id="potus-schedule" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 0;margin-bottom:18px;max-height:440px;overflow-y:auto">
+    <div class="loader">Loading White House schedule…</div>
+  </div>
+  <div style="font-family:var(--fm);font-size:.64rem;color:var(--muted);margin:-12px 0 18px;letter-spacing:.03em">
+    Source: Roll Call / Factba.se · Updates at midnight ET or when pushed via social media · All times Eastern
   </div>
 
   <div class="news-cols">
@@ -2292,6 +2358,89 @@ async function loadMilitaryNews(){
   });
 }
 
+/* ── POTUS DAILY PUBLIC SCHEDULE (Roll Call / Factba.se JSON feed) ── */
+const POTUS_FEED = 'https://media-cdn.factba.se/rss/json/trump/calendar-full.json';
+
+function potusTypeStyle(type, details){
+  const d = (details||'').toLowerCase();
+  if (/press briefing|briefs reporters|press secretary/.test(d) || /briefing/i.test(type))
+    return { color:'#00b4ff', label:'BRIEFING' };
+  if (/full lid|lunch lid|dinner lid/.test(d))
+    return { color:'#7a8a98', label:'LID' };
+  if (/pool call time/.test(d))
+    return { color:'#7a8a98', label:'POOL' };
+  if (/departs|arrives|en route/.test(d))
+    return { color:'#ffb700', label:'TRAVEL' };
+  if (/remarks|speech|announcement|signs|signing|address/.test(d))
+    return { color:'#00ff9d', label:'REMARKS' };
+  if (/meets|bilateral|meeting|cabinet|roundtable/.test(d))
+    return { color:'#af9bff', label:'MEETING' };
+  if (/intelligence briefing/.test(d))
+    return { color:'#ff6b4d', label:'INTEL' };
+  return { color:'var(--muted)', label:'SCHEDULE' };
+}
+
+async function loadPotusSchedule(){
+  const el = document.getElementById('potus-schedule');
+  if (!el) return;
+  try{
+    // Route through the worker proxy (avoids CORS issues on the CDN)
+    const raw = await proxyFetchText(POTUS_FEED);
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items) || !items.length) throw new Error('empty feed');
+
+    // Group by date, newest first
+    const byDate = {};
+    items.forEach(it => { (byDate[it.date] = byDate[it.date] || []).push(it); });
+    const dates = Object.keys(byDate).sort().reverse().slice(0, 5); // last 5 days
+
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone:'America/New_York' });
+    el.innerHTML = '';
+
+    dates.forEach(dateKey => {
+      const evts = byDate[dateKey];
+      const first = evts[0];
+      const isToday = dateKey === todayStr;
+
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'position:sticky;top:0;background:var(--bg2);padding:7px 12px;border-bottom:1px solid var(--border2);z-index:2;display:flex;align-items:center;gap:8px';
+      hdr.innerHTML = `<span style="font-family:var(--fh);font-weight:700;letter-spacing:.05em;color:${isToday?'var(--accent3)':'var(--text)'};font-size:.88rem">${first.day_of_week}, ${first.month} ${first.day}</span>`
+        + (isToday ? '<span style="font-family:var(--fm);font-size:.6rem;background:rgba(0,255,157,.15);color:var(--accent3);padding:1px 7px;border-radius:3px">TODAY</span>' : '')
+        + `<span style="margin-left:auto;font-family:var(--fm);font-size:.64rem;color:var(--muted)">${evts.length} items</span>`;
+      el.appendChild(hdr);
+
+      // Sort within day: timed events by time, TBD entries first
+      evts.sort((a,b) => (a.time||'').localeCompare(b.time||''));
+
+      evts.forEach(ev => {
+        const st = potusTypeStyle(ev.type, ev.details);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);align-items:flex-start';
+        const timeTxt = ev.time_formatted || 'TBD';
+        const link = ev.url
+          ? `<a href="${ev.url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none"> · Transcript ↗</a>` : '';
+        const vid = ev.video_url
+          ? `<a href="${ev.video_url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none"> · Video ↗</a>` : '';
+        row.innerHTML = `
+          <span style="font-family:var(--fm);font-size:.72rem;color:var(--text2);min-width:66px;flex-shrink:0;padding-top:1px">${timeTxt}</span>
+          <span style="font-family:var(--fm);font-size:.56rem;letter-spacing:.06em;color:${st.color};border:1px solid ${st.color};padding:1px 5px;border-radius:3px;flex-shrink:0;margin-top:1px">${st.label}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--fu);font-size:.9rem;color:var(--text);line-height:1.35">${ev.details||''}</div>
+            <div style="font-family:var(--fm);font-size:.66rem;color:var(--muted);margin-top:2px">${ev.location||''}${ev.coverage?' · '+ev.coverage:''}${link}${vid}</div>
+          </div>`;
+        el.appendChild(row);
+      });
+    });
+
+    const ts = document.getElementById('potus-updated');
+    if (ts) ts.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    markHealth('POTUS Schedule', true);
+  }catch(e){
+    el.innerHTML = '<div class="loader">Schedule unavailable — <a href="https://rollcall.com/factbase/trump/topic/calendar/" target="_blank" style="color:var(--accent)">view on Roll Call ↗</a></div>';
+    markHealth('POTUS Schedule', false, e.message);
+  }
+}
+
 async function loadElectionNews(){
   const el=document.getElementById('election-news-feed');
   el.innerHTML='<div class="loader">Loading election news…</div>';
@@ -3903,6 +4052,7 @@ function activateTab(pid){
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   tab.classList.add('active');
   panel.classList.add('active');
+  if (typeof syncGroupNav === 'function') syncGroupNav(pid);
   // Init radar on first activation of radar tab
   if (pid === 'radar' && !radarInitialized) {
     radarInitialized = true;
@@ -3952,6 +4102,40 @@ document.querySelectorAll('.ntab').forEach(t=>{
     history.replaceState(null, '', '#'+t.dataset.p);
   });
 });
+
+/* ── GROUP NAV (dropdowns) ── */
+const TAB_GROUP = {
+  streams:'ops', traffic:'ops', radar:'ops', firecams:'ops',
+  space:'intel', military:'intel', osint:'intel', intel:'intel',
+  news:'news', elections:'news', weather:'news',
+  status:'system',
+};
+function toggleGroup(g){
+  const grp = document.querySelector(`.ngroup[data-g="${g}"]`);
+  const wasOpen = grp.classList.contains('open');
+  document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
+  if (!wasOpen) grp.classList.add('open');
+}
+// Group menu items activate the tab, then close the menu
+document.querySelectorAll('.ngitem').forEach(it=>{
+  it.addEventListener('click',()=>{
+    const pid = it.dataset.p;
+    activateTab(pid);
+    history.replaceState(null, '', '#'+pid);
+    document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
+  });
+});
+// Close dropdowns when clicking outside
+document.addEventListener('click',(e)=>{
+  if (!e.target.closest('#navgroups')) document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
+});
+// Highlight the active tab within its group + mark the group button
+function syncGroupNav(pid){
+  const g = TAB_GROUP[pid];
+  document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('hasactive'));
+  document.querySelectorAll('.ngitem').forEach(x=>x.classList.toggle('active', x.dataset.p===pid));
+  if (g) document.querySelector(`.ngroup[data-g="${g}"]`)?.classList.add('hasactive');
+}
 
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
@@ -4078,6 +4262,7 @@ loadTicker();           sched('News Ticker',    loadTicker,         10*60*1000, 
 loadMarketTicker();     sched('Markets',        loadMarketTicker,       60*1000, false);
 loadAirports();         sched('Airports',       loadAirports,        5*60*1000, false);
 loadElectionNews();     sched('Election News',  loadElectionNews,   15*60*1000, false);
+loadPotusSchedule();    sched('POTUS Schedule', loadPotusSchedule,  30*60*1000, false);
                         sched('Defense News',   loadMilitaryNews,   15*60*1000, false);
                         sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
                         sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
