@@ -117,6 +117,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 
 /* TICKER */
 .ticker-wrap{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;display:flex;align-items:stretch;overflow:hidden;margin-bottom:6px;height:38px}
+/* Persistent ticker sits above all panels */
+#global-ticker{margin:0 20px 6px;width:auto}
+#global-market{margin:0 20px 14px;width:auto}
+@media(max-width:640px){#global-ticker{margin:0 10px 6px}#global-market{margin:0 10px 12px}}
 .ticker-label{background:var(--accent);color:#000;font-family:var(--fh);font-weight:700;font-size:.82rem;letter-spacing:.1em;padding:0 14px;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;text-transform:uppercase}
 .ticker-track{flex:1;overflow:hidden;display:flex;align-items:center;position:relative}
 .ticker-inner{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 180s linear infinite;will-change:transform}
