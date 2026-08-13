@@ -1200,8 +1200,14 @@ let RADAR_LON = -118.022520;
 let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
-  // Worker is the only reliable source — hardcoded to match confirmed working URL
+  // Call the ADS-B feeds DIRECTLY from the browser first. This uses the
+  // visitor's own (residential) IP, which isn't blocked the way our
+  // Cloudflare Worker's datacenter IP is. adsb.lol supports CORS and is a
+  // drop-in ADSBExchange-compatible API. The worker stays as a fallback for
+  // cases where a browser CORS request fails or the direct source is down.
   return [
+    `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
+    `https://api.adsb.one/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
     `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
   ];
 }
@@ -1778,6 +1784,7 @@ function renderDataPanel() {
 }
 
 async function fetchRadarData() {
+  let gotValidResponse = false;
   for (const url of getRadarAPIs()) {
     try {
       console.log('[Radar] Trying:', url);
@@ -1790,34 +1797,46 @@ async function fetchRadarData() {
       const data = await r.json();
       console.log('[Radar] Keys:', Object.keys(data), 'ac:', data.ac?.length ?? 'none');
       const parsed = parseAircraft(data);
-      // Only replace the displayed set when we actually got aircraft.
-      // A momentary empty/slow response shouldn't blank the radar — keep the
-      // previous planes on screen until real data arrives.
+
       if (parsed.length > 0) {
+        // Found aircraft — use this source and stop.
         radarAircraft = parsed;
         renderDataPanel();
         const el = document.getElementById('radar-last-update');
         if (el) el.textContent = new Date().toLocaleTimeString();
         radarStaleCount = 0;
-      } else {
-        // Empty result — keep existing planes, but if it stays empty for
-        // several cycles, accept that the sky really is clear.
-        radarStaleCount++;
-        if (radarStaleCount >= 4) {
-          radarAircraft = parsed;
-          renderDataPanel();
-          const el = document.getElementById('radar-last-update');
-          if (el) el.textContent = new Date().toLocaleTimeString();
-        }
+        console.log('[Radar] Parsed:', parsed.length, 'aircraft — using this source');
+        markHealth('Flights (ADS-B)', true);
+        return;
       }
-      console.log('[Radar] Parsed:', parsed.length, 'aircraft (displaying', radarAircraft.length + ')');
-      markHealth('Flights (ADS-B)', true);
-      return;
+      // Valid response but zero aircraft — remember that we reached a source,
+      // then try the NEXT source in case it has coverage (e.g. adsb.lol blocked
+      // our IP and returned empty, but adsb.one or the worker has planes).
+      gotValidResponse = true;
+      console.log('[Radar] Empty from this source — trying next');
     } catch(e) {
       console.log('[Radar] Error:', e.message);
       continue;
     }
   }
+
+  // Every source has been tried. If at least one responded validly but all were
+  // empty, treat it as a genuine (or persistent) empty sky after a few cycles —
+  // otherwise keep the last known planes on screen rather than blanking.
+  if (gotValidResponse) {
+    radarStaleCount++;
+    if (radarStaleCount >= 4) {
+      radarAircraft = [];
+      renderDataPanel();
+      const el = document.getElementById('radar-last-update');
+      if (el) el.textContent = new Date().toLocaleTimeString();
+    }
+    markHealth('Flights (ADS-B)', true);
+    console.log('[Radar] All sources empty (stale count', radarStaleCount + ')');
+    return;
+  }
+
+  // No source responded at all.
   console.log('[Radar] All URLs failed');
   markHealth('Flights (ADS-B)', false, 'all sources failed');
   const el = document.getElementById('radar-last-update');
