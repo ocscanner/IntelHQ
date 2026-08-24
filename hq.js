@@ -1844,7 +1844,10 @@ async function fetchRadarData() {
   // otherwise keep the last known planes on screen rather than blanking.
   if (gotValidResponse) {
     radarStaleCount++;
-    if (radarStaleCount >= 4) {
+    // Keep the last-known aircraft on screen through brief source dropouts
+    // (rate-limit cooldowns). Only accept a truly empty sky after ~3 minutes
+    // of continuous empties (6 cycles x 30s), which real OC airspace never is.
+    if (radarStaleCount >= 6) {
       radarAircraft = [];
       renderDataPanel();
       const el = document.getElementById('radar-last-update');
@@ -1880,7 +1883,7 @@ function initRadar() {
   updateRadarSubtitles();
   animateRadar();
   fetchRadarData();
-  sched('Flight Radar', fetchRadarData, 15000, false);
+  sched('Flight Radar', fetchRadarData, 30000, false);  // 30s: aircraft move little in that time, and it halves our ADS-B request rate to avoid free-tier rate limits
 
   // Click on canvas to select aircraft
   radarCanvas.addEventListener('click', e => {
