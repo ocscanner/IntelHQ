@@ -360,7 +360,7 @@ function wxUseMyLocation(){
 
 async function loadWeather(){
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
     const d=await r.json();const c=d.current;
     const t=Math.round(c.temperature_2m),f=Math.round(c.apparent_temperature),h=c.relative_humidity_2m,w=Math.round(c.wind_speed_10m),vis=c.visibility?(c.visibility/1000).toFixed(1)+' mi':'--',desc=WX[c.weather_code]||'Unknown';
     document.getElementById('sb-wx').textContent=t+'°F · '+desc.split(' ')[0];
@@ -373,7 +373,24 @@ async function loadWeather(){
       d.daily.time.forEach((ds,i)=>{
         const day=new Date(ds+'T12:00:00');
         const el=document.createElement('div');el.className='fcd';
-        el.innerHTML=`<div class="fn">${i===0?'Today':dn[day.getDay()]}</div><div class="fi">${fcIcon(d.daily.weather_code[i])}</div><div class="fhi">${Math.round(d.daily.temperature_2m_max[i])}°</div><div class="flo">${Math.round(d.daily.temperature_2m_min[i])}°</div>`;
+        const pop  = d.daily.precipitation_probability_max?.[i];
+        const wind = d.daily.wind_speed_10m_max?.[i];
+        const gust = d.daily.wind_gusts_10m_max?.[i];
+        const uv   = d.daily.uv_index_max?.[i];
+        const precip = d.daily.precipitation_sum?.[i];
+        const uvLabel = uv==null?'':uv<3?'Low':uv<6?'Mod':uv<8?'High':uv<11?'V.High':'Extreme';
+        const uvColor = uv==null?'var(--muted)':uv<3?'#00e060':uv<6?'#ffb700':uv<8?'#ff8c00':'#ff3b30';
+        el.innerHTML=`
+          <div class="fn">${i===0?'Today':dn[day.getDay()]}</div>
+          <div class="fi">${fcIcon(d.daily.weather_code[i])}</div>
+          <div class="ftemp"><span class="fhi">${Math.round(d.daily.temperature_2m_max[i])}°</span><span class="flo">${Math.round(d.daily.temperature_2m_min[i])}°</span></div>
+          <div class="fdet">
+            <div class="fdrow"><span>💧 Rain</span><span>${pop!=null?pop+'%':'--'}</span></div>
+            <div class="fdrow"><span>🌬 Wind</span><span>${wind!=null?Math.round(wind)+' mph':'--'}</span></div>
+            ${gust!=null&&gust>=25?`<div class="fdrow"><span>💨 Gust</span><span>${Math.round(gust)} mph</span></div>`:''}
+            <div class="fdrow"><span>☀ UV</span><span style="color:${uvColor}">${uv!=null?Math.round(uv)+' '+uvLabel:'--'}</span></div>
+            ${precip!=null&&precip>0?`<div class="fdrow"><span>🌧 Total</span><span>${precip.toFixed(2)}"</span></div>`:''}
+          </div>`;
         row.appendChild(el);
       });
     }
@@ -1200,12 +1217,14 @@ let RADAR_LON = -118.022520;
 let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
-  // Call the ADS-B feeds DIRECTLY from the browser first. This uses the
-  // visitor's own (residential) IP, which isn't blocked the way our
-  // Cloudflare Worker's datacenter IP is. adsb.lol supports CORS and is a
-  // drop-in ADSBExchange-compatible API. The worker stays as a fallback for
-  // cases where a browser CORS request fails or the direct source is down.
+  // Call ADS-B feeds DIRECTLY from the browser (residential IP isn't blocked
+  // the way our Cloudflare Worker's datacenter IP is). Order matters: try the
+  // networks with the best Southern California feeder coverage first.
+  // airplanes.live has strong SoCal coverage and only blocked our *worker's*
+  // datacenter IP — from a browser it works. adsb.lol/one are backups, and the
+  // worker proxy is the final fallback for any CORS failures.
   return [
+    `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
     `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
     `https://api.adsb.one/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
     `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
