@@ -257,12 +257,17 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .wxs .wl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--fu);margin-top:2px}
 .rdrwrap{width:100%;height:360px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000}
 .rdrwrap iframe{width:100%;height:100%;border:0}
-.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:7px;margin-top:11px}
-.fcd{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 5px;text-align:center}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:11px}
+.fcd{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 7px;text-align:center}
 .fcd .fn{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;font-family:var(--fu)}
-.fcd .fi{font-size:1.3rem;margin-bottom:3px}
-.fcd .fhi{font-family:var(--fm);font-size:.88rem;color:var(--accent2)}
-.fcd .flo{font-family:var(--fm);font-size:.76rem;color:var(--muted)}
+.fcd .fi{font-size:1.5rem;margin-bottom:2px}
+.fcd .ftemp{display:flex;justify-content:center;gap:7px;align-items:baseline;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.fcd .fhi{font-family:var(--fm);font-size:1rem;color:var(--accent2);font-weight:600}
+.fcd .flo{font-family:var(--fm);font-size:.82rem;color:var(--muted)}
+.fcd .fdet{display:flex;flex-direction:column;gap:3px}
+.fcd .fdrow{display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:.68rem}
+.fcd .fdrow span:first-child{color:var(--muted)}
+.fcd .fdrow span:last-child{color:var(--text2);font-weight:500}
 
 /* TRAFFIC / FLIGHTS maps */
 .mapwrap{width:100%;height:370px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000}
