@@ -360,7 +360,7 @@ function wxUseMyLocation(){
 
 async function loadWeather(){
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&hourly=relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
     const d=await r.json();const c=d.current;
     const t=Math.round(c.temperature_2m),f=Math.round(c.apparent_temperature),h=c.relative_humidity_2m,w=Math.round(c.wind_speed_10m),vis=c.visibility?(c.visibility/1000).toFixed(1)+' mi':'--',desc=WX[c.weather_code]||'Unknown';
     document.getElementById('sb-wx').textContent=t+'°F · '+desc.split(' ')[0];
@@ -370,6 +370,17 @@ async function loadWeather(){
     if(d.daily){
       const row=document.getElementById('frow');row.innerHTML='';
       const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      // Build a per-date average humidity map from the hourly data (Open-Meteo
+      // only provides humidity hourly, not as a daily aggregate).
+      const humByDate={};
+      if(d.hourly?.time&&d.hourly?.relative_humidity_2m){
+        d.hourly.time.forEach((t,hi)=>{
+          const dateKey=t.split('T')[0];
+          const h=d.hourly.relative_humidity_2m[hi];
+          if(h==null)return;
+          (humByDate[dateKey]=humByDate[dateKey]||[]).push(h);
+        });
+      }
       d.daily.time.forEach((ds,i)=>{
         const day=new Date(ds+'T12:00:00');
         const el=document.createElement('div');el.className='fcd';
@@ -378,6 +389,8 @@ async function loadWeather(){
         const gust = d.daily.wind_gusts_10m_max?.[i];
         const uv   = d.daily.uv_index_max?.[i];
         const precip = d.daily.precipitation_sum?.[i];
+        const humArr = humByDate[ds];
+        const humid = humArr&&humArr.length ? Math.round(humArr.reduce((a,b)=>a+b,0)/humArr.length) : null;
         const uvLabel = uv==null?'':uv<3?'Low':uv<6?'Mod':uv<8?'High':uv<11?'V.High':'Extreme';
         const uvColor = uv==null?'var(--muted)':uv<3?'#00e060':uv<6?'#ffb700':uv<8?'#ff8c00':'#ff3b30';
         el.innerHTML=`
@@ -386,6 +399,7 @@ async function loadWeather(){
           <div class="ftemp"><span class="fhi">${Math.round(d.daily.temperature_2m_max[i])}°</span><span class="flo">${Math.round(d.daily.temperature_2m_min[i])}°</span></div>
           <div class="fdet">
             <div class="fdrow"><span>💧 Rain</span><span>${pop!=null?pop+'%':'--'}</span></div>
+            <div class="fdrow"><span>💦 Humidity</span><span>${humid!=null?humid+'%':'--'}</span></div>
             <div class="fdrow"><span>🌬 Wind</span><span>${wind!=null?Math.round(wind)+' mph':'--'}</span></div>
             ${gust!=null&&gust>=25?`<div class="fdrow"><span>💨 Gust</span><span>${Math.round(gust)} mph</span></div>`:''}
             <div class="fdrow"><span>☀ UV</span><span style="color:${uvColor}">${uv!=null?Math.round(uv)+' '+uvLabel:'--'}</span></div>
@@ -1217,14 +1231,12 @@ let RADAR_LON = -118.022520;
 let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
-  // Call ADS-B feeds DIRECTLY from the browser (residential IP isn't blocked
-  // the way our Cloudflare Worker's datacenter IP is). Order matters: try the
-  // networks with the best Southern California feeder coverage first.
-  // airplanes.live has strong SoCal coverage and only blocked our *worker's*
-  // datacenter IP — from a browser it works. adsb.lol/one are backups, and the
-  // worker proxy is the final fallback for any CORS failures.
+  // adsb.lol FIRST — it's the source confirmed working from a browser and
+  // supports CORS. adsb.one as secondary. The worker proxy is the final
+  // fallback. (airplanes.live is intentionally omitted here: it actively
+  // blocks direct calls with a "contact us" message, so trying it first only
+  // wasted a cycle and could stall the chain.)
   return [
-    `https://api.airplanes.live/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
     `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
     `https://api.adsb.one/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
     `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
@@ -1807,10 +1819,16 @@ async function fetchRadarData() {
   for (const url of getRadarAPIs()) {
     try {
       console.log('[Radar] Trying:', url);
+      // Per-source timeout: if a source hangs (e.g. a block that stalls instead
+      // of erroring), abort after 6s and move to the next source.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
       const r = await fetch(url, {
         cache: 'no-store',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal: ctrl.signal
       });
+      clearTimeout(timer);
       console.log('[Radar] Status:', r.status);
       if (!r.ok) continue;
       const data = await r.json();
