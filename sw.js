@@ -1,11 +1,15 @@
 // OC Scanner · Intel HQ — Service Worker
 // Bump CACHE_VERSION any time you deploy updates to force a cache refresh
-const CACHE_VERSION = 'inthq-v1';
+const CACHE_VERSION = 'inthq-v3-discovery';
 
 const STATIC_ASSETS = [
   '/IntelHQ/',
   '/IntelHQ/index.html',
   '/IntelHQ/hq.html',
+  '/IntelHQ/hq.css',
+  '/IntelHQ/hq.js',
+  '/IntelHQ/newsroom.css',
+  '/IntelHQ/newsroom.js',
   '/IntelHQ/manifest.json',
   '/IntelHQ/assets/oc-scanner-logo.png',
 ];

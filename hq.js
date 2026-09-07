@@ -71,6 +71,30 @@ function timeAgo(d){
   if(m<1)return'just now';if(m<60)return m+'m ago';
   const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';
 }
+function offerNewsroomDiscovery(items, fallbackTopic){
+  if(typeof window.ingestNewsroomCandidates!=='function'||!Array.isArray(items)||!items.length)return;
+  window.ingestNewsroomCandidates(items.map(it=>({
+    title:it.title||it.event||'',
+    url:it.link||it.url||'',
+    source:it.src||it.source||'IntelHQ',
+    topic:it.topic||fallbackTopic||'Other',
+    publishedAt:it.pub||it.publishedAt||it.sent||''
+  })));
+}
+function appendNewsroomTrackable(container,card,item,topic){
+  if(!container||!card)return;
+  const wrap=document.createElement('div');wrap.className='news-trackable';
+  card.classList.add('news-trackable-link');
+  const btn=document.createElement('button');btn.type='button';btn.className='news-track-btn';btn.textContent='＋ Track';
+  btn.title='Track this story in the IntelHQ newsroom';
+  btn.addEventListener('click',()=>{
+    if(typeof window.trackNewsroomFeedItem==='function'){
+      window.trackNewsroomFeedItem({title:item.title,url:item.link||item.url||'',source:item.src||item.source||'IntelHQ',topic:topic||item.topic||'Other',publishedAt:item.pub||item.publishedAt||''});
+      btn.textContent='✓ Tracked';btn.disabled=true;
+    }
+  });
+  wrap.appendChild(card);wrap.appendChild(btn);container.appendChild(wrap);
+}
 function fmt(date,tz,secs){
   return date.toLocaleTimeString('en-US',{timeZone:tz,hour12:false,hour:'2-digit',minute:'2-digit',...(secs?{second:'2-digit'}:{})});
 }
@@ -430,6 +454,13 @@ async function loadNWS(){
       const z=f.properties.affectedZones||[];
       return z.some(z=>z.includes('CAZ')&&['040','041','042','043','044','045'].some(n=>z.includes(n)));
     });
+    offerNewsroomDiscovery(feats.map(f=>({
+      title:f.properties.event+' — '+(f.properties.areaDesc||'Orange County area'),
+      link:f.id||'https://alerts.weather.gov/',
+      src:'NWS Alert',
+      topic:'Weather',
+      pub:f.properties.sent||f.properties.effective||''
+    })),'Weather');
     const badge=document.getElementById('alert-badge'),sbw=document.getElementById('sb-alrt');
     if(feats.length){badge.style.display='inline';badge.textContent=feats.length;sbw.style.display='flex';document.getElementById('sb-alrt-txt').textContent=feats[0].properties.event;}
     else{badge.style.display='none';sbw.style.display='none';}
@@ -469,12 +500,13 @@ async function loadLocalNews(){
     }catch(e){}
   }
   items.sort((a,b)=>new Date(b.pub)-new Date(a.pub));
+  offerNewsroomDiscovery(items,'Orange County');
   if(!items.length){el.innerHTML='<div class="loader">Unable to load feeds.</div>';return;}
   el.innerHTML='';
   items.forEach(it=>{
     const a=document.createElement('a');a.className='ni';a.href=it.link;a.target='_blank';a.rel='noopener noreferrer';
     a.innerHTML=`<div class="src">${it.src}</div><div class="ttl">${it.title}</div><div class="ts">${it.pub?timeAgo(new Date(it.pub)):''}</div>`;
-    el.appendChild(a);
+    appendNewsroomTrackable(el,a,it,'Orange County');
   });
 }
 
@@ -640,6 +672,9 @@ async function loadNewsColumns(){
       });
     }
   }
+  offerNewsroomDiscovery(cols.politics.map(it=>({...it,topic:'Politics'})),'Politics');
+  offerNewsroomDiscovery(cols.world.map(it=>({...it,topic:'National Security'})),'National Security');
+  offerNewsroomDiscovery(cols.immigration.map(it=>({...it,topic:'Public Safety'})),'Public Safety');
   const colMap={politics:'col-politics',world:'col-world',immigration:'col-imm'};
   const cntMap={politics:'pol-cnt',world:'wrld-cnt',immigration:'imm-cnt'};
   Object.entries(colMap).forEach(([cat,colId])=>{
@@ -651,7 +686,7 @@ async function loadNewsColumns(){
     cols[cat].forEach(it=>{
       const a=document.createElement('a');a.className='ni-sm';a.href=it.link;a.target='_blank';a.rel='noopener noreferrer';
       a.innerHTML=`<div class="src2 ${it.cls}">${it.src}</div><div class="ttl2">${it.title}</div><div class="ts2">${timeAgo(it.pub)}</div>`;
-      el.appendChild(a);
+      appendNewsroomTrackable(el,a,it,cat==='politics'?'Politics':cat==='world'?'National Security':'Public Safety');
     });
   });
   if(cols.politics.length)document.getElementById('ticker-text').textContent=cols.politics[0].title;
@@ -700,6 +735,7 @@ async function loadFires(){
   }
   // CA fires first, then by recency
   items.sort((a,b)=>(b.isCA-a.isCA)||(b.pub-a.pub));
+  offerNewsroomDiscovery(items.map(it=>({...it,src:it.isCA?'CAL FIRE / InciWeb CA':'InciWeb',topic:'Public Safety'})),'Public Safety');
   el.innerHTML='';
   if(!items.length){el.innerHTML='<div class="empty">No active fire incidents.</div>';return;}
   items.slice(0,8).forEach(it=>{
@@ -951,12 +987,13 @@ async function loadMilitaryNews(){
   }));
   items.sort((a,b)=>b.pub-a.pub);
   markHealth('Defense News (RSS)', items.length>0);
+  offerNewsroomDiscovery(items.map(it=>({...it,topic:'National Security'})),'National Security');
   if(!items.length){el.innerHTML='<div class="loader">Defense news unavailable — try refreshing.</div>';return;}
   el.innerHTML='';
   items.slice(0,40).forEach(it=>{
     const a=document.createElement('a');a.className='ni-sm';a.href=it.link;a.target='_blank';a.rel='noopener noreferrer';
     a.innerHTML=`<div class="src2 ${it.cls}">${it.src}</div><div class="ttl2">${it.title}</div><div class="ts2">${it.pub.getTime()>0?timeAgo(it.pub):''}</div>`;
-    el.appendChild(a);
+    appendNewsroomTrackable(el,a,it,'National Security');
   });
 }
 
@@ -1061,12 +1098,13 @@ async function loadElectionNews(){
     }catch(e){}
   }));
   items.sort((a,b)=>b.pub-a.pub);
+  offerNewsroomDiscovery(items.map(it=>({...it,topic:'Politics'})),'Politics');
   if(!items.length){el.innerHTML='<div class="loader">No election stories found — try refreshing.</div>';return;}
   el.innerHTML='';
   items.forEach(it=>{
     const a=document.createElement('a');a.className='ni-sm';a.href=it.link;a.target='_blank';a.rel='noopener noreferrer';
     a.innerHTML=`<div class="src2 ${it.cls}">${it.src}</div><div class="ttl2">${it.title}</div><div class="ts2">${timeAgo(it.pub)}</div>`;
-    el.appendChild(a);
+    appendNewsroomTrackable(el,a,it,'Politics');
   });
 }
 
@@ -1197,6 +1235,7 @@ async function loadTicker() {
 
   items.sort((a, b) => b.pub - a.pub);
   if (!items.length) return;
+  offerNewsroomDiscovery(items.map(it=>({...it,topic:/OC Register/i.test(it.src)?'Orange County':'Other'})),'Other');
 
   // Build ticker — duplicate items for seamless loop
   const inner = document.getElementById('ticker-inner');
@@ -2097,13 +2136,14 @@ async function loadSpaceNews() {
     } catch(e) {}
   }));
   if (!items.length) { el.innerHTML = '<div class="empty">Space news unavailable</div>'; return; }
+  offerNewsroomDiscovery(items.map(it=>({...it,topic:'Space'})),'Space');
   el.innerHTML = '';
   items.slice(0,12).forEach(it => {
     const a = document.createElement('a');
     a.href = it.link; a.target = '_blank'; a.rel = 'noopener';
     a.className = 'ncard';
     a.innerHTML = `<div class="nsrc">${it.src}</div><div class="ntitle">${it.title}</div>`;
-    el.appendChild(a);
+    appendNewsroomTrackable(el,a,it,'Space');
   });
 }
 
@@ -2683,6 +2723,9 @@ function activateTab(pid){
   tab.classList.add('active');
   panel.classList.add('active');
   if (typeof syncGroupNav === 'function') syncGroupNav(pid);
+  if (pid === 'newsroom' && typeof initNewsroom === 'function') {
+    initNewsroom();
+  }
   // Init radar on first activation of radar tab
   if (pid === 'radar' && !radarInitialized) {
     radarInitialized = true;
@@ -2735,6 +2778,7 @@ document.querySelectorAll('.ntab').forEach(t=>{
 
 /* ── GROUP NAV (dropdowns) ── */
 const TAB_GROUP = {
+  newsroom:'desk',
   streams:'ops', traffic:'ops', radar:'ops', firecams:'ops',
   space:'intel', military:'intel', osint:'intel', intel:'intel',
   news:'news', elections:'news', weather:'news',
@@ -2751,6 +2795,9 @@ document.querySelectorAll('.ngitem').forEach(it=>{
   it.addEventListener('click',()=>{
     const pid = it.dataset.p;
     activateTab(pid);
+    if (pid === 'newsroom' && it.dataset.view && typeof setNewsroomView === 'function') {
+      setNewsroomView(it.dataset.view);
+    }
     history.replaceState(null, '', '#'+pid);
     document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
   });
@@ -2770,7 +2817,7 @@ function syncGroupNav(pid){
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['streams','news','traffic','radar','space','military','elections','weather','firecams','osint','intel','status'];
+  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','osint','intel','status'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);

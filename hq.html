@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="hq.css">
+<link rel="stylesheet" href="newsroom.css">
 </head>
 <body>
 
@@ -68,6 +69,18 @@
 
 <!-- NAV TABS -->
 <div id="navgroups">
+  <div class="ngroup" data-g="desk">
+    <button class="ngbtn" onclick="toggleGroup('desk')">🗂 Newsroom <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-desk">
+      <button class="ngitem" data-p="newsroom" data-view="overview">⌂ Command Desk</button>
+      <button class="ngitem" data-p="newsroom" data-view="discovery">⌁ Discovery Inbox</button>
+      <button class="ngitem" data-p="newsroom" data-view="queue">▤ Story Queue</button>
+      <button class="ngitem" data-p="newsroom" data-view="research">⌕ Research Files</button>
+      <button class="ngitem" data-p="newsroom" data-view="reviews">◎ Review Queue</button>
+      <button class="ngitem" data-p="newsroom" data-view="planner">✓ Planner &amp; Review</button>
+      <button class="ngitem" data-p="newsroom" data-view="digest">✦ Digest Builder</button>
+    </div>
+  </div>
   <div class="ngroup" data-g="ops">
     <button class="ngbtn" onclick="toggleGroup('ops')">📡 Live Ops <span class="ngcaret">▾</span></button>
     <div class="ngmenu" id="ngmenu-ops">
@@ -103,6 +116,7 @@
 </div>
 
 <div id="nav">
+  <button class="ntab" data-p="newsroom">🗂 Newsroom</button>
   <button class="ntab active" data-p="streams">🎥 Streams</button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
   <button class="ntab" data-p="radar">📡 Radar</button>
@@ -242,6 +256,214 @@
     </div>
   </div>
 
+</div>
+
+<!-- ══════════════════ NEWSROOM COMMAND CENTER ══════════════════ -->
+<div id="panel-newsroom" class="panel">
+  <section class="nr-hero">
+    <div>
+      <div class="nr-eyebrow">INTELHQ DESK · DEVICE-LOCAL WORKSPACE</div>
+      <h2>Newsroom Command Center</h2>
+      <p>Capture signals, verify claims, organize reporting, and turn approved intelligence into a publish-ready briefing.</p>
+    </div>
+    <div class="nr-hero-actions">
+      <button class="nr-btn nr-btn-quiet" type="button" onclick="exportNewsroomData()">⇩ Backup</button>
+      <label class="nr-btn nr-btn-quiet nr-import">⇧ Restore<input id="nr-import-file" type="file" accept="application/json" onchange="importNewsroomData(event)"></label>
+      <button class="nr-btn nr-btn-primary" type="button" onclick="setNewsroomView('queue');focusNewsroomCapture()">＋ Capture Intel</button>
+    </div>
+  </section>
+
+  <nav class="nr-tabs" aria-label="Newsroom sections">
+    <button class="nr-tab active" data-nr-view="overview" type="button">Command Desk</button>
+    <button class="nr-tab" data-nr-view="discovery" type="button">Discovery Inbox</button>
+    <button class="nr-tab" data-nr-view="queue" type="button">Story Queue</button>
+    <button class="nr-tab" data-nr-view="research" type="button">Research Files</button>
+    <button class="nr-tab" data-nr-view="reviews" type="button">Review Queue</button>
+    <button class="nr-tab" data-nr-view="planner" type="button">Planner &amp; Review</button>
+    <button class="nr-tab" data-nr-view="digest" type="button">Digest Builder</button>
+  </nav>
+
+  <div class="nr-view active" id="nr-view-overview">
+    <div class="nr-kpis">
+      <article><span id="nr-kpi-active">0</span><small>Active stories</small></article>
+      <article><span id="nr-kpi-candidates">0</span><small>Discovery candidates</small></article>
+      <article><span id="nr-kpi-review">0</span><small>Needs review</small></article>
+      <article><span id="nr-kpi-verified">0</span><small>Verified</small></article>
+      <article><span id="nr-kpi-ready">0</span><small>Ready to publish</small></article>
+      <article><span id="nr-kpi-tasks">0</span><small>Open tasks</small></article>
+      <article><span id="nr-kpi-sources">0</span><small>Sources logged</small></article>
+    </div>
+
+    <div class="nr-overview-grid">
+      <section class="nr-surface nr-priority-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">PRIORITY BOARD</span><h3>What needs attention</h3></div><button type="button" onclick="setNewsroomView('queue')">Open queue →</button></div>
+        <div id="nr-priority-list" class="nr-stack"></div>
+      </section>
+      <section class="nr-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">TODAY</span><h3>Upcoming actions</h3></div><button type="button" onclick="setNewsroomView('planner')">Open planner →</button></div>
+        <div id="nr-upcoming-list" class="nr-stack"></div>
+      </section>
+    </div>
+
+    <section class="nr-surface nr-focus-surface">
+      <div class="nr-section-head"><div><span class="nr-kicker">EDITOR'S NOTE</span><h3>Current operational focus</h3></div><span id="nr-focus-saved" class="nr-save-state">Saved locally</span></div>
+      <textarea id="nr-week-focus" rows="3" placeholder="What is the desk watching this week? Add priorities, recurring themes, and reporting goals."></textarea>
+    </section>
+  </div>
+
+  <div class="nr-view" id="nr-view-discovery">
+    <section class="nr-surface">
+      <div class="nr-section-head">
+        <div><span class="nr-kicker">AUTOMATED INTAKE</span><h3>Story Discovery Inbox</h3></div>
+        <div class="nr-section-actions"><span id="nr-discovery-status" class="nr-save-state">Waiting for IntelHQ feeds…</span><button id="nr-restore-dismissed" type="button" onclick="restoreDismissedNewsroomCandidates()" hidden>Restore dismissed</button></div>
+      </div>
+      <div class="nr-discovery-summary">
+        <article><span id="nr-discovery-total">0</span><small>Candidate clusters</small></article>
+        <article><span id="nr-discovery-sources">0</span><small>Unique sources</small></article>
+        <article><span id="nr-discovery-high">0</span><small>High-priority signals</small></article>
+        <article><span id="nr-discovery-tracked">0</span><small>Tracked stories</small></article>
+      </div>
+      <div class="nr-toolbar nr-discovery-toolbar">
+        <input id="nr-discovery-search" type="search" placeholder="Search discovered stories…" aria-label="Search discovery inbox">
+        <select id="nr-discovery-topic" aria-label="Filter discovery desk"><option value="all">All desks</option></select>
+        <select id="nr-discovery-score" aria-label="Filter minimum discovery score"><option value="0">All scores</option><option value="50">Score 50+</option><option value="70">Score 70+</option><option value="85">Score 85+</option></select>
+        <select id="nr-discovery-state" aria-label="Filter tracked discovery stories"><option value="untracked">Untracked</option><option value="tracked">Tracked</option><option value="all">All candidates</option></select>
+      </div>
+      <div id="nr-discovery-list" class="nr-discovery-list"></div>
+      <p class="nr-help">Candidates are collected from IntelHQ's existing local, politics, world, immigration, military, elections, space, and ticker feeds. Scores help prioritize review; they are not editorial confirmation.</p>
+    </section>
+  </div>
+
+  <div class="nr-view" id="nr-view-queue">
+    <div class="nr-queue-layout">
+      <form id="nr-capture-form" class="nr-surface nr-capture-form">
+        <div class="nr-section-head"><div><span class="nr-kicker">QUICK CAPTURE</span><h3>Add a developing story</h3></div><span class="nr-save-state">Autosaves on submit</span></div>
+        <label>Working headline<input id="nr-story-title" name="title" required maxlength="180" placeholder="What happened?"></label>
+        <div class="nr-field-grid">
+          <label>Desk<select id="nr-story-topic" name="topic"><option>Orange County</option><option>Public Safety</option><option>Weather</option><option>Aviation</option><option>Space</option><option>National Security</option><option>Politics</option><option>Markets</option><option>Other</option></select></label>
+          <label>Priority<select id="nr-story-priority" name="priority"><option value="routine">Routine</option><option value="watch">Watch</option><option value="urgent">Urgent</option></select></label>
+          <label>Verification<select id="nr-story-confidence" name="confidence"><option value="reported">Reported</option><option value="corroborated">Corroborated</option><option value="verified">Verified</option><option value="developing">Developing</option></select></label>
+          <label>Pipeline<select id="nr-story-status" name="status"><option value="inbox">Inbox</option><option value="researching">Researching</option><option value="drafting">Drafting</option><option value="review">Review</option><option value="ready">Ready</option><option value="published">Published</option></select></label>
+        </div>
+        <label>Primary source URL<input id="nr-story-source" name="source" type="url" placeholder="https://…"></label>
+        <label>Initial notes<textarea id="nr-story-notes" name="notes" rows="4" placeholder="Key facts, scanner traffic, open questions, or why this matters."></textarea></label>
+        <button class="nr-btn nr-btn-primary" type="submit">Save to story queue</button>
+      </form>
+
+      <section class="nr-surface nr-queue-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">EDITORIAL PIPELINE</span><h3>Story queue</h3></div><span id="nr-queue-count" class="nr-count">0 items</span></div>
+        <div class="nr-toolbar">
+          <input id="nr-story-search" type="search" placeholder="Search stories…" aria-label="Search stories">
+          <select id="nr-status-filter" aria-label="Filter by pipeline status"><option value="all">All stages</option><option value="inbox">Inbox</option><option value="researching">Researching</option><option value="drafting">Drafting</option><option value="review">Review</option><option value="ready">Ready</option><option value="published">Published</option></select>
+          <select id="nr-topic-filter" aria-label="Filter by desk"><option value="all">All desks</option></select>
+        </div>
+        <div id="nr-story-list" class="nr-story-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="nr-view" id="nr-view-research">
+    <div class="nr-research-layout">
+      <section class="nr-surface nr-dossier-index">
+        <div class="nr-section-head"><div><span class="nr-kicker">DOSSIERS</span><h3>Research files</h3></div></div>
+        <div id="nr-dossier-list" class="nr-dossier-list"></div>
+      </section>
+      <form id="nr-dossier-form" class="nr-surface nr-dossier-form">
+        <input type="hidden" id="nr-dossier-id">
+        <div class="nr-section-head"><div><span class="nr-kicker">ACTIVE FILE</span><h3 id="nr-dossier-heading">Select a story</h3></div><span id="nr-dossier-updated" class="nr-save-state"></span></div>
+        <div id="nr-dossier-empty" class="nr-empty-state"><strong>No research file selected.</strong><span>Choose a story from the left, or capture a new item in the story queue.</span></div>
+        <div id="nr-dossier-fields" hidden>
+          <label>Working headline<input id="nr-dossier-title" maxlength="180"></label>
+          <div class="nr-field-grid">
+            <label>Desk<select id="nr-dossier-topic"><option>Orange County</option><option>Public Safety</option><option>Weather</option><option>Aviation</option><option>Space</option><option>National Security</option><option>Politics</option><option>Markets</option><option>Other</option></select></label>
+            <label>Priority<select id="nr-dossier-priority"><option value="routine">Routine</option><option value="watch">Watch</option><option value="urgent">Urgent</option></select></label>
+            <label>Verification<select id="nr-dossier-confidence"><option value="reported">Reported</option><option value="corroborated">Corroborated</option><option value="verified">Verified</option><option value="developing">Developing</option></select></label>
+            <label>Pipeline<select id="nr-dossier-status"><option value="inbox">Inbox</option><option value="researching">Researching</option><option value="drafting">Drafting</option><option value="review">Review</option><option value="ready">Ready</option><option value="published">Published</option></select></label>
+          </div>
+          <label>Primary source URL<input id="nr-dossier-source" type="url" placeholder="https://…"></label>
+          <label>Working thesis<textarea id="nr-dossier-thesis" rows="3" placeholder="What is the core finding or angle?"></textarea></label>
+          <div class="nr-field-grid nr-field-grid-2">
+            <label>Confirmed facts<textarea id="nr-dossier-known" rows="6" placeholder="One fact per line…"></textarea></label>
+            <label>Unknowns / conflicts<textarea id="nr-dossier-unknown" rows="6" placeholder="What still needs confirmation?"></textarea></label>
+            <label>Claims to verify<textarea id="nr-dossier-claims" rows="6" placeholder="Claim | status | evidence…"></textarea></label>
+            <label>Sources<textarea id="nr-dossier-sources" rows="6" placeholder="Source name | URL | timestamp…"></textarea></label>
+          </div>
+          <label>Analysis and context<textarea id="nr-dossier-analysis" rows="5" placeholder="Why it matters, historical context, local impact, and what to watch next."></textarea></label>
+          <div class="nr-form-actions"><button class="nr-btn nr-btn-primary" type="submit">Save research file</button><button class="nr-btn nr-btn-quiet" type="button" onclick="openSelectedInDigest()">Send to digest →</button></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="nr-view" id="nr-view-reviews">
+    <div class="nr-review-queue-grid">
+      <section class="nr-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">EDITORIAL GATE</span><h3>Needs review</h3></div><span id="nr-review-queue-count" class="nr-count">0 stories</span></div>
+        <div id="nr-review-queue" class="nr-story-list"></div>
+      </section>
+      <section class="nr-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">APPROVAL CHECKLIST</span><h3>Before publishing</h3></div></div>
+        <div class="nr-checklist">
+          <label><input type="checkbox" disabled> Primary source or direct evidence logged</label>
+          <label><input type="checkbox" disabled> Material claims corroborated</label>
+          <label><input type="checkbox" disabled> Unknowns and conflicting reports disclosed</label>
+          <label><input type="checkbox" disabled> Sensitive details and personal information reviewed</label>
+          <label><input type="checkbox" disabled> Local relevance and reader impact are clear</label>
+          <label><input type="checkbox" disabled> Headline matches the confirmed evidence</label>
+        </div>
+        <p class="nr-help">Open a story's research file to complete the evidence record, then update its verification and pipeline states.</p>
+      </section>
+    </div>
+  </div>
+
+  <div class="nr-view" id="nr-view-planner">
+    <div class="nr-planner-grid">
+      <section class="nr-surface">
+        <div class="nr-section-head"><div><span class="nr-kicker">ACTION LOG</span><h3>Editorial tasks</h3></div><span id="nr-task-count" class="nr-count">0 open</span></div>
+        <form id="nr-task-form" class="nr-task-form">
+          <input id="nr-task-title" required maxlength="140" placeholder="Add a follow-up, call, verification, or deadline…">
+          <input id="nr-task-date" type="date" aria-label="Task due date">
+          <select id="nr-task-type" aria-label="Task type"><option>Reporting</option><option>Verification</option><option>Publishing</option><option>Business</option><option>Maintenance</option></select>
+          <button class="nr-btn nr-btn-primary" type="submit">Add task</button>
+        </form>
+        <div id="nr-task-list" class="nr-task-list"></div>
+      </section>
+
+      <form id="nr-review-form" class="nr-surface nr-review-form">
+        <div class="nr-section-head"><div><span class="nr-kicker">WEEKLY REVIEW</span><h3>Close the loop</h3></div><span id="nr-review-week" class="nr-count"></span></div>
+        <label>Wins<textarea id="nr-review-wins" rows="4" placeholder="Coverage wins, audience growth, sources developed…"></textarea></label>
+        <label>Misses and risks<textarea id="nr-review-risks" rows="4" placeholder="Stories missed, verification gaps, technical issues…"></textarea></label>
+        <label>Next week's focus<textarea id="nr-review-next" rows="4" placeholder="Three priorities for the next seven days…"></textarea></label>
+        <button class="nr-btn nr-btn-primary" type="submit">Save weekly review</button>
+      </form>
+    </div>
+    <section class="nr-surface">
+      <div class="nr-section-head"><div><span class="nr-kicker">REVIEW ARCHIVE</span><h3>Previous weekly reviews</h3></div><span id="nr-review-history-count" class="nr-count">0 saved</span></div>
+      <div id="nr-review-history" class="nr-review-history"></div>
+    </section>
+  </div>
+
+  <div class="nr-view" id="nr-view-digest">
+    <div class="nr-digest-layout">
+      <section class="nr-surface nr-digest-controls">
+        <div class="nr-section-head"><div><span class="nr-kicker">BRIEFING ENGINE</span><h3>Build a roundup</h3></div><span class="nr-phase-tag">DISTRIBUTION · PHASE 2</span></div>
+        <label>Briefing title<input id="nr-digest-title" value="The Signal — Intelligence Brief"></label>
+        <div class="nr-field-grid nr-field-grid-2">
+          <label>Format<select id="nr-digest-format"><option value="daily">Daily Signal</option><option value="weekly">Weekly Roundup</option><option value="incident">Incident Brief</option></select></label>
+          <label>Include<select id="nr-digest-scope"><option value="approved">Corroborated + verified</option><option value="ready">Ready to publish only</option><option value="active">All active stories</option></select></label>
+        </div>
+        <label>Editor's opening<textarea id="nr-digest-opening" rows="4" placeholder="Optional context or opening note for readers…"></textarea></label>
+        <button class="nr-btn nr-btn-primary" type="button" onclick="generateNewsroomDigest()">✦ Generate briefing</button>
+        <p class="nr-help">Generation uses your saved research and a structured newsroom template. It does not call an external AI service in this phase.</p>
+      </section>
+      <section class="nr-surface nr-digest-preview">
+        <div class="nr-section-head"><div><span class="nr-kicker">PUBLISH-READY DRAFT</span><h3>Digest preview</h3></div><span id="nr-digest-meta" class="nr-count">Not generated</span></div>
+        <textarea id="nr-digest-output" rows="28" placeholder="Your generated briefing will appear here. You can edit it before copying or downloading."></textarea>
+        <div class="nr-form-actions"><button class="nr-btn nr-btn-primary" type="button" onclick="copyNewsroomDigest()">Copy draft</button><button class="nr-btn nr-btn-quiet" type="button" onclick="downloadNewsroomDigest()">Download .md</button></div>
+        <div id="nr-copy-state" class="nr-copy-state" role="status"></div>
+      </section>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════ INTEL ══════════════════ -->
@@ -1099,6 +1321,7 @@
   </div>
 </div>
 
+<script src="newsroom.js"></script>
 <script src="hq.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
