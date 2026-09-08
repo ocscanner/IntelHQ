@@ -12,22 +12,29 @@
   };
   const PRIORITY_WEIGHT = { urgent: 0, watch: 1, routine: 2 };
   const STATUS_WEIGHT = { ready: 0, review: 1, drafting: 2, researching: 3, inbox: 4, published: 5 };
+  const CHANNEL_LABELS = { website: 'Public Site', email: 'The Signal', x: 'X / Thread', instagram: 'Instagram' };
+  const CHANNEL_STATUS_LABELS = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published', failed: 'Failed', held: 'Held', corrected: 'Corrected' };
 
   let state = loadState();
   let initialized = false;
   let focusTimer = null;
   let discoveryClustersCache = new Map();
+  let currentDigestStoryIds = [];
+  let currentDistributionChannel = 'website';
 
   function emptyState() {
     return {
-      version: 1,
+      version: 2,
       stories: [],
       tasks: [],
       candidates: [],
       dismissedCandidateIds: [],
       focus: '',
       reviews: {},
-      selectedStoryId: null
+      selectedStoryId: null,
+      briefings: [],
+      publicationLog: [],
+      selectedBriefingId: null
     };
   }
 
@@ -63,7 +70,7 @@
   }
 
   function normalizeState(incoming) {
-    const normalized = Object.assign(emptyState(), incoming, { version: 1 });
+    const normalized = Object.assign(emptyState(), incoming, { version: 2 });
     normalized.stories = incoming.stories.map(story => Object.assign({
       title: 'Untitled story', topic: 'Other', priority: 'routine', confidence: 'reported',
       status: 'inbox', source: '', notes: '', createdAt: new Date().toISOString(),
@@ -77,6 +84,21 @@
     }, candidate, { id: safeId(candidate && candidate.id) })).filter(candidate => candidate.title);
     normalized.dismissedCandidateIds = (Array.isArray(incoming.dismissedCandidateIds) ? incoming.dismissedCandidateIds : []).map(safeId);
     normalized.selectedStoryId = normalized.stories.some(story => story.id === incoming.selectedStoryId) ? incoming.selectedStoryId : null;
+    normalized.briefings = (Array.isArray(incoming.briefings) ? incoming.briefings : []).map(briefing => {
+      const channels = briefing && briefing.channels ? briefing.channels : {};
+      const normalizedChannels = {};
+      Object.keys(CHANNEL_LABELS).forEach(channel => {
+        normalizedChannels[channel] = Object.assign({ content: '', status: 'draft', scheduleAt: '', url: '', updatedAt: '' }, channels[channel]);
+      });
+      return Object.assign({ title: 'Untitled briefing', format: 'daily', body: '', storyIds: [], createdAt: new Date().toISOString(), approvedAt: new Date().toISOString() }, briefing, {
+        id: safeId(briefing && briefing.id),
+        publicationId: String(briefing && briefing.publicationId || '').slice(0, 80),
+        storyIds: Array.isArray(briefing && briefing.storyIds) ? briefing.storyIds.map(safeId) : [],
+        channels: normalizedChannels
+      });
+    });
+    normalized.publicationLog = (Array.isArray(incoming.publicationLog) ? incoming.publicationLog : []).map(entry => Object.assign({ channel: 'website', action: 'updated', result: 'recorded', timestamp: new Date().toISOString(), url: '', note: '' }, entry, { id: safeId(entry && entry.id), briefingId: safeId(entry && entry.briefingId) })).slice(-1000);
+    normalized.selectedBriefingId = normalized.briefings.some(briefing => briefing.id === incoming.selectedBriefingId) ? incoming.selectedBriefingId : normalized.briefings[0]?.id || null;
     return normalized;
   }
 
@@ -104,6 +126,30 @@
     if (!value) return 'Not updated';
     const date = new Date(value);
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function fullTimestamp(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function toLocalDateTimeValue(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  }
+
+  function safeExternalUrl(value) {
+    try {
+      const parsed = new URL(String(value || ''));
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+    } catch (error) {
+      return '';
+    }
   }
 
   function isoOrEmpty(value) {
@@ -231,6 +277,7 @@
     setText('nr-kpi-ready', ready);
     setText('nr-kpi-tasks', openTasks);
     setText('nr-kpi-sources', sourceCount());
+    setText('nr-kpi-packages', state.briefings.length);
     setText('nr-task-count', openTasks + ' open');
   }
 
@@ -511,6 +558,7 @@
     renderReviewQueue();
     renderTasks();
     renderReview();
+    renderDistribution();
     const focus = document.getElementById('nr-week-focus');
     if (focus && document.activeElement !== focus) focus.value = state.focus || '';
   }
@@ -598,39 +646,171 @@
     renderReviewHistory();
   }
 
-  function digestStorySection(story, index) {
+  function cleanSentence(value) {
+    const text = String(value || '').replace(/^[-•]\s*/, '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return /[.!?]["')\]]?$/.test(text) ? text : text + '.';
+  }
+
+  function paragraphFromLines(value) {
+    return lines(value).map(cleanSentence).filter(Boolean).join(' ');
+  }
+
+  function paragraphsFromText(value) {
+    return String(value || '').split(/\n\s*\n/).map(cleanSentence).filter(Boolean);
+  }
+
+  function frontMatterValue(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').trim();
+  }
+
+  function sourceMarkdown(story) {
+    const entries = sourceLinesForStory(story).map(line => {
+      const raw = String(line || '').trim();
+      const match = raw.match(/https?:\/\/[^\s|]+/i);
+      const url = match ? safeExternalUrl(match[0]) : safeExternalUrl(raw);
+      let name = raw.split('|')[0].trim();
+      if (!name || name === raw || /^https?:\/\//i.test(name)) {
+        try { name = new URL(url).hostname.replace(/^www\./, ''); } catch (error) { name = 'Primary source'; }
+      }
+      return url ? '[' + name.replace(/[\[\]]/g, '') + '](' + url + ')' : name;
+    }).filter(Boolean);
+    return [...new Set(entries)];
+  }
+
+  function storyArticleParagraphs(story) {
     const research = story.research || {};
-    const known = lines(research.known);
-    const unknown = lines(research.unknown);
-    const sources = sourceLinesForStory(story);
-    const situation = research.thesis || story.notes || 'Reporting file opened; summary pending.';
-    const analysis = research.analysis || 'Context and local impact analysis pending.';
-    const claims = lines(research.claims);
-    const whatToWatch = unknown.length ? unknown : ['Monitor official updates and additional independent confirmation.'];
+    const paragraphs = [];
+    const thesis = cleanSentence(research.thesis);
+    const notes = paragraphsFromText(story.notes);
+    const known = paragraphFromLines(research.known);
+    const analysis = paragraphsFromText(research.analysis);
+    const unknown = paragraphFromLines(research.unknown);
+
+    if (thesis) paragraphs.push(thesis);
+    notes.forEach(paragraph => { if (paragraph !== thesis) paragraphs.push(paragraph); });
+    if (known && known !== thesis && !notes.includes(known)) paragraphs.push(known);
+    analysis.forEach(paragraph => { if (paragraph !== thesis && !notes.includes(paragraph)) paragraphs.push(paragraph); });
+    if (unknown) paragraphs.push('As this story develops, several details remain unresolved. ' + unknown);
+    if (!paragraphs.length) {
+      paragraphs.push('OC Scanner is monitoring ' + cleanSentence(story.title).replace(/^./, char => char.toLowerCase()));
+      paragraphs.push('The source is saved in the newsroom Queue, but additional confirmed details are needed before this draft is publication-ready.');
+    }
+    return paragraphs;
+  }
+
+  function hasSubstantiveStoryContent(story) {
+    const research = story.research || {};
+    return Boolean(String(story.notes || '').trim() || String(research.thesis || '').trim() || lines(research.known).length || String(research.analysis || '').trim());
+  }
+
+  function digestStorySection(story) {
+    const sources = sourceMarkdown(story);
+    const verification = CONFIDENCE_LABELS[story.confidence] || story.confidence;
     return [
-      '## ' + (index + 1) + '. ' + story.title,
+      '## ' + story.title,
       '',
-      '**Desk:** ' + story.topic + '  ',
-      '**Verification:** ' + (CONFIDENCE_LABELS[story.confidence] || story.confidence) + '  ',
-      '**Pipeline:** ' + (STATUS_LABELS[story.status] || story.status),
-      '',
-      '**Situation**',
-      situation,
-      '',
-      '**What we know**',
-      ...(known.length ? known.map(item => '- ' + item) : ['- Initial reporting is logged; confirmed-fact notes have not been completed.']),
-      '',
-      '**What remains unclear**',
-      ...(whatToWatch.map(item => '- ' + item)),
-      '',
-      '**Why it matters**',
-      analysis,
-      ...(claims.length ? ['', '**Claims under review**', ...claims.map(item => '- ' + item)] : []),
-      '',
-      '**Sources**',
-      ...(sources.length ? sources.map(source => '- ' + source) : ['- Source list pending.']),
+      ...storyArticleParagraphs(story).flatMap(paragraph => [paragraph, '']),
+      sources.length ? '*Sources: ' + sources.join('; ') + '. Reporting status: ' + verification + '.*' : '*Reporting status: ' + verification + '. Source link pending.*',
       ''
     ].join('\n');
+  }
+
+  function articleExcerpt(stories) {
+    const lead = stories[0];
+    if (!lead) return 'Independent reporting and analysis from the OC Scanner desk.';
+    return clipText((lead.research && lead.research.thesis) || lead.notes || lead.title, 165);
+  }
+
+  function roundupOpening(stories, formatLabel) {
+    if (!stories.length) return '';
+    const lead = stories[0];
+    const leadContext = cleanSentence((lead.research && lead.research.thesis) || lead.notes || lead.title);
+    const remaining = stories.slice(1, 4).map(story => story.title);
+    const second = remaining.length ? ' Also in this ' + formatLabel.toLowerCase() + ': ' + remaining.join('; ') + (stories.length > 4 ? '; and additional developments.' : '.') : '';
+    return leadContext + second;
+  }
+
+  function buildPublishReadyArticle(title, format, opening, stories) {
+    const formatLabel = { daily: 'Daily Intelligence Roundup', weekly: 'Weekly News Roundup', incident: 'Incident Report' }[format] || 'Intelligence Digest';
+    const selected = format === 'incident' ? stories.slice(0, 1) : stories;
+    const finalTitle = format === 'incident' && title === 'The Signal — Intelligence Brief' && selected[0] ? selected[0].title : title;
+    const tag = format === 'incident' && selected[0] ? selected[0].topic : 'The Signal';
+    const publishedDate = new Date().toISOString().slice(0, 10);
+    const displayDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const introduction = cleanSentence(opening) || roundupOpening(selected, formatLabel);
+    const watchItems = selected.flatMap(story => lines(story.research && story.research.unknown)).map(cleanSentence).filter(Boolean);
+    const closing = watchItems.length
+      ? 'OC Scanner will continue watching for ' + watchItems.slice(0, 4).map(item => item.replace(/[.]$/, '').replace(/^./, char => char.toLowerCase())).join('; ') + '.'
+      : 'OC Scanner will continue monitoring official updates and independently corroborated reporting as these stories develop.';
+    const body = format === 'incident' && selected[0]
+      ? [introduction, '', ...storyArticleParagraphs(selected[0]).filter(paragraph => paragraph !== introduction).flatMap(paragraph => [paragraph, '']), sourceMarkdown(selected[0]).length ? '*Sources: ' + sourceMarkdown(selected[0]).join('; ') + '. Reporting status: ' + (CONFIDENCE_LABELS[selected[0].confidence] || selected[0].confidence) + '.*' : '', '', '## What happens next', '', closing]
+      : [introduction, '', ...selected.map(digestStorySection), '## What we’re watching next', '', closing];
+    return {
+      title: finalTitle,
+      stories: selected,
+      formatLabel,
+      markdown: [
+        '---',
+        'title: "' + frontMatterValue(finalTitle) + '"',
+        'date: ' + publishedDate,
+        'tag: "' + frontMatterValue(tag) + '"',
+        'author: "OC Scanner"',
+        'excerpt: "' + frontMatterValue(articleExcerpt(selected)) + '"',
+        '---',
+        '',
+        '# ' + finalTitle,
+        '',
+        '*' + formatLabel + ' · ' + displayDate + ' · By OC Scanner*',
+        '',
+        ...body,
+        '',
+        '---',
+        '',
+        '*OC Scanner is independent and unaffiliated. Information may change as events develop. In an emergency, call 911.*'
+      ].filter((line, index, array) => !(line === '' && array[index - 1] === '')).join('\n')
+    };
+  }
+
+  function renderInlineMarkdown(value) {
+    let text = escapeHTML(value);
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (match, label, url) => {
+      const safe = safeExternalUrl(url.replace(/&amp;/g, '&'));
+      return safe ? '<a href="' + escapeHTML(safe) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
+    });
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    return text;
+  }
+
+  function renderArticlePreview() {
+    const container = document.getElementById('nr-digest-formatted');
+    const output = document.getElementById('nr-digest-output');
+    if (!container || !output) return;
+    let markdown = output.value.trim();
+    if (!markdown) {
+      container.innerHTML = emptyMessage('Your article preview will appear here.', 'Generate from the stories already saved in your Queue.');
+      return;
+    }
+    let meta = {};
+    const frontMatter = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
+    if (frontMatter) {
+      frontMatter[1].split('\n').forEach(line => {
+        const split = line.indexOf(':');
+        if (split > 0) meta[line.slice(0, split).trim()] = line.slice(split + 1).trim().replace(/^"|"$/g, '');
+      });
+      markdown = markdown.slice(frontMatter[0].length);
+    }
+    const blocks = markdown.split(/\n\s*\n/).map(block => block.trim()).filter(Boolean);
+    const html = blocks.map(block => {
+      if (/^#\s+/.test(block)) return '<h1>' + renderInlineMarkdown(block.replace(/^#\s+/, '')) + '</h1>';
+      if (/^##\s+/.test(block)) return '<h2>' + renderInlineMarkdown(block.replace(/^##\s+/, '')) + '</h2>';
+      if (/^---$/.test(block)) return '<hr>';
+      if (/^\*[^*]+\*$/.test(block) && block.includes('· By OC Scanner')) return '<div class="nr-article-byline">' + renderInlineMarkdown(block) + '</div>';
+      return '<p>' + renderInlineMarkdown(block.replace(/\n/g, ' ')) + '</p>';
+    }).join('');
+    const metaLine = [meta.tag, meta.date, meta.author ? 'By ' + meta.author : ''].filter(Boolean).map(escapeHTML).join(' · ');
+    container.innerHTML = (metaLine ? '<div class="nr-article-meta">' + metaLine + '</div>' : '') + html;
   }
 
   function selectDigestStories(scope) {
@@ -639,6 +819,196 @@
     else if (scope === 'active') stories = state.stories.filter(story => story.status !== 'published');
     else stories = state.stories.filter(story => ['corroborated', 'verified'].includes(story.confidence));
     return sortStories(stories);
+  }
+
+  function clipText(value, length) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= length) return text;
+    return text.slice(0, Math.max(0, length - 1)).trimEnd() + '…';
+  }
+
+  function storySummary(story) {
+    return clipText((story.research && story.research.thesis) || story.notes || (CONFIDENCE_LABELS[story.confidence] + ' reporting file.'), 220);
+  }
+
+  function storySourceUrls(story) {
+    const values = sourceLinesForStory(story).map(line => {
+      const match = String(line).match(/https?:\/\/[^\s|]+/i);
+      return match ? match[0] : safeExternalUrl(line);
+    }).filter(Boolean);
+    return [...new Set(values)];
+  }
+
+  function createPublicationId() {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return 'OCS-' + date + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+  }
+
+  function buildChannelEditions(title, body, stories, publicationId) {
+    const generated = fullTimestamp(new Date().toISOString());
+    const sourceUrls = [...new Set(stories.flatMap(storySourceUrls))];
+    const verificationLine = stories.map(story => story.title + ': ' + (CONFIDENCE_LABELS[story.confidence] || story.confidence)).join('; ');
+    const articleBody = body.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '').replace(/^# .+\n+/, '');
+    const site = [
+      body,
+      '',
+      '---',
+      '**Publication ID:** ' + publicationId,
+      '**Published:** Add final publication time',
+      '**Verification:** ' + verificationLine,
+      '',
+      '*Updates and corrections will be logged against this publication ID.*'
+    ].join('\n');
+    const email = [
+      'SUBJECT: ' + title,
+      'PREHEADER: ' + clipText(stories.map(storySummary).join(' • '), 140),
+      '',
+      'THE SIGNAL | OC SCANNER',
+      generated,
+      '',
+      articleBody,
+      '',
+      'READ / SHARE',
+      'Add the canonical public-site URL before sending.',
+      '',
+      'Publication ID: ' + publicationId
+    ].join('\n');
+    const xPosts = [
+      clipText(title + ' 🧵\n\n' + (stories.length + ' developments the OC Scanner desk is tracking. Sources and verification status follow.'), 275),
+      ...stories.map((story, index) => clipText((index + 2) + '/' + (stories.length + 2) + ' ' + story.title + '\n\n' + storySummary(story) + '\n\nStatus: ' + (CONFIDENCE_LABELS[story.confidence] || story.confidence), 275)),
+      clipText((stories.length + 2) + '/' + (stories.length + 2) + ' Sources:\n' + (sourceUrls.length ? sourceUrls.slice(0, 4).join('\n') : 'Source links are listed in the full briefing.') + '\n\n' + publicationId, 275)
+    ];
+    const x = xPosts.map((post, index) => 'POST ' + (index + 1) + '\n' + post).join('\n\n---\n\n');
+    const caption = clipText(title + '\n\n' + stories.map(story => '• ' + story.title + ' — ' + storySummary(story)).join('\n\n') + '\n\nVerification: ' + verificationLine + '\n\nFull sourcing and updates: link in bio.\n\n#OCScanner #OrangeCounty #TheSignal', 2100);
+    const slides = [
+      'SLIDE 1 — COVER\n' + title,
+      ...stories.slice(0, 7).map((story, index) => 'SLIDE ' + (index + 2) + ' — ' + story.title.toUpperCase() + '\n' + clipText(storySummary(story), 180) + '\nStatus: ' + (CONFIDENCE_LABELS[story.confidence] || story.confidence)),
+      'FINAL SLIDE — WHAT TO WATCH\nFollow @OC_Scanner for updates. Full sources and corrections are linked in the briefing.\n' + publicationId
+    ];
+    const instagram = ['CAPTION', caption, '', 'CAROUSEL OUTLINE', slides.join('\n\n')].join('\n');
+
+    return {
+      website: { content: site, status: 'draft', scheduleAt: '', url: '', updatedAt: new Date().toISOString() },
+      email: { content: email, status: 'draft', scheduleAt: '', url: '', updatedAt: new Date().toISOString() },
+      x: { content: x, status: 'draft', scheduleAt: '', url: '', updatedAt: new Date().toISOString() },
+      instagram: { content: instagram, status: 'draft', scheduleAt: '', url: '', updatedAt: new Date().toISOString() }
+    };
+  }
+
+  function selectedBriefing() {
+    return state.briefings.find(briefing => briefing.id === state.selectedBriefingId) || null;
+  }
+
+  function packageStatus(briefing) {
+    const statuses = Object.values(briefing.channels || {}).map(channel => channel.status);
+    if (statuses.length && statuses.every(status => status === 'published')) return 'published';
+    if (statuses.includes('failed')) return 'attention';
+    if (statuses.includes('scheduled')) return 'scheduled';
+    if (statuses.includes('held')) return 'held';
+    if (statuses.includes('corrected')) return 'corrected';
+    return 'approved';
+  }
+
+  function packageStatusLabel(status) {
+    return { approved: 'Approved', scheduled: 'Scheduled', published: 'Published', attention: 'Needs attention', held: 'On hold', corrected: 'Correction logged' }[status] || status;
+  }
+
+  function addPublicationEvent(briefing, channel, action, result, note) {
+    const channelData = briefing.channels[channel] || {};
+    state.publicationLog.push({
+      id: id(),
+      briefingId: briefing.id,
+      publicationId: briefing.publicationId,
+      channel,
+      action,
+      result,
+      url: channelData.url || '',
+      note: note || '',
+      timestamp: new Date().toISOString()
+    });
+    state.publicationLog = state.publicationLog.slice(-1000);
+  }
+
+  function renderPublicationLog() {
+    const container = document.getElementById('nr-publication-log');
+    if (!container) return;
+    const entries = [...state.publicationLog].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    setText('nr-publication-count', entries.length + (entries.length === 1 ? ' event' : ' events'));
+    if (!entries.length) {
+      container.innerHTML = emptyMessage('No publication activity yet', 'Scheduling, publishing, failures, holds, and corrections will be recorded here.');
+      return;
+    }
+    container.innerHTML = entries.map(entry => {
+      const url = safeExternalUrl(entry.url);
+      return `<article class="nr-log-row" data-result="${escapeHTML(entry.result)}">
+        <span class="nr-log-time">${escapeHTML(fullTimestamp(entry.timestamp))}</span>
+        <div><strong>${escapeHTML(CHANNEL_LABELS[entry.channel] || entry.channel)} · ${escapeHTML(entry.action)}</strong><small>${escapeHTML(entry.publicationId || '')}${entry.note ? ' · ' + escapeHTML(entry.note) : ''}</small></div>
+        <span class="nr-log-result">${escapeHTML(entry.result)}</span>
+        ${url ? `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : ''}
+      </article>`;
+    }).join('');
+  }
+
+  function renderDistribution() {
+    const list = document.getElementById('nr-package-list');
+    if (!list) return;
+    const briefings = [...state.briefings].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
+    if (!state.selectedBriefingId && briefings.length) state.selectedBriefingId = briefings[0].id;
+    setText('nr-package-count', briefings.length + (briefings.length === 1 ? ' package' : ' packages'));
+    setText('nr-dist-approved', briefings.length);
+    const channels = briefings.flatMap(briefing => Object.values(briefing.channels || {}));
+    setText('nr-dist-ready', channels.filter(channel => ['draft', 'corrected'].includes(channel.status)).length);
+    setText('nr-dist-scheduled', channels.filter(channel => channel.status === 'scheduled').length);
+    setText('nr-dist-published', channels.filter(channel => channel.status === 'published').length);
+    setText('nr-dist-attention', channels.filter(channel => ['failed', 'held'].includes(channel.status)).length);
+
+    list.innerHTML = briefings.length ? briefings.map(briefing => {
+      const status = packageStatus(briefing);
+      return `<button class="nr-package-card${briefing.id === state.selectedBriefingId ? ' active' : ''}" type="button" onclick="selectDistributionPackage('${briefing.id}')">
+        <span>${escapeHTML(briefing.publicationId)}</span><strong>${escapeHTML(briefing.title)}</strong><small>${escapeHTML(fullTimestamp(briefing.approvedAt))} · ${briefing.storyIds.length} stor${briefing.storyIds.length === 1 ? 'y' : 'ies'}</small><em data-status="${escapeHTML(status)}">${escapeHTML(packageStatusLabel(status))}</em>
+      </button>`;
+    }).join('') : emptyMessage('No release packages', 'Generate a ready-only digest, complete the human approval gate, and create your first package.');
+
+    const briefing = selectedBriefing();
+    const empty = document.getElementById('nr-distribution-empty');
+    const fields = document.getElementById('nr-distribution-fields');
+    if (!empty || !fields) return;
+    empty.hidden = Boolean(briefing);
+    fields.hidden = !briefing;
+    if (!briefing) {
+      renderPublicationLog();
+      return;
+    }
+
+    if (!briefing.channels[currentDistributionChannel]) currentDistributionChannel = 'website';
+    const channelData = briefing.channels[currentDistributionChannel];
+    setText('nr-package-id', briefing.publicationId);
+    setText('nr-package-title', briefing.title);
+    setText('nr-package-meta', 'Approved ' + fullTimestamp(briefing.approvedAt) + ' · ' + briefing.storyIds.length + ' stories · ' + (briefing.sourceCount || 0) + ' sources');
+    const status = packageStatus(briefing);
+    const statusElement = document.getElementById('nr-package-status');
+    if (statusElement) {
+      statusElement.textContent = packageStatusLabel(status);
+      statusElement.dataset.status = status;
+    }
+    document.querySelectorAll('#nr-channel-tabs button').forEach(button => button.classList.toggle('active', button.dataset.channel === currentDistributionChannel));
+    Object.entries(briefing.channels).forEach(([channel, data]) => setText('nr-state-' + channel, CHANNEL_STATUS_LABELS[data.status] || data.status));
+    document.getElementById('nr-channel-output').value = channelData.content || '';
+    document.getElementById('nr-channel-schedule').value = toLocalDateTimeValue(channelData.scheduleAt);
+    document.getElementById('nr-channel-url').value = channelData.url || '';
+    setText('nr-distribution-state', (CHANNEL_LABELS[currentDistributionChannel] || currentDistributionChannel) + ' · ' + (CHANNEL_STATUS_LABELS[channelData.status] || channelData.status) + ' · Updated ' + fullTimestamp(channelData.updatedAt));
+    renderPublicationLog();
+  }
+
+  function persistDistributionEditor(showMessage) {
+    const briefing = selectedBriefing();
+    if (!briefing || !briefing.channels[currentDistributionChannel]) return null;
+    const channelData = briefing.channels[currentDistributionChannel];
+    channelData.content = document.getElementById('nr-channel-output').value;
+    channelData.url = document.getElementById('nr-channel-url').value.trim();
+    channelData.updatedAt = new Date().toISOString();
+    if (showMessage) setText('nr-distribution-state', 'Edits saved locally at ' + fullTimestamp(channelData.updatedAt) + '.');
+    return { briefing, channelData };
   }
 
   window.ingestNewsroomCandidates = function (items) {
@@ -746,26 +1116,82 @@
     const scope = document.getElementById('nr-digest-scope').value;
     const opening = document.getElementById('nr-digest-opening').value.trim();
     const stories = selectDigestStories(scope);
-    const formatLabel = { daily: 'Daily Signal', weekly: 'Weekly Roundup', incident: 'Incident Brief' }[format];
-    const generated = new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
-    const output = [
-      '# ' + title,
-      '',
-      '**' + formatLabel + ' · ' + generated + ' PT**',
-      '',
-      opening ? opening : 'Here are the developments the OC Scanner desk is monitoring and why they matter.',
-      '',
-      '## Executive Summary',
-      ...(stories.length ? stories.map(story => '- **' + story.title + '** — ' + ((story.research && story.research.thesis) || story.notes || (CONFIDENCE_LABELS[story.confidence] + ' reporting file.'))) : ['- No stories currently match this briefing scope.']),
-      '',
-      ...(stories.length ? stories.map(digestStorySection) : []),
-      '---',
-      '*OC Scanner is independent and unaffiliated. Information may change as events develop. In an emergency, call 911.*',
-      '*Prepared in IntelHQ. Human review required before publication.*'
-    ].join('\n');
-    document.getElementById('nr-digest-output').value = output;
-    setText('nr-digest-meta', stories.length + (stories.length === 1 ? ' story' : ' stories') + ' · ' + formatLabel);
-    setText('nr-copy-state', stories.length ? 'Draft generated from saved research files.' : 'No matching stories. Change the inclusion scope or update the queue.');
+    const article = buildPublishReadyArticle(title, format, opening, stories);
+    currentDigestStoryIds = article.stories.map(story => story.id);
+    document.getElementById('nr-digest-output').value = article.markdown;
+    if (article.title !== title) document.getElementById('nr-digest-title').value = article.title;
+    renderArticlePreview();
+    window.setArticlePreviewMode('formatted');
+    const wordCount = article.markdown.replace(/^---[\s\S]*?---/, '').trim().split(/\s+/).filter(Boolean).length;
+    const thinStories = article.stories.filter(story => !hasSubstantiveStoryContent(story));
+    setText('nr-digest-meta', article.stories.length + (article.stories.length === 1 ? ' story' : ' stories') + ' · ' + wordCount + ' words · ' + Math.max(1, Math.ceil(wordCount / 220)) + ' min read');
+    setText('nr-copy-state', article.stories.length
+      ? thinStories.length
+        ? 'Article formatted. ' + thinStories.length + ' stor' + (thinStories.length === 1 ? 'y needs' : 'ies need') + ' more notes or confirmed facts for a complete draft.'
+        : 'Publish-ready article generated from your Queue reporting.'
+      : 'No matching stories. Change the Queue filter or update story status.');
+    const releaseReady = article.stories.length > 0 && article.stories.every(story => story.status === 'ready' && ['corroborated', 'verified'].includes(story.confidence) && sourceLinesForStory(story).length > 0) && !thinStories.length;
+    setText('nr-digest-readiness', releaseReady
+      ? article.stories.length + ' ready stor' + (article.stories.length === 1 ? 'y' : 'ies') + ' passed the release gate. Review the formatted article, then complete the human confirmation.'
+      : article.stories.length
+        ? 'Working draft only: each story needs substantive notes or confirmed facts, a source, Ready status, and corroborated or verified reporting.'
+        : 'No eligible stories are included. Move a sourced, corroborated or verified story to Ready first.');
+    const approval = document.getElementById('nr-digest-approval');
+    if (approval) approval.checked = false;
+  };
+
+  window.setArticlePreviewMode = function (mode) {
+    const formatted = mode !== 'markdown';
+    const preview = document.getElementById('nr-digest-formatted');
+    const markdown = document.getElementById('nr-digest-output');
+    if (!preview || !markdown) return;
+    if (formatted) renderArticlePreview();
+    preview.hidden = !formatted;
+    markdown.hidden = formatted;
+    document.getElementById('nr-preview-formatted-button')?.classList.toggle('active', formatted);
+    document.getElementById('nr-preview-markdown-button')?.classList.toggle('active', !formatted);
+  };
+
+  window.approveNewsroomDigest = function () {
+    const output = document.getElementById('nr-digest-output').value.trim();
+    const stories = currentDigestStoryIds.map(getStory).filter(Boolean);
+    const confirmed = document.getElementById('nr-digest-approval').checked;
+    const eligible = stories.length > 0 && stories.every(story => story.status === 'ready' && ['corroborated', 'verified'].includes(story.confidence) && sourceLinesForStory(story).length > 0 && hasSubstantiveStoryContent(story));
+    if (!output) {
+      setText('nr-copy-state', 'Generate and review a briefing before approval.');
+      return;
+    }
+    if (!eligible) {
+      setText('nr-copy-state', 'Approval blocked: use a ready-only briefing with sourced, corroborated or verified stories.');
+      return;
+    }
+    if (!confirmed) {
+      setText('nr-copy-state', 'Complete the human approval confirmation before creating a release package.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const title = document.getElementById('nr-digest-title').value.trim() || 'The Signal — Intelligence Brief';
+    const publicationId = createPublicationId();
+    const briefing = {
+      id: id(),
+      publicationId,
+      title,
+      format: document.getElementById('nr-digest-format').value,
+      body: output,
+      storyIds: stories.map(story => story.id),
+      sourceCount: new Set(stories.flatMap(sourceLinesForStory)).size,
+      createdAt: now,
+      approvedAt: now,
+      channels: buildChannelEditions(title, output, stories, publicationId)
+    };
+    state.briefings.unshift(briefing);
+    state.selectedBriefingId = briefing.id;
+    addPublicationEvent(briefing, 'website', 'package approved', 'recorded', stories.length + ' stories cleared for distribution');
+    saveState();
+    currentDistributionChannel = 'website';
+    document.getElementById('nr-digest-approval').checked = false;
+    window.setNewsroomView('distribution');
+    renderDistribution();
   };
 
   window.copyNewsroomDigest = async function () {
@@ -775,6 +1201,7 @@
       await navigator.clipboard.writeText(output.value);
       setText('nr-copy-state', 'Copied to clipboard.');
     } catch (error) {
+      window.setArticlePreviewMode('markdown');
       output.focus();
       output.select();
       document.execCommand('copy');
@@ -789,16 +1216,158 @@
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'intelHQ-brief-' + new Date().toISOString().slice(0, 10) + '.md';
+    const title = document.getElementById('nr-digest-title').value.trim() || 'oc-scanner-story';
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 72) || 'oc-scanner-story';
+    link.download = slug + '.md';
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setText('nr-copy-state', 'Markdown briefing downloaded.');
+    setText('nr-copy-state', 'Public-site Markdown article downloaded. Add it to the PublicSiteTest posts folder to publish.');
+  };
+
+  window.selectDistributionPackage = function (briefingId) {
+    persistDistributionEditor(false);
+    if (!state.briefings.some(briefing => briefing.id === briefingId)) return;
+    state.selectedBriefingId = briefingId;
+    currentDistributionChannel = 'website';
+    saveState();
+    renderDistribution();
+  };
+
+  window.selectDistributionChannel = function (channel) {
+    if (!CHANNEL_LABELS[channel]) return;
+    persistDistributionEditor(false);
+    currentDistributionChannel = channel;
+    saveState();
+    renderDistribution();
+  };
+
+  window.saveDistributionDraft = function () {
+    const saved = persistDistributionEditor(true);
+    if (!saved) return;
+    if (['failed', 'held'].includes(saved.channelData.status)) saved.channelData.status = 'draft';
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'draft updated', 'recorded', 'Final edits saved');
+    saveState();
+    renderDistribution();
+  };
+
+  window.copyDistributionDraft = async function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved) return;
+    try {
+      await navigator.clipboard.writeText(saved.channelData.content);
+    } catch (error) {
+      const output = document.getElementById('nr-channel-output');
+      output.focus();
+      output.select();
+      document.execCommand('copy');
+    }
+    setText('nr-distribution-state', (CHANNEL_LABELS[currentDistributionChannel] || currentDistributionChannel) + ' edition copied.');
+    saveState();
+  };
+
+  window.downloadDistributionDraft = function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved) return;
+    const extension = currentDistributionChannel === 'website' ? 'md' : 'txt';
+    const filename = saved.briefing.publicationId.toLowerCase() + '-' + currentDistributionChannel + '.' + extension;
+    const blob = new Blob([saved.channelData.content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setText('nr-distribution-state', filename + ' downloaded.');
+    saveState();
+  };
+
+  window.scheduleDistributionChannel = function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved) return;
+    const value = document.getElementById('nr-channel-schedule').value;
+    const scheduled = value ? new Date(value) : null;
+    if (!scheduled || Number.isNaN(scheduled.getTime())) {
+      setText('nr-distribution-state', 'Choose a valid schedule date and time first.');
+      return;
+    }
+    saved.channelData.scheduleAt = scheduled.toISOString();
+    saved.channelData.status = 'scheduled';
+    saved.channelData.updatedAt = new Date().toISOString();
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'scheduled', 'success', fullTimestamp(saved.channelData.scheduleAt));
+    saveState();
+    renderAll();
+  };
+
+  window.recordDistributionPublished = function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved) return;
+    saved.channelData.status = 'published';
+    saved.channelData.publishedAt = new Date().toISOString();
+    saved.channelData.updatedAt = saved.channelData.publishedAt;
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'published', 'success', saved.channelData.url ? 'Canonical URL recorded' : 'Published manually; URL pending');
+    const allPublished = Object.values(saved.briefing.channels).every(channel => channel.status === 'published');
+    if (allPublished) {
+      saved.briefing.storyIds.forEach(storyId => {
+        const story = getStory(storyId);
+        if (story) {
+          story.status = 'published';
+          story.updatedAt = new Date().toISOString();
+        }
+      });
+    }
+    saveState();
+    renderAll();
+  };
+
+  window.recordDistributionFailure = function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved || saved.channelData.status === 'published') {
+      setText('nr-distribution-state', 'A published channel is preserved. Record a correction instead of replacing its result.');
+      return;
+    }
+    saved.channelData.status = 'failed';
+    saved.channelData.updatedAt = new Date().toISOString();
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'publish attempt', 'failed', 'Retry only this channel; successful channels remain unchanged');
+    saveState();
+    renderAll();
+  };
+
+  window.holdDistributionChannel = function () {
+    const saved = persistDistributionEditor(false);
+    if (!saved || saved.channelData.status === 'published') {
+      setText('nr-distribution-state', 'Published records cannot be put on hold. Use a correction or update.');
+      return;
+    }
+    saved.channelData.status = 'held';
+    saved.channelData.updatedAt = new Date().toISOString();
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'held', 'recorded', 'Operator paused release');
+    saveState();
+    renderAll();
+  };
+
+  window.logDistributionCorrection = function () {
+    const saved = persistDistributionEditor(false);
+    const note = document.getElementById('nr-correction-note').value.trim();
+    if (!saved || !note) {
+      setText('nr-distribution-state', 'Describe the correction or update before logging it.');
+      return;
+    }
+    const correctionTime = fullTimestamp(new Date().toISOString());
+    saved.channelData.content = saved.channelData.content.trimEnd() + '\n\nCORRECTION / UPDATE — ' + correctionTime + '\n' + note;
+    saved.channelData.status = 'corrected';
+    saved.channelData.updatedAt = new Date().toISOString();
+    addPublicationEvent(saved.briefing, currentDistributionChannel, 'correction logged', 'recorded', note);
+    document.getElementById('nr-correction-note').value = '';
+    saveState();
+    renderAll();
   };
 
   window.setNewsroomView = function (view) {
-    const valid = ['overview', 'discovery', 'queue', 'research', 'reviews', 'planner', 'digest'];
+    const valid = ['overview', 'discovery', 'queue', 'research', 'reviews', 'planner', 'digest', 'distribution'];
     const target = valid.includes(view) ? view : 'overview';
     document.querySelectorAll('.nr-view').forEach(element => element.classList.toggle('active', element.id === 'nr-view-' + target));
     document.querySelectorAll('.nr-tab').forEach(element => element.classList.toggle('active', element.dataset.nrView === target));
@@ -807,6 +1376,8 @@
     if (target === 'research') renderDossiers();
     if (target === 'reviews') renderReviewQueue();
     if (target === 'planner') { renderTasks(); renderReview(); }
+    if (target === 'digest') renderArticlePreview();
+    if (target === 'distribution') renderDistribution();
     if (target === 'overview') renderOverview();
   };
 
@@ -929,6 +1500,8 @@
     document.getElementById('nr-discovery-topic')?.addEventListener('change', renderDiscovery);
     document.getElementById('nr-discovery-score')?.addEventListener('change', renderDiscovery);
     document.getElementById('nr-discovery-state')?.addEventListener('change', renderDiscovery);
+    document.getElementById('nr-digest-output')?.addEventListener('input', renderArticlePreview);
+    document.querySelectorAll('#nr-channel-tabs button').forEach(button => button.addEventListener('click', () => window.selectDistributionChannel(button.dataset.channel)));
     document.getElementById('nr-week-focus')?.addEventListener('input', event => {
       state.focus = event.target.value;
       clearTimeout(focusTimer);

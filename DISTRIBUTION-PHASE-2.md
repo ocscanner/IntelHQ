@@ -3,7 +3,7 @@
 The newsroom is the source of truth. Distribution begins only after a briefing
 has been reviewed and explicitly approved by the operator.
 
-## First distribution milestone
+## First distribution milestone — built
 
 Create one approved briefing record and generate four channel-ready versions:
 
@@ -15,6 +15,11 @@ Create one approved briefing record and generate four channel-ready versions:
 Each version should retain the same facts, verification language, source links,
 corrections, and publication timestamp while adapting length and formatting to
 the channel.
+
+IntelHQ now creates these four editable editions after a ready-only briefing
+passes the human approval gate. Each release receives a permanent publication
+ID and independent channel states for draft, schedule, publication, failure,
+hold, and correction handling.
 
 ## Recommended workflow
 
@@ -34,10 +39,9 @@ No breaking-news item should auto-publish directly from an AI or feed result.
 
 ## Build order
 
-1. Publish approved digests to the public website and archive.
-2. Add the email edition and subscriber segments.
-3. Add X and Instagram preparation; enable direct publishing only after the
-   approval and audit flow is reliable.
+1. **Complete:** Generate and manage public-site, email, X, and Instagram editions.
+2. Connect the public-site archive and email provider after durable storage and authentication are selected.
+3. Enable direct X and Instagram publishing only after the approval and audit flow is reliable.
 4. Add paid-member and business brief variants.
 5. Add conversion and revenue analytics to the weekly review.
 

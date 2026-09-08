@@ -15,7 +15,13 @@ the existing live monitoring tools:
 - Editorial review queue with readiness checks and an explicit approval gate
 - Editorial task planner and weekly review
 - Browsable archive of saved weekly reviews
-- Structured digest builder with copy and Markdown download
+- Publish-ready article builder with public-site Markdown front matter
+- Formatted editorial preview matching the public site's story hierarchy
+- Paragraph-led Daily Signal, weekly roundup, and single-incident formats
+- Human approval gate that only releases sourced, corroborated or verified stories marked Ready
+- Distribution Studio with editable public-site, email, X, and Instagram editions
+- Per-channel scheduling, hold, failure, retry, published URL, and correction states
+- Permanent publication IDs and a timestamped audit log
 - JSON backup and restore
 
 Newsroom records are stored in the current browser's `localStorage`. Use the
@@ -33,9 +39,39 @@ candidate creates a research dossier; it does not publish anything.
 - **Verified:** confirmed through primary evidence
 - **Developing:** important facts remain uncertain or in conflict
 
-## Phase 2: distribution
+## Distribution Studio
 
-Distribution is intentionally separate from the newsroom MVP. The next phase
-will take an approved digest and publish channel-specific versions for the OC
-Scanner public site, email, X, Instagram, and member products. No distribution
-or external AI service is called by the current newsroom module.
+The first distribution milestone is included. Generate a briefing from stories
+that are marked **Ready**, complete the human approval confirmation, and select
+**Approve & create package**. IntelHQ creates editable versions for:
+
+1. OC Scanner public-site article
+2. Email edition of The Signal
+3. Long-form X post or thread
+4. Instagram caption and carousel outline
+
+Use the channel controls to save final edits, copy or download an edition,
+schedule it, record publication or failure, place it on hold, and log a
+correction. A failed channel can be retried without altering successful channel
+records. Stories move to Published only after all four channel records are
+marked Published.
+
+This release does not post directly to external platforms. Scheduling and
+publication are operator records until platform accounts and a durable backend
+are connected. Newsroom, briefing, and publication data remain in this
+browser's `localStorage` and are included in JSON backups.
+
+## Building a public-site article
+
+The Article Builder writes from the reporting saved with Queue stories. For the
+strongest finished copy, add a source URL plus a source summary or key facts in
+Quick Capture, then expand the story's Research File with confirmed facts,
+analysis, and unresolved details. The builder turns that material into clean
+paragraphs and linked attribution without inventing missing facts.
+
+Choose **Daily intelligence roundup** or **Weekly news roundup** to combine
+multiple Queue stories under The Signal. Choose **Single-story incident report**
+to turn the highest-priority matching story into its own article. The downloaded
+Markdown file includes the `title`, `date`, `tag`, `author`, and `excerpt` front
+matter expected by the PublicSiteTest blog. Upload it to that site's `posts`
+folder to publish it.

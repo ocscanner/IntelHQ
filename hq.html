@@ -6,7 +6,7 @@
 <title>OC Scanner • Intel HQ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
 <!-- PWA Manifest -->
 <link rel="manifest" href="/IntelHQ/manifest.json">
@@ -79,6 +79,7 @@
       <button class="ngitem" data-p="newsroom" data-view="reviews">◎ Review Queue</button>
       <button class="ngitem" data-p="newsroom" data-view="planner">✓ Planner &amp; Review</button>
       <button class="ngitem" data-p="newsroom" data-view="digest">✦ Digest Builder</button>
+      <button class="ngitem" data-p="newsroom" data-view="distribution">⇗ Distribution Studio</button>
     </div>
   </div>
   <div class="ngroup" data-g="ops">
@@ -281,6 +282,7 @@
     <button class="nr-tab" data-nr-view="reviews" type="button">Review Queue</button>
     <button class="nr-tab" data-nr-view="planner" type="button">Planner &amp; Review</button>
     <button class="nr-tab" data-nr-view="digest" type="button">Digest Builder</button>
+    <button class="nr-tab" data-nr-view="distribution" type="button">Distribution Studio</button>
   </nav>
 
   <div class="nr-view active" id="nr-view-overview">
@@ -292,6 +294,7 @@
       <article><span id="nr-kpi-ready">0</span><small>Ready to publish</small></article>
       <article><span id="nr-kpi-tasks">0</span><small>Open tasks</small></article>
       <article><span id="nr-kpi-sources">0</span><small>Sources logged</small></article>
+      <article><span id="nr-kpi-packages">0</span><small>Approved packages</small></article>
     </div>
 
     <div class="nr-overview-grid">
@@ -346,7 +349,7 @@
           <label>Pipeline<select id="nr-story-status" name="status"><option value="inbox">Inbox</option><option value="researching">Researching</option><option value="drafting">Drafting</option><option value="review">Review</option><option value="ready">Ready</option><option value="published">Published</option></select></label>
         </div>
         <label>Primary source URL<input id="nr-story-source" name="source" type="url" placeholder="https://…"></label>
-        <label>Initial notes<textarea id="nr-story-notes" name="notes" rows="4" placeholder="Key facts, scanner traffic, open questions, or why this matters."></textarea></label>
+        <label>Source summary / key facts<textarea id="nr-story-notes" name="notes" rows="5" placeholder="Paste the source summary or write the key facts in your own words. Separate paragraphs with a blank line; IntelHQ will preserve them in the finished article."></textarea></label>
         <button class="nr-btn nr-btn-primary" type="submit">Save to story queue</button>
       </form>
 
@@ -446,23 +449,98 @@
   <div class="nr-view" id="nr-view-digest">
     <div class="nr-digest-layout">
       <section class="nr-surface nr-digest-controls">
-        <div class="nr-section-head"><div><span class="nr-kicker">BRIEFING ENGINE</span><h3>Build a roundup</h3></div><span class="nr-phase-tag">DISTRIBUTION · PHASE 2</span></div>
-        <label>Briefing title<input id="nr-digest-title" value="The Signal — Intelligence Brief"></label>
+        <div class="nr-section-head"><div><span class="nr-kicker">ARTICLE ENGINE</span><h3>Build a publish-ready story</h3></div><span class="nr-phase-tag">PUBLIC-SITE FORMAT</span></div>
+        <label>Article headline<input id="nr-digest-title" value="The Signal — Intelligence Brief"></label>
         <div class="nr-field-grid nr-field-grid-2">
-          <label>Format<select id="nr-digest-format"><option value="daily">Daily Signal</option><option value="weekly">Weekly Roundup</option><option value="incident">Incident Brief</option></select></label>
-          <label>Include<select id="nr-digest-scope"><option value="approved">Corroborated + verified</option><option value="ready">Ready to publish only</option><option value="active">All active stories</option></select></label>
+          <label>Article format<select id="nr-digest-format"><option value="daily">Daily intelligence roundup</option><option value="weekly">Weekly news roundup</option><option value="incident">Single-story incident report</option></select></label>
+          <label>Queue stories<select id="nr-digest-scope"><option value="ready">Ready to publish only</option><option value="verified">Corroborated + verified working files</option><option value="active">All active stories</option></select></label>
         </div>
-        <label>Editor's opening<textarea id="nr-digest-opening" rows="4" placeholder="Optional context or opening note for readers…"></textarea></label>
-        <button class="nr-btn nr-btn-primary" type="button" onclick="generateNewsroomDigest()">✦ Generate briefing</button>
-        <p class="nr-help">Generation uses your saved research and a structured newsroom template. It does not call an external AI service in this phase.</p>
+        <label>Editor's opening<textarea id="nr-digest-opening" rows="4" placeholder="Optional opening paragraph. Leave blank and IntelHQ will write a clean introduction from the selected queue stories."></textarea></label>
+        <div class="nr-article-recipe">
+          <strong>Article recipe</strong>
+          <span>Headline + excerpt</span><span>Readable paragraphs</span><span>Inline verification</span><span>Linked sources</span><span>Public-site front matter</span>
+        </div>
+        <button class="nr-btn nr-btn-primary" type="button" onclick="generateNewsroomDigest()">✦ Generate publish-ready article</button>
+        <p class="nr-help">IntelHQ uses the headline, notes, confirmed facts, analysis, unknowns, and source links saved with each Queue story. It will organize your reporting but will not invent missing facts.</p>
       </section>
       <section class="nr-surface nr-digest-preview">
-        <div class="nr-section-head"><div><span class="nr-kicker">PUBLISH-READY DRAFT</span><h3>Digest preview</h3></div><span id="nr-digest-meta" class="nr-count">Not generated</span></div>
-        <textarea id="nr-digest-output" rows="28" placeholder="Your generated briefing will appear here. You can edit it before copying or downloading."></textarea>
-        <div class="nr-form-actions"><button class="nr-btn nr-btn-primary" type="button" onclick="copyNewsroomDigest()">Copy draft</button><button class="nr-btn nr-btn-quiet" type="button" onclick="downloadNewsroomDigest()">Download .md</button></div>
+        <div class="nr-section-head"><div><span class="nr-kicker">PUBLICATION PREVIEW</span><h3>Finished article</h3></div><span id="nr-digest-meta" class="nr-count">Not generated</span></div>
+        <div class="nr-preview-switch" role="tablist" aria-label="Article preview mode">
+          <button class="active" id="nr-preview-formatted-button" type="button" onclick="setArticlePreviewMode('formatted')">Formatted article</button>
+          <button id="nr-preview-markdown-button" type="button" onclick="setArticlePreviewMode('markdown')">Markdown file</button>
+        </div>
+        <div id="nr-digest-formatted" class="nr-article-preview"><div class="nr-empty-state"><strong>Your article preview will appear here.</strong><span>Generate from the stories already saved in your Queue.</span></div></div>
+        <textarea id="nr-digest-output" class="nr-digest-markdown" rows="28" placeholder="Your generated article will appear here. You can edit the Markdown before copying or downloading." hidden></textarea>
+        <div class="nr-form-actions"><button class="nr-btn nr-btn-primary" type="button" onclick="copyNewsroomDigest()">Copy article</button><button class="nr-btn nr-btn-quiet" type="button" onclick="downloadNewsroomDigest()">Download for public site (.md)</button></div>
         <div id="nr-copy-state" class="nr-copy-state" role="status"></div>
+        <div class="nr-approval-gate">
+          <div><span class="nr-kicker">HUMAN APPROVAL GATE</span><h4>Release this briefing to Distribution</h4></div>
+          <p id="nr-digest-readiness">Generate a ready-only briefing to check release eligibility.</p>
+          <label class="nr-approval-confirm"><input id="nr-digest-approval" type="checkbox"> I reviewed the final draft, sources, verification language, sensitive details, and headline.</label>
+          <button class="nr-btn nr-btn-primary" type="button" onclick="approveNewsroomDigest()">Approve &amp; create package →</button>
+        </div>
       </section>
     </div>
+  </div>
+
+  <div class="nr-view" id="nr-view-distribution">
+    <section class="nr-distribution-hero">
+      <div><span class="nr-kicker">PHASE 2 · CONTROLLED RELEASE</span><h3>Distribution Studio</h3><p>Turn one approved briefing into consistent website, email, X, and Instagram editions.</p></div>
+      <button class="nr-btn nr-btn-quiet" type="button" onclick="setNewsroomView('digest')">+ Build from a digest</button>
+    </section>
+
+    <div class="nr-distribution-kpis">
+      <article><span id="nr-dist-approved">0</span><small>Approved packages</small></article>
+      <article><span id="nr-dist-ready">0</span><small>Channel drafts ready</small></article>
+      <article><span id="nr-dist-scheduled">0</span><small>Scheduled</small></article>
+      <article><span id="nr-dist-published">0</span><small>Published</small></article>
+      <article><span id="nr-dist-attention">0</span><small>Needs attention</small></article>
+    </div>
+
+    <div class="nr-distribution-layout">
+      <section class="nr-surface nr-package-index">
+        <div class="nr-section-head"><div><span class="nr-kicker">APPROVED BRIEFINGS</span><h3>Release packages</h3></div><span id="nr-package-count" class="nr-count">0 packages</span></div>
+        <div id="nr-package-list" class="nr-package-list"></div>
+      </section>
+
+      <section class="nr-surface nr-channel-workspace">
+        <div id="nr-distribution-empty" class="nr-empty-state"><strong>No approved briefing selected.</strong><span>Approve a ready-only digest to generate all four channel editions.</span></div>
+        <div id="nr-distribution-fields" hidden>
+          <div class="nr-section-head nr-package-heading"><div><span id="nr-package-id" class="nr-kicker"></span><h3 id="nr-package-title">Distribution package</h3><p id="nr-package-meta" class="nr-package-meta"></p></div><span id="nr-package-status" class="nr-package-status">Approved</span></div>
+          <div id="nr-channel-tabs" class="nr-channel-tabs" role="tablist" aria-label="Distribution channels">
+            <button type="button" data-channel="website">Public Site <span id="nr-state-website">Draft</span></button>
+            <button type="button" data-channel="email">The Signal <span id="nr-state-email">Draft</span></button>
+            <button type="button" data-channel="x">X / Thread <span id="nr-state-x">Draft</span></button>
+            <button type="button" data-channel="instagram">Instagram <span id="nr-state-instagram">Draft</span></button>
+          </div>
+          <div class="nr-channel-toolbar">
+            <label>Schedule<input id="nr-channel-schedule" type="datetime-local"></label>
+            <label>Published URL<input id="nr-channel-url" type="url" placeholder="https://…"></label>
+          </div>
+          <label>Channel-ready edition<textarea id="nr-channel-output" rows="26" aria-label="Channel-ready edition"></textarea></label>
+          <div class="nr-form-actions nr-distribution-actions">
+            <button class="nr-btn nr-btn-primary" type="button" onclick="saveDistributionDraft()">Save edits</button>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="copyDistributionDraft()">Copy</button>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="downloadDistributionDraft()">Download</button>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="scheduleDistributionChannel()">Schedule</button>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="recordDistributionPublished()">Record published</button>
+            <button class="nr-btn nr-btn-danger" type="button" onclick="recordDistributionFailure()">Record failure</button>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="holdDistributionChannel()">Hold</button>
+          </div>
+          <div id="nr-distribution-state" class="nr-copy-state" role="status"></div>
+          <div class="nr-correction-box">
+            <label>Correction or update note<textarea id="nr-correction-note" rows="2" placeholder="Describe what changed and why…"></textarea></label>
+            <button class="nr-btn nr-btn-quiet" type="button" onclick="logDistributionCorrection()">Log correction</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="nr-surface nr-publication-log">
+      <div class="nr-section-head"><div><span class="nr-kicker">AUDIT TRAIL</span><h3>Publication log</h3></div><span id="nr-publication-count" class="nr-count">0 events</span></div>
+      <div id="nr-publication-log"></div>
+      <p class="nr-help">This milestone prepares content and records operator actions. It does not connect to or post directly on external platforms.</p>
+    </section>
   </div>
 </div>
 
