@@ -7,7 +7,8 @@
     "deploy": "wrangler deploy -c wrangler.toml",
     "db:init": "wrangler d1 execute oc-election-wire -c wrangler.toml --remote --file=schema.sql",
     "db:init:local": "wrangler d1 execute oc-election-wire -c wrangler.toml --local --file=schema.sql",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "db:clear-feeds": "wrangler d1 execute oc-election-wire -c wrangler.toml --remote --command \"DELETE FROM feed_result; DELETE FROM feed_unit;\""
   },
   "devDependencies": { "wrangler": "^4" }
 }

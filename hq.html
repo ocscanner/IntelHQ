@@ -1395,14 +1395,14 @@
 <script src="hq.js"></script>
 <script src="elections/board.js"></script>
 <script>
-  // Results board: refreshes every 20s, but only while the Politics & Elections tab is open
+  // Results board: refreshes every 60s, but only while the Politics & Elections tab is open
   (function(){
     const panel = document.getElementById('panel-elections');
     const board = ElectionBoard.mount(document.getElementById('election-board'), {
       shapesUrl: 'elections/data/us-states.json', autoRefresh: false,
       onHealth: (ok, err) => { if (typeof markHealth === 'function') markHealth('Election Results', ok, err); },
     });
-    if (typeof sched === 'function') sched('Election Results', () => { if (panel.classList.contains('active')) board.refresh(); }, 20 * 1000, false);
+    if (typeof sched === 'function') sched('Election Results', () => { if (panel.classList.contains('active')) board.refresh(); }, 60 * 1000, false);
   })();
 </script>
 <script>

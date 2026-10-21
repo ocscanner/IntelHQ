@@ -1,11 +1,15 @@
 /**
  * OC Scanner Election Wire — results Worker
  *
- *  GET  /v1/board            all races + seat summaries (cached ~20s per Cloudflare location)
+ * Every 5 minutes (cron) the Worker downloads whatever state files are due (each state about every
+ * 10 minutes) plus AP if licensed, and saves results per race. Viewers only ever read what's saved.
+ *
+ *  GET  /v1/board            all races + seat summaries (cached 60s per Cloudflare location)
  *  GET  /v1/board?sim=1      same, with rehearsal (fake) results — always labeled SIM
  *  GET  /v1/feed             latest calls and retractions, newest first
- *  GET  /v1/health           which sources are on and whether they answered
+ *  GET  /v1/health           switches, feed status, when state feeds start
  *  GET  /v1/desk/check       200 if the desk token is valid
+ *  GET  /v1/desk/preview?state=GA   download and parse one state now, without saving (desk token)
  *  POST /v1/desk/call        {raceId, party, candidate?, source, note?}       (desk token)
  *  POST /v1/desk/retract     {raceId}                                         (desk token)
  *  POST /v1/desk/clear       {raceId}  remove a desk call/retraction so the feed shows again
@@ -14,12 +18,14 @@
 import universe from '../../data/races-2026.json';
 import { buildBoard } from './board.js';
 import { fetchAP } from './sources/ap.js';
-import { fetchCASOS } from './sources/ca-sos.js';
 import { simulate } from './sources/simulate.js';
 import { normParty } from './parties.js';
+import { runIngest, d1Store, allUnits } from './ingest.js';
+import { ADAPTERS } from './feeds/states.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
-const CACHE_SECONDS = 20;
+const CACHE_SECONDS = 60;
+const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T22:00:00Z');
 
 export default {
   async fetch(request, env, ctx) {
@@ -29,15 +35,16 @@ export default {
     try {
       const p = url.pathname.replace(/\/$/, '');
       if (request.method === 'GET' && p === '/v1/board') return await board(request, env, ctx, url, cors);
-      if (request.method === 'GET' && p === '/v1/feed') return json(await feed(env, url), cors, 10);
+      if (request.method === 'GET' && p === '/v1/feed') return json(await feed(env, url), cors, 30);
       if (request.method === 'GET' && p === '/v1/health') return json(await health(env), cors, 0);
       if (p.startsWith('/v1/desk/')) {
         if (!authorized(request, env)) return json({ error: 'Desk token missing or wrong' }, cors, 0, 401);
         if (request.method === 'GET' && p === '/v1/desk/check') return json({ ok: true }, cors, 0);
+        if (request.method === 'GET' && p === '/v1/desk/preview') return json(await preview(env, url), cors, 0);
         if (request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
           const res = await desk(env, p.slice(9), body);
-          await purge(request);
+          await purge();
           return json(res, cors, 0, res.error ? 400 : 200);
         }
       }
@@ -46,7 +53,37 @@ export default {
       return json({ error: e.message }, cors, 0, 500);
     }
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(scheduledRun(env));
+  },
 };
+
+/* ── Scheduled download ── */
+export async function scheduledRun(env, { now = Date.now(), fetchImpl = fetch } = {}) {
+  if (!env.DB) return { skipped: 'no database' };
+  if (now < startOf(env) && env.INGEST_EARLY !== 'true') return { skipped: 'before results start' };
+  const store = d1Store(env.DB);
+  let apUsed = 0;
+  if (env.AP_API_KEY) {
+    apUsed = 1;
+    const row = { unit: 'AP', state: 'US', fetched_at: now, ok: 1, status: 'ok', error: null, races: 0, meta: {} };
+    try {
+      const ap = await fetchAP(env, IDS);
+      row.races = ap.races.size;
+      const deskState = await loadDesk(env, false);
+      await recordFeedCalls(env, [ap], deskState, now, false);
+      await store.saveResults('AP', [...ap.races].map(([raceId, d]) => ({
+        raceId, payload: { ...d, callSeen: deskState.seen.get(raceId)?.first_seen || null, updated: d.updated || new Date(now).toISOString() },
+      })));
+    } catch (e) { row.ok = 0; row.status = 'error'; row.error = e.message.slice(0, 200); }
+    await store.saveUnits([row]);
+  }
+  const budget = Math.max(1, +(env.SUBREQUEST_BUDGET || 45) - apUsed);
+  const out = await runIngest({ env: { ...env, SUBREQUEST_BUDGET: budget }, universe, store, fetchImpl, now });
+  await purge();
+  return { used: out.used + apUsed, units: out.units.length, races: out.results.length };
+}
 
 /* ── Board ── */
 async function board(request, env, ctx, url, cors) {
@@ -62,37 +99,63 @@ async function board(request, env, ctx, url, cors) {
   }
 
   const now = Date.now();
-  const sources = [];
   const feeds = [];
-  if (sim) {
-    feeds.push(simulate(universe.races, now, +(env.SIM_CYCLE_MINUTES || 90)));
-    sources.push({ name: 'Simulation', ok: true, note: 'Rehearsal data — not real results' });
-  } else {
-    for (const [name, fn] of [['AP', () => fetchAP(env, IDS)], ['CA SOS', () => fetchCASOS(env)]]) {
-      try {
-        const f = await fn();
-        if (f.enabled) feeds.push(f);
-        sources.push({ name, ok: true, enabled: f.enabled, races: f.races.size, errors: f.errors?.slice(0, 3) });
-      } catch (e) {
-        sources.push({ name, ok: false, enabled: true, error: e.message });
-      }
-    }
-  }
-
+  let sources;
   const deskState = await loadDesk(env, sim);
-  // Remember when each feed call was first seen so the calls feed has a time.
-  await recordFeedCalls(env, feeds, deskState, now, sim);
-  for (const f of feeds) for (const [id, d] of f.races) { const seen = deskState.seen.get(id); if (seen) d.callSeen = seen.first_seen; }
+  if (sim) {
+    const f = simulate(universe.races, now, +(env.SIM_CYCLE_MINUTES || 90));
+    await recordFeedCalls(env, [f], deskState, now, true);
+    for (const [id, d] of f.races) { const seen = deskState.seen.get(id); if (seen) d.callSeen = seen.first_seen; }
+    feeds.push(f);
+    sources = [{ name: 'Simulation', ok: true, note: 'Rehearsal data — not real results' }];
+  } else {
+    const held = now < startOf(env);
+    const ap = new Map(), states = new Map();
+    if (env.DB && !held) {
+      for (const r of await d1Store(env.DB).loadResults()) (r.source === 'AP' ? ap : states).set(r.raceId, r.payload);
+    }
+    feeds.push({ name: 'AP', races: ap }, { name: 'States', races: states });
+    sources = await feedStatus(env, now);
+  }
 
   const out = buildBoard(universe, feeds, deskState, now);
   out.sources = sources;
   out.simulation = sim;
+  out.resultsStart = new Date(startOf(env)).toISOString();
   out.desk = { calls: deskState.calls.size };
 
   const resp = json(out, cors, CACHE_SECONDS);
   resp.headers.set('X-Cache', 'MISS');
   ctx.waitUntil(cache.put(cacheKey, json(out, {}, CACHE_SECONDS)));
   return resp;
+}
+
+/** One status entry for AP and one per state (California's 53 units rolled up). */
+async function feedStatus(env, now) {
+  const rows = env.DB ? [...(await d1Store(env.DB).loadUnits()).values()] : [];
+  const held = now < startOf(env);
+  const ap = rows.find(r => r.unit === 'AP');
+  const out = [{ name: 'AP', kind: 'ap', enabled: !!env.AP_API_KEY, ok: ap ? !!ap.ok : null, fetchedAt: ap?.fetched_at || null, error: ap?.error || null }];
+  const byState = new Map();
+  for (const u of allUnits(env)) {
+    const s = byState.get(u.st) || { name: u.st, kind: 'state', label: u.label, confidence: u.confidence, units: 0, done: 0, errors: 0, notPosted: 0, races: 0, fetchedAt: null, error: null };
+    s.units++;
+    const r = rows.find(x => x.unit === u.id);
+    if (r) {
+      s.done++;
+      s.races += r.races || 0;
+      if (!r.ok) { s.errors++; s.error ||= r.error; }
+      if (r.status === 'not posted') s.notPosted++;
+      s.fetchedAt = s.fetchedAt == null ? r.fetched_at : Math.min(s.fetchedAt, r.fetched_at);
+    }
+    byState.set(u.st, s);
+  }
+  for (const s of byState.values()) {
+    s.status = held ? 'waiting' : !s.done ? 'pending' : s.errors && s.races ? 'partial' : s.errors ? 'error' : s.notPosted === s.done ? 'not posted' : 'ok';
+    s.ok = s.status === 'ok' || s.status === 'partial' ? true : s.status === 'error' ? false : null;
+    out.push(s);
+  }
+  return out;
 }
 
 async function loadDesk(env, sim) {
@@ -110,6 +173,7 @@ async function loadDesk(env, sim) {
   return { calls, results, seen };
 }
 
+// Feed calls only come from AP (or the rehearsal feed). State files are numbers only.
 async function recordFeedCalls(env, feeds, deskState, now, sim) {
   if (!env.DB) return;
   const ns = sim ? 'sim' : 'live';
@@ -131,7 +195,6 @@ async function recordFeedCalls(env, feeds, deskState, now, sim) {
       deskState.seen.delete(id);
     }
   }
-  // D1 batches are capped; chunk them.
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
 }
 
@@ -150,7 +213,27 @@ async function feed(env, url) {
   };
 }
 
-/* ── Desk ── */
+/* ── Desk: test one state's feed right now ── */
+async function preview(env, url) {
+  const st = String(url.searchParams.get('state') || '').toUpperCase();
+  if (!ADAPTERS[st]) return { error: `No feed for ${st || 'that state'}. Feeds: ${Object.keys(ADAPTERS).join(', ')}` };
+  const store = env.DB ? d1Store(env.DB) : { loadUnits: async () => new Map() };
+  const out = await runIngest({
+    env: { ...env, STATE_FEEDS: st, SUBREQUEST_BUDGET: env.PREVIEW_BUDGET || 45 },
+    universe, store, force: true, only: [st], dryRun: true,
+  });
+  const byId = new Map(universe.races.map(r => [r.id, r]));
+  return {
+    state: st, source: ADAPTERS[st].label, confidence: ADAPTERS[st].confidence, downloads: out.used,
+    units: out.units.map(u => ({ unit: u.unit, status: u.status, error: u.error, races: u.races })),
+    races: out.results.map(({ raceId, payload }) => ({
+      raceId, name: byId.get(raceId)?.name, pctIn: payload.pctIn, pctLabel: payload.pctLabel,
+      candidates: payload.candidates.slice(0, 4).map(c => `${c.name} (${c.party}) ${c.votes.toLocaleString('en-US')}`),
+    })),
+  };
+}
+
+/* ── Desk actions ── */
 async function desk(env, action, b) {
   if (!env.DB) return { error: 'D1 database not bound' };
   const ns = b.sim ? 'sim' : 'live';
@@ -193,10 +276,15 @@ async function desk(env, action, b) {
 }
 
 async function health(env) {
+  const now = Date.now();
   return {
     ok: true,
     simulateDefault: env.SIMULATE === 'true',
-    sources: { AP: !!env.AP_API_KEY, 'CA SOS': env.CA_SOS !== 'off' },
+    resultsStart: new Date(startOf(env)).toISOString(),
+    stateFeedsHeld: now < startOf(env) && env.INGEST_EARLY !== 'true',
+    ap: !!env.AP_API_KEY,
+    stateFeeds: Object.values(ADAPTERS).map(a => ({ state: a.st, source: a.label, format: a.format, confidence: a.confidence })),
+    downloadBudgetPerRun: +(env.SUBREQUEST_BUDGET || 45),
     desk: !!env.DESK_TOKEN, database: !!env.DB,
     races: universe.races.length,
   };

@@ -33,6 +33,12 @@
     }
     return r.chamber === 'senate' ? `the ${r.stateName} Senate${r.special ? ' special election' : ' race'}` : `the ${r.stateName} governor's race`;
   }
+  function progress(r) {
+    if (r.pctIn == null) return '';
+    const label = r.pctLabel || 'expected vote';
+    if (label === 'expected vote') return `${r.pctIn}% of the expected vote counted`;
+    return label === 'precincts' ? `${r.pctIn}% of precincts reporting` : `${r.pctIn}% of ${label} in`;
+  }
   const shortName = r => r.chamber === 'house' ? r.id.replace('-AL', ' at-large').replace(/-0?/, '-') : r.name;
 
   function mount(root, opts = {}) {
@@ -40,13 +46,14 @@
     const S = {
       api: (qs.get('ebapi') || opts.api || store.get('api', '') || DEFAULT_API).replace(/\/$/, ''),
       shapesUrl: opts.shapesUrl || 'elections/data/us-states.json',
-      sim: qs.get('sim') === '1' ? true : store.get('sim', !!opts.sim),
+      pub: !!opts.publicMode,
+      sim: opts.publicMode ? false : qs.get('sim') === '1' ? true : store.get('sim', !!opts.sim),
       chamber: store.get('chamber', 'senate'),
       filter: 'all', sort: 'close', stateFilter: null, q: '', limit: 60,
       selected: qs.get('race') || null,
       watch: new Set(store.get('watch', [])),
       chime: store.get('chime', true),
-      token: store.get('token', ''), deskSource: store.get('deskSource', 'AP'),
+      token: opts.publicMode ? '' : store.get('token', ''), deskSource: store.get('deskSource', 'OC Scanner desk'),
       data: null, feed: [], seenFeed: null, shapes: null, error: null, lastOk: 0, pending: null,
       sheetOpen: false,
     };
@@ -140,15 +147,51 @@
 
     function renderStatus() {
       const d = S.data;
-      const srcs = (d?.sources || []).map(s => `<span title="${esc(s.error || s.note || '')}"><i class="eb-dot ${!s.enabled && s.enabled !== undefined ? 'off' : s.ok ? 'ok' : 'bad'}"></i>${esc(s.name)}${s.enabled === false ? ' (off)' : ''}</span>`).join('');
+      const ago_ = `<span data-r="ago">${S.lastOk ? `Updated ${ago(S.lastOk)}` : 'Connecting…'}</span>`;
+      const chimeBtn = `<button type="button" class="eb-sw" data-act="chime" aria-pressed="${S.chime}" title="Play a tone when a race you're watching is called">Chime on watched calls</button>`;
+      const refreshBtn = `<button type="button" class="eb-sw" data-act="refresh">Refresh</button>`;
+      if (S.pub) {
+        $('status').innerHTML = `<span>Vote counts from state election offices. Race calls by OC Scanner.</span>${ago_}<span class="eb-sp"></span>${chimeBtn}${refreshBtn}`;
+        return;
+      }
+      const srcs = d?.sources || [];
+      const dot = s => s.enabled === false ? 'off' : s.status === 'partial' ? 'warn' : s.ok === true ? 'ok' : s.ok === false ? 'bad' : '';
+      const ap = srcs.find(s => s.kind === 'ap');
+      const states = srcs.filter(s => s.kind === 'state');
+      const sim = srcs.find(s => s.name === 'Simulation');
+      let feedHtml = '';
+      if (sim) feedHtml = `<span><i class="eb-dot ok"></i>Simulation</span>`;
+      else {
+        if (ap) feedHtml += `<span title="${esc(ap.error || '')}"><i class="eb-dot ${dot(ap)}"></i>AP${ap.enabled ? '' : ' (off)'}</span>`;
+        if (states.length) {
+          const good = states.filter(s => s.status === 'ok' || s.status === 'partial').length, bad = states.filter(s => s.status === 'error').length;
+          const held = states.every(s => s.status === 'waiting');
+          const label = held ? `State feeds start ${fmtStart(d.resultsStart)}` : `State feeds: ${good} of ${states.length} reporting${bad ? `, ${bad} failing` : ''}`;
+          const rows = states.map(s => `<li><i class="eb-dot ${dot(s)}"></i><b>${esc(s.name)}</b> ${esc(s.label)}: ${esc(feedWords(s))}${s.confidence !== 'verified' ? ` <em>(${esc(s.confidence)} location)</em>` : ''}</li>`).join('');
+          feedHtml += `<details class="eb-feeds"${S.feedsOpen ? ' open' : ''}><summary><i class="eb-dot ${held ? '' : bad ? 'bad' : good ? 'ok' : ''}"></i>${label}</summary><ul>${rows}</ul></details>`;
+        }
+      }
       $('status').innerHTML = `
-        ${srcs}
-        <span data-r="ago">${S.lastOk ? `Updated ${ago(S.lastOk)}` : 'Connecting…'}</span>
+        ${feedHtml}${ago_}
         <span class="eb-sp"></span>
         <button type="button" class="eb-sw simsw" data-act="sim" aria-pressed="${S.sim}">Rehearsal data</button>
-        <button type="button" class="eb-sw" data-act="chime" aria-pressed="${S.chime}" title="Play a tone when a race you're watching is called">Chime on watched calls</button>
+        ${chimeBtn}
         <button type="button" class="eb-sw" data-act="desk" aria-pressed="${!!S.token}">${S.token ? 'Desk on' : 'Desk sign-in'}</button>
-        <button type="button" class="eb-sw" data-act="refresh">Refresh</button>`;
+        ${refreshBtn}`;
+      $('status').querySelector('.eb-feeds')?.addEventListener('toggle', e => { S.feedsOpen = e.target.open; });
+    }
+
+    function fmtStart(iso) {
+      const d = new Date(iso);
+      return isNaN(d) ? 'on election night' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function feedWords(s) {
+      if (s.status === 'waiting') return 'starts on election night';
+      if (s.status === 'pending') return 'not checked yet';
+      if (s.status === 'not posted') return 'state hasn’t posted its Nov 3 file yet';
+      if (s.status === 'error') return `last try failed (${s.error || 'error'})`;
+      if (s.status === 'partial') return `${s.races} races; ${s.errors} of ${s.units} files failed (${s.error || 'error'})`;
+      return `${s.races} races, checked ${s.fetchedAt ? ago(s.fetchedAt) : ''}`;
     }
 
     function renderBanner() {
@@ -157,8 +200,10 @@
       if (S.sim) h += `<div class="eb-sim">Rehearsal data. <span>These are made-up numbers for testing the board, not real results.</span> Copied posts are marked so they can’t be mistaken for real calls.</div>`;
       if (S.error) h += `<div class="eb-note">${esc(S.error)}</div>`;
       else if (d && !S.sim && d.races.every(r => r.status === 'waiting')) {
-        const live = (d.sources || []).filter(s => s.enabled !== false);
-        h += `<div class="eb-note">No results yet. Counting starts after polls close on ${new Date(d.election + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric' })}. ${live.some(s => s.name === 'AP') ? '' : 'Only the California feed is connected; other states fill in from desk calls until a national feed is added. '}Turn on rehearsal data to test the board.</div>`;
+        const day = new Date(d.election + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric' });
+        h += S.pub
+          ? `<div class="eb-note">No results yet. Vote counts appear here after polls close on ${day} and update about every 10 minutes.</div>`
+          : `<div class="eb-note">No results yet. State feeds start ${fmtStart(d.resultsStart)} and refresh about every 10 minutes. States without a feed fill in from your desk entries. Turn on rehearsal data to test the board.</div>`;
       }
       $('banner').innerHTML = h;
     }
@@ -339,7 +384,7 @@
       const cands = r.candidates.length ? r.candidates : r.preCandidates.map(c => ({ ...c, votes: null, pct: null }));
       const callLine = r.call
         ? `<div class="eb-callline" style="background:var(--${r.call.party in PNAME ? r.call.party : 'O'})">${esc(r.call.candidate || PFULL[r.call.party])} wins${r.flip ? `, flipping the seat from ${PFULL[r.holder.party] || 'its holder'}` : ''}<small>Called by ${esc(r.call.source)}${r.call.at ? ` at ${fmtT(r.call.at)}` : ''}${r.call.by === 'desk' ? ', entered by the desk' : ''}${r.call.note ? `. ${esc(r.call.note)}` : ''}</small></div>`
-        : `<div class="eb-callline wait">${r.total ? `Not called. ${r.pctIn != null ? `${r.pctIn}% of ${r.pctLabel || 'the vote'} counted.` : ''}` : 'No results yet.'}</div>`;
+        : `<div class="eb-callline wait">${r.total ? `Not called. ${r.pctIn != null ? `${progress(r).replace(/^./, m => m.toUpperCase())}.` : ''}` : 'No results yet.'}</div>`;
       const candHtml = cands.map(c => {
         const p = c.party in PNAME ? c.party : 'O';
         return `<div class="eb-cand"><span class="n">${esc(c.name)} <em>${PNAME[p]}${c.incumbent ? ', incumbent' : ''}</em>${r.call && c.name === r.call.candidate ? '<span class="win" aria-label="winner">✓</span>' : ''}</span>
@@ -353,10 +398,10 @@
         ${callLine}${candHtml}
         <div class="eb-actions">
           <button type="button" class="eb-btn" data-act="watch">${S.watch.has(r.id) ? 'Stop watching' : 'Watch this race'}</button>
-          <button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>
+          ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
           <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
         </div>
-        ${S.token ? deskHtml(r) : ''}
+        ${S.token && !S.pub ? deskHtml(r) : ''}
       </div>`;
     }
 
@@ -462,11 +507,11 @@
       if (r.call) {
         const who = `${r.call.candidate || PFULL[r.call.party]} (${r.call.party})`;
         const flip = r.flip ? `, a ${PADJ[r.call.party]} pickup from ${PFULL[r.holder.party] || 'the previous holder'}` : r.holder.party === r.call.party ? `, a ${PADJ[r.call.party]} hold` : '';
-        return `${pre}🗳️ RACE CALL: ${who} wins ${longRaceName(r)}${flip}. Called by ${r.call.source}${r.pctIn != null ? ` with ${r.pctIn}% of the ${r.pctLabel || 'vote'} counted` : ''}.${tag}`;
+        return `${pre}🗳️ RACE CALL: ${who} wins ${longRaceName(r)}${flip}. Called by ${r.call.source}${r.pctIn != null ? ` with ${progress(r)}` : ''}.${tag}`;
       }
       if (r.total) {
         const top = r.candidates.slice(0, 2).map(c => `${c.name} (${c.party}) ${c.pct}%`).join(', ');
-        return `${pre}🗳️ ${longRaceName(r).replace(/^the /, 'The ').replace(/^./, m => m.toUpperCase())}: ${top}${r.pctIn != null ? ` with ${r.pctIn}% of the ${r.pctLabel || 'vote'} counted` : ''}. No call yet.${tag}`;
+        return `${pre}🗳️ ${longRaceName(r).replace(/^the /, 'The ').replace(/^./, m => m.toUpperCase())}: ${top}${r.pctIn != null ? ` with ${progress(r)}` : ''}. No call yet.${tag}`;
       }
       return `${pre}🗳️ Watching ${longRaceName(r)}: ${r.preCandidates.map(c => `${c.name} (${c.party})`).join(' vs. ') || 'no results yet'}. Results after polls close.${tag}`;
     }
@@ -498,7 +543,7 @@
     load();
     let timer = null;
     if (opts.autoRefresh !== false) {
-      const every = (opts.refreshSeconds || 20) * 1000;
+      const every = (opts.refreshSeconds || 60) * 1000;
       timer = setInterval(() => { if (!document.hidden) load(); }, every);
       setInterval(() => { const a = $('ago'); if (a && !document.hidden && S.lastOk) a.textContent = `Updated ${ago(S.lastOk)}`; }, 5000);
     }

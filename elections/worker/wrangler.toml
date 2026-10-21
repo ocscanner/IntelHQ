@@ -6,13 +6,27 @@ workers_dev = true
 [observability]
 enabled = true
 
+# Every 5 minutes the Worker downloads whatever state files are due (each state about every 10 minutes).
+# This is 1 of the 5 scheduled triggers a free Cloudflare account allows.
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 ELECTION_DATE = "2026-11-03"
 # Sites allowed to use desk (write) actions from a browser
 ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.news"
-# California SOS free feed: governor + these House districts (keep it ~10 — Workers cap outbound calls)
-CA_SOS = "on"
-CA_SOS_DISTRICTS = "13,21,22,40,41,45,46,47,48,49"
+
+# State feeds. States post test numbers in the weeks before an election, so nothing is downloaded or
+# shown before RESULTS_START (2 p.m. Pacific on Nov 3, an hour before the first polls close).
+RESULTS_START = "2026-11-03T22:00:00Z"
+# Which states to download: "all", "off", or a list like "AZ,GA,NC"
+STATE_FEEDS = "all"
+# How often each state is refreshed, at most
+MIN_REFRESH_MINUTES = "9"
+# Downloads allowed per 5-minute run. Free plan: keep 45 (the limit is 50).
+# Workers Paid ($5/mo): raise to 500 so every state refreshes every run.
+SUBREQUEST_BUDGET = "45"
+
 # Set to "true" to serve rehearsal data by default (the board can always ask with ?sim=1)
 SIMULATE = "false"
 SIM_CYCLE_MINUTES = "90"

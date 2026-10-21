@@ -42,3 +42,25 @@ CREATE TABLE IF NOT EXISTS call_log (
   at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS call_log_ns_at ON call_log (ns, at DESC);
+
+-- Scheduled downloads: one row per download job ("unit"): a state, or one California race
+CREATE TABLE IF NOT EXISTS feed_unit (
+  unit TEXT PRIMARY KEY,
+  state TEXT,
+  fetched_at INTEGER,
+  ok INTEGER,
+  status TEXT,            -- ok | unchanged | not posted | error
+  error TEXT,
+  races INTEGER,
+  meta TEXT               -- JSON: cached election id, file version, ETags
+);
+
+-- Latest numbers per race and source (AP or STATE). Only rewritten when the numbers change.
+CREATE TABLE IF NOT EXISTS feed_result (
+  race_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  hash TEXT,
+  updated_at INTEGER,
+  PRIMARY KEY (race_id, source)
+);
