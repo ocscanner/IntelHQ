@@ -17,7 +17,7 @@ CA_SOS_DISTRICTS = "13,21,22,40,41,45,46,47,48,49"
 SIMULATE = "false"
 SIM_CYCLE_MINUTES = "90"
 # AP: version and test mode (only used once AP_API_KEY is set as a secret)
-AP_BASE = "https://api.ap.org/v2"
+AP_BASE = "https://api.ap.org/v3"
 AP_TEST = "false"
 
 # Secrets — set with:  npx wrangler secret put DESK_TOKEN   (and AP_API_KEY if you license AP)

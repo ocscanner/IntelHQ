@@ -6,7 +6,7 @@ import { normParty, toNum } from '../parties.js';
 
 export async function fetchAP(env, ids) {
   if (!env.AP_API_KEY) return { name: 'AP', enabled: false, races: new Map() };
-  const base = (env.AP_BASE || 'https://api.ap.org/v2').replace(/\/$/, '');
+  const base = (env.AP_BASE || 'https://api.ap.org/v3').replace(/\/$/, '');
   const date = env.ELECTION_DATE || '2026-11-03';
   const url = `${base}/elections/${date}?officeID=S,H,G&level=state&format=json`
     + (env.AP_TEST === 'true' ? '&test=true' : '')
