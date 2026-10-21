@@ -28,6 +28,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="hq.css">
 <link rel="stylesheet" href="newsroom.css">
+<link rel="stylesheet" href="elections/board.css">
 </head>
 <body>
 
@@ -1206,19 +1207,10 @@
     <a class="ol" href="https://www.followthemoney.org/" target="_blank" rel="noopener"><span class="oi">💵</span><div><span>Follow the Money</span><span class="od">State-level campaign finance</span></div></a>
   </div>
 
-  <!-- Future: Live results embed placeholder -->
+  <!-- Live results board (elections/board.js, data from the oc-election-wire Worker) -->
   <div style="margin-top:20px">
-    <div class="sh"><h2>🗺 Live Results Map</h2><span style="font-family:var(--fm);font-size:.62rem;padding:2px 6px;border-radius:3px;background:rgba(255,183,0,.15);color:var(--warn);border:1px solid rgba(255,183,0,.3);letter-spacing:.08em">ELECTION NIGHT</span></div>
-    <div id="results-map-area" style="background:var(--bg3);border:2px dashed var(--border2);border-radius:8px;padding:40px 20px;text-align:center">
-      <div style="font-size:2.5rem;margin-bottom:10px">🗳</div>
-      <div style="font-family:var(--fh);font-size:1.1rem;letter-spacing:.08em;color:var(--text);margin-bottom:6px">LIVE RESULTS MAP — ELECTION NIGHT</div>
-      <div style="font-family:var(--fm);font-size:.78rem;color:var(--muted);margin-bottom:16px;max-width:480px;margin-left:auto;margin-right:auto">On election night this panel will display live results via Decision Desk HQ or NYT embeds. Add your DDHQ embed code here when races go live.</div>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <a class="pill" href="https://decisiondeskhq.com/election-embedder/" target="_blank">DDHQ Embed Tool →</a>
-        <a class="pill" href="https://www.nytimes.com/elections" target="_blank">NYT Results →</a>
-        <a class="pill" href="https://www.politico.com/election-results" target="_blank">Politico Results →</a>
-      </div>
-    </div>
+    <div class="sh"><h2>🗳 Live Results Board</h2><a class="rbtn" href="elections/index.html" target="_blank" rel="noopener" style="text-decoration:none">Open full screen</a></div>
+    <div id="election-board"></div>
   </div>
 
 </div>
@@ -1401,6 +1393,18 @@
 
 <script src="newsroom.js"></script>
 <script src="hq.js"></script>
+<script src="elections/board.js"></script>
+<script>
+  // Results board: refreshes every 20s, but only while the Politics & Elections tab is open
+  (function(){
+    const panel = document.getElementById('panel-elections');
+    const board = ElectionBoard.mount(document.getElementById('election-board'), {
+      shapesUrl: 'elections/data/us-states.json', autoRefresh: false,
+      onHealth: (ok, err) => { if (typeof markHealth === 'function') markHealth('Election Results', ok, err); },
+    });
+    if (typeof sched === 'function') sched('Election Results', () => { if (panel.classList.contains('active')) board.refresh(); }, 20 * 1000, false);
+  })();
+</script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

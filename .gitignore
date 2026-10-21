@@ -4,3 +4,6 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# node packages (election worker + map tools)
+node_modules

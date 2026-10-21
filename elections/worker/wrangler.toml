@@ -1,0 +1,28 @@
+name = "oc-election-wire"
+main = "src/index.js"
+compatibility_date = "2026-05-30"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+ELECTION_DATE = "2026-11-03"
+# Sites allowed to use desk (write) actions from a browser
+ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.news"
+# California SOS free feed: governor + these House districts (keep it ~10 — Workers cap outbound calls)
+CA_SOS = "on"
+CA_SOS_DISTRICTS = "13,21,22,40,41,45,46,47,48,49"
+# Set to "true" to serve rehearsal data by default (the board can always ask with ?sim=1)
+SIMULATE = "false"
+SIM_CYCLE_MINUTES = "90"
+# AP: version and test mode (only used once AP_API_KEY is set as a secret)
+AP_BASE = "https://api.ap.org/v2"
+AP_TEST = "false"
+
+# Secrets — set with:  npx wrangler secret put DESK_TOKEN   (and AP_API_KEY if you license AP)
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oc-election-wire"
+database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"

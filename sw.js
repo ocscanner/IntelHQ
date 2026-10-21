@@ -1,6 +1,6 @@
 // OC Scanner · Intel HQ — Service Worker
 // Bump CACHE_VERSION any time you deploy updates to force a cache refresh
-const CACHE_VERSION = 'inthq-v5-article-builder';
+const CACHE_VERSION = 'inthq-v6-election-board';
 
 const STATIC_ASSETS = [
   '/IntelHQ/',
@@ -47,6 +47,7 @@ self.addEventListener('fetch', event => {
     'api.adsb.lol',
     'opensky-network.org',
     'oc-radar-proxy.ocscannernews.workers.dev',
+    'oc-election-wire.ocscannernews.workers.dev',
     'alerts.weather.gov',
     'inciweb.nwcg.gov',
     'firms.modaps.eosdis.nasa.gov',

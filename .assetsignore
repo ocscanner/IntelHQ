@@ -1,0 +1,8 @@
+# Files the IntelHQ site deploy should NOT publish
+.git
+.wrangler
+.dev.vars*
+node_modules
+elections/worker
+elections/tools
+elections/data/src

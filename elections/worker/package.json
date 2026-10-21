@@ -1,0 +1,13 @@
+{
+  "name": "oc-election-wire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev -c wrangler.toml",
+    "deploy": "wrangler deploy -c wrangler.toml",
+    "db:init": "wrangler d1 execute oc-election-wire -c wrangler.toml --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute oc-election-wire -c wrangler.toml --local --file=schema.sql",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": { "wrangler": "^4" }
+}

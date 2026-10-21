@@ -2,6 +2,12 @@
 
 OC Scanner's unified monitoring and newsroom command center.
 
+## Election night board
+
+The Politics & Elections tab includes a live results board for the 2026 midterms
+(House, Senate and governors, nationwide), with desk tools for entering race calls.
+Setup and election-night instructions are in [`elections/README.md`](elections/README.md).
+
 ## Newsroom workflow
 
 The Newsroom module adds a private, device-local editorial workspace alongside

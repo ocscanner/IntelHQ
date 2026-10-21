@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Election Night Board — OC Scanner IntelHQ</title>
+<meta name="robots" content="noindex">
+<script>try{if(localStorage.getItem('ocs-theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="board.css">
+<style>
+  :root{--bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#111d28;--border:rgba(0,180,255,.10);--border2:rgba(0,180,255,.22);--muted:#7a9aaa;--text:#eef4f8;--text2:#b8d0dc;--warn:#ffb700;--fm:'Share Tech Mono',monospace;--fu:'Barlow Condensed',sans-serif;--fh:'Rajdhani',sans-serif}
+  html[data-theme="light"]{--bg:#eef2f6;--bg2:#e3e9ef;--bg3:#d9e2ea;--card:#fff;--border:rgba(0,90,160,.16);--border2:rgba(0,90,160,.30);--muted:#5a7484;--text:#12222e;--text2:#33505f;--warn:#b57e00}
+  body{margin:0;background:var(--bg);color:var(--text)}
+  header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border)}
+  header img{width:36px;height:36px;border-radius:7px}
+  header h1{font-family:var(--fh);font-size:1.3rem;margin:0;letter-spacing:.04em}
+  header a{margin-left:auto;color:var(--text2);font-family:var(--fu);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:4px 10px}
+  main{padding:16px 20px 40px;max-width:1500px;margin:0 auto}
+  @media (max-width:760px){main{padding:12px 12px 40px}header{padding:10px 12px}}
+</style>
+</head>
+<body>
+<header>
+  <img src="../assets/oc-scanner-logo.png" alt="">
+  <h1>Election night board</h1>
+  <a href="../hq.html#elections">Back to IntelHQ</a>
+</header>
+<main id="board"></main>
+<script src="board.js"></script>
+<script>ElectionBoard.mount(document.getElementById('board'), { shapesUrl: 'data/us-states.json' });</script>
+</body>
+</html>
