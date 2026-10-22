@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Election Broadcast — OC Scanner</title>
+<meta name="robots" content="noindex">
+<!--
+  Broadcast mode: a 1920×1080 results screen for streaming the board to X with OBS.
+  OBS: Sources → + → Browser → URL https://ocscanner.github.io/IntelHQ/elections/broadcast.html
+       Width 1920, Height 1080. Leave "Shutdown source when not visible" off.
+  Options (add to the URL):
+    ?sim=1                      rehearsal data (every screen is labeled REHEARSAL)
+    ?secs=25                    seconds per scene (default 22)
+    ?scenes=senate,close,house  which scenes, in order (senate, house, governor, close, flips, oc)
+  Keys (OBS: right-click the source → Interact): → / ← next or previous scene, Space pause, 1–6 jump to a scene.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#060a0f;--bg2:#0b1117;--bg3:#0f1820;--card:#0f1a24;--line:rgba(0,180,255,.14);--line2:rgba(0,180,255,.28);
+    --text:#eef4f8;--text2:#b8d0dc;--muted:#7a9aaa;--warn:#ffb700;--accent:#00b4ff;
+    --D:#4a8dff;--R:#ff5a5f;--I:#b18cff;--O:#9aa7b0;
+    --Dt:rgba(74,141,255,.42);--Rt:rgba(255,90,95,.42);--It:rgba(177,140,255,.42);--Ot:rgba(154,167,176,.35);
+    --wait:#1c2a37;--lead:#13a89e;--leadt:rgba(19,168,158,.55);--yes:#1f9d55;--no:#c2413b;
+    --fh:'Rajdhani',sans-serif;--fu:'Barlow Condensed',sans-serif;--fm:'Share Tech Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;background:
+    radial-gradient(1200px 700px at 20% 10%,rgba(0,120,200,.10),transparent 60%),var(--bg);
+    color:var(--text);font-family:var(--fu);font-variant-numeric:tabular-nums;overflow:hidden}
+
+  /* top bar */
+  .top{position:absolute;left:0;right:0;top:0;height:96px;display:flex;align-items:center;gap:22px;padding:0 40px;
+    border-bottom:1px solid var(--line2);background:linear-gradient(180deg,rgba(0,40,70,.55),rgba(0,20,35,.2))}
+  .top img{width:62px;height:62px;border-radius:12px}
+  .brand{display:flex;flex-direction:column;line-height:1}
+  .brand b{font-family:var(--fh);font-size:42px;letter-spacing:.04em}
+  .brand span{font-size:22px;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
+  .live{display:flex;align-items:center;gap:10px;font-family:var(--fh);font-weight:700;font-size:28px;letter-spacing:.12em;
+    background:#c8102e;color:#fff;padding:6px 16px 4px;border-radius:6px}
+  .live i{width:13px;height:13px;border-radius:50%;background:#fff;animation:blink 1.4s infinite}
+  .live.sim{background:var(--warn);color:#1a1200}.live.sim i{background:#1a1200}
+  @keyframes blink{50%{opacity:.2}}
+  .sp{flex:1}
+  .clock{text-align:right;line-height:1}
+  .clock b{font-family:var(--fm);font-size:44px}
+  .clock span{display:block;font-size:20px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
+
+  /* scene area */
+  .scene{position:absolute;left:40px;top:120px;width:1240px;height:820px;transition:opacity .45s}
+  .scene.fade{opacity:0}
+  .stitle{display:flex;align-items:baseline;gap:20px;margin-bottom:8px}
+  .stitle h2{font-family:var(--fh);font-size:64px;margin:0;white-space:nowrap;letter-spacing:.03em;line-height:1}
+  .stitle span{font-size:28px;color:var(--text2)}
+  .map svg{width:100%;height:680px;display:block}
+  .map path{stroke:var(--bg);stroke-width:.9;fill:transparent;stroke-linejoin:round}
+  .map path.norace{fill:transparent;stroke:rgba(122,154,170,.35);stroke-dasharray:2 2}
+  .map text{font-family:var(--fh);font-weight:700;font-size:13px;fill:#fff;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:2.5px;pointer-events:none}
+  .key{display:flex;gap:26px;font-size:24px;color:var(--text2);margin-top:6px;flex-wrap:wrap}
+  .key i{display:inline-block;width:22px;height:22px;border-radius:4px;vertical-align:-3px;margin-right:8px}
+
+  /* race rows */
+  .rows{display:flex;flex-direction:column;gap:12px;margin-top:14px;max-height:700px;overflow:hidden}
+  .row{display:grid;grid-template-columns:300px 1fr 150px;gap:24px;align-items:center;background:var(--card);border:1px solid var(--line);
+    border-left:8px solid var(--O);border-radius:10px;padding:12px 22px;min-height:80px}
+  .row .nm{font-family:var(--fh);font-weight:700;font-size:34px;line-height:1}
+  .row .nm small{display:block;font-family:var(--fu);font-weight:500;font-size:21px;color:var(--muted);margin-top:5px}
+  .cands{display:flex;flex-direction:column;gap:6px}
+  .cline{display:grid;grid-template-columns:1fr 110px;align-items:center;font-size:27px;line-height:1.05}
+  .cline em{font-style:normal;color:var(--muted);font-size:21px;margin-left:8px}
+  .cline .pct{text-align:right;font-family:var(--fm);font-size:28px}
+  .cline .bar{grid-column:1/-1;height:7px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden}
+  .cline .bar i{display:block;height:100%}
+  .win{color:#00d68f;font-weight:700;margin-left:8px}
+  .badge{justify-self:end;text-align:center;font-family:var(--fh);font-weight:700;font-size:24px;padding:6px 12px;border-radius:6px;line-height:1.05;background:rgba(255,255,255,.07);color:var(--text2)}
+  .badge small{display:block;font-family:var(--fu);font-weight:500;font-size:18px;color:var(--muted)}
+  .badge.D{background:var(--D);color:#fff}.badge.R{background:var(--R);color:#fff}.badge.I{background:var(--I);color:#fff}.badge.L{background:var(--lead);color:#fff}
+  .badge.flip{box-shadow:0 0 0 3px #fff inset}
+  .empty{font-size:34px;color:var(--text2);margin-top:60px;max-width:1000px;line-height:1.35}
+
+  /* side column */
+  .side{position:absolute;left:1316px;top:120px;width:564px;height:820px;display:flex;flex-direction:column;gap:14px}
+  .bal{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 20px;transition:box-shadow .3s}
+  .bal.on{box-shadow:0 0 0 2px var(--accent) inset}
+  .bal h3{margin:0;font-family:var(--fh);font-size:26px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);display:flex;justify-content:space-between}
+  .bal h3 small{font-family:var(--fu);letter-spacing:0;text-transform:none;font-size:20px;color:var(--muted);font-weight:500}
+  .nums{display:flex;justify-content:space-between;align-items:baseline;line-height:1;margin:0 0 6px}
+  .big{font-family:var(--fh);font-weight:700;font-size:50px}
+  .big.D{color:var(--D)}.big.R{color:var(--R)}
+  .big small{font-size:22px;color:var(--text2);margin:0 8px;font-family:var(--fu);font-weight:500}
+  .bbar{position:relative;display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--wait)}
+  .bbar i{display:block;height:100%}.bbar .gap{flex:1}
+  .tick{position:absolute;top:-4px;bottom:-4px;width:3px;background:#fff;transform:translateX(-1.5px)}
+  .bsub{display:flex;justify-content:space-between;font-size:20px;color:var(--muted);margin-top:6px}
+  .calls{flex:1;min-height:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 20px;overflow:hidden}
+  .calls h3{margin:0 0 8px;font-family:var(--fh);font-size:26px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)}
+  .call{display:grid;grid-template-columns:80px 1fr;gap:12px;padding:5px 0 5px 12px;border-left:5px solid var(--O);margin-bottom:6px;font-size:23px;line-height:1.1}
+  .call .t{font-family:var(--fm);color:var(--muted);font-size:22px}
+  .call small{display:block;font-size:18px;color:var(--muted);margin-top:2px}
+  .call.x{opacity:.65}
+
+  /* bottom: scene dots + ticker */
+  .dots{position:absolute;left:40px;top:950px;display:flex;gap:10px}
+  .dots span{font-family:var(--fh);font-weight:600;font-size:20px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:3px 12px;border-radius:5px;border:1px solid var(--line)}
+  .dots span.on{color:var(--text);border-color:var(--accent);background:rgba(0,180,255,.12)}
+  .dots .paused{color:var(--warn);border-color:var(--warn)}
+  .src{position:absolute;right:40px;top:953px;font-size:20px;color:var(--muted)}
+  .ticker{position:absolute;left:0;right:0;bottom:0;height:80px;display:flex;align-items:center;background:#0a1520;border-top:2px solid var(--accent)}
+  .ticker .lbl{flex:none;height:100%;display:flex;align-items:center;padding:0 26px;background:var(--accent);color:#001421;font-family:var(--fh);font-weight:700;font-size:28px;letter-spacing:.1em;z-index:1}
+  .tk{flex:1;overflow:hidden;height:100%;position:relative}
+  .tk div{position:absolute;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;font-size:30px;will-change:transform}
+  .tk b{font-family:var(--fh);font-weight:700;margin:0 6px}
+  .tk .sep{color:var(--accent);margin:0 26px}
+
+  /* breaking call overlay */
+  .alert{position:absolute;left:40px;right:40px;top:380px;height:300px;border-radius:16px;display:flex;flex-direction:column;justify-content:center;padding:0 60px;
+    color:#fff;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:scale(.9);opacity:0;transition:opacity .35s,transform .35s;pointer-events:none}
+  .alert.show{opacity:1;transform:scale(1)}
+  .alert .k{font-family:var(--fh);font-weight:700;font-size:34px;letter-spacing:.18em;opacity:.9}
+  .alert .h{font-family:var(--fh);font-weight:700;font-size:96px;line-height:1;margin:10px 0}
+  .alert .s{font-size:36px;opacity:.95}
+  .simtag{position:absolute;right:40px;top:110px;font-family:var(--fh);font-weight:700;font-size:22px;color:var(--warn);letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="top">
+    <img src="../assets/oc-scanner-logo.png" alt="">
+    <div class="brand"><b>OC SCANNER</b><span>2026 Midterm Elections · Live Results</span></div>
+    <div class="live" id="live"><i></i>LIVE</div>
+    <div class="sp"></div>
+    <div class="clock"><b id="clock">--:--</b><span id="updated">Connecting…</span></div>
+  </div>
+  <div class="scene" id="scene"></div>
+  <div class="side">
+    <div id="bals"></div>
+    <div class="calls"><h3>Latest calls</h3><div id="calls"></div></div>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="src" id="src">Unofficial results · Vote counts from state election offices</div>
+  <div class="ticker"><div class="lbl" id="tklbl">RESULTS</div><div class="tk"><div id="tk"></div></div></div>
+  <div class="alert" id="alert"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  const qs = new URLSearchParams(location.search);
+  const API = (qs.get('api') || 'https://oc-election-wire.ocscannernews.workers.dev').replace(/\/$/, '');
+  const SIM = qs.get('sim') === '1';
+  const SECS = Math.max(8, +qs.get('secs') || 22);
+  const ALL_SCENES = ['senate', 'close', 'house', 'governor', 'flips', 'oc'];
+  const WANT = (qs.get('scenes') || ALL_SCENES.join(',')).split(',').map(s => s.trim()).filter(s => ALL_SCENES.includes(s));
+  const REFRESH = 30;
+  const PNAME = { D: 'Dem', R: 'Rep', I: 'Ind', O: 'Other' };
+  const PFULL = { D: 'Democrats', R: 'Republicans', I: 'independents', O: 'other parties' };
+  const CH = { house: 'House', senate: 'Senate', governor: 'Governors' };
+  const SMALL = new Set(['VT', 'NH', 'MA', 'RI', 'CT', 'NJ', 'DE', 'MD', 'DC', 'HI']);
+  const SUFFIX = /^(jr\.?|sr\.?|ii|iii|iv)$/i, PARTICLE = /^(van|von|der|den|de|del|della|la|le|da|di|du|st\.?)$/i;
+  const CLOSE_PTS = 5;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const last = name => {
+    const parts = String(name || '').replace(/"[^"]*"/g, ' ').split(/\s+/).filter(p => p && !SUFFIX.test(p));
+    if (!parts.length) return name || '';
+    let i = parts.length - 1;
+    while (i > 1 && PARTICLE.test(parts[i - 1])) i--;
+    return parts.slice(i).join(' ');
+  };
+  const pc = p => p in PNAME ? p : 'O';
+  const PT = { timeZone: 'America/Los_Angeles' };
+  const fmtT = ts => { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { ...PT, hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/, ''); };
+  const shortName = r => r.chamber === 'house' ? r.id.replace('-AL', ' at-large').replace(/-0?/, '-') : r.name;
+
+  const S = { data: null, byId: new Map(), feed: [], local: null, shapes: null, lastOk: 0, error: null,
+    scenes: [], idx: 0, paused: false, sceneAt: Date.now(), seen: null, queue: [], alerting: false, tickerKey: '' };
+
+  /* ── scaling: the stage is always 1920×1080, scaled to fit the window ── */
+  function fit() {
+    const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+    const st = $('stage');
+    st.style.transform = `scale(${k})`;
+    st.style.left = `${(innerWidth - 1920 * k) / 2}px`; st.style.top = `${(innerHeight - 1080 * k) / 2}px`;
+  }
+  addEventListener('resize', fit); fit();
+
+  if (SIM) { $('live').classList.add('sim'); $('live').innerHTML = '<i></i>REHEARSAL'; $('tklbl').textContent = 'REHEARSAL'; }
+
+  /* ── data ── */
+  async function load() {
+    const sim = SIM ? 1 : 0;
+    try {
+      const [b, f, l] = await Promise.all([
+        fetch(`${API}/v1/board?sim=${sim}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+        fetch(`${API}/v1/feed?sim=${sim}&limit=40`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
+        WANT.includes('oc') ? fetch(`${API}/v1/local?sim=${sim}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null) : null,
+      ]);
+      S.data = b; S.byId = new Map(b.races.map(r => [r.id, r])); S.local = l || S.local;
+      noteCalls(f.items || []); S.feed = f.items || [];
+      S.lastOk = Date.now(); S.error = null;
+    } catch (e) { S.error = 'Reconnecting to the results service…'; }
+    buildScenes(); renderSide(); renderScene(); renderTicker(); renderStatus();
+  }
+  async function loadShapes() {
+    try { S.shapes = await fetch('data/us-states.json').then(r => r.json()); } catch { S.shapes = null; }
+    renderScene(true);
+  }
+
+  /* ── breaking calls ── */
+  const keyOf = x => `${x.race_id}|${x.kind}|${x.at}`;
+  function noteCalls(items) {
+    if (S.seen) {
+      const fresh = items.filter(x => !S.seen.has(keyOf(x))).sort((a, b) => a.at - b.at);
+      S.queue.push(...fresh.slice(-4));   // never stack up more than a few alerts
+      if (!S.alerting) nextAlert();
+    }
+    S.seen = new Set(items.map(keyOf));
+  }
+  function nextAlert() {
+    const x = S.queue.shift(), box = $('alert');
+    if (!x) { S.alerting = false; box.classList.remove('show'); return; }
+    S.alerting = true;
+    const r = S.byId.get(x.race_id), oc = x.race_id.startsWith('OC-');
+    let bg, k, h, s;
+    if (x.kind === 'retract') {
+      bg = '#3a4652'; k = 'CALL WITHDRAWN'; h = esc(oc ? x.name || x.race_id : r ? r.name : x.race_id);
+      s = `${esc(x.source || '')} withdrew its call. The race is back to uncalled.`;
+    } else if (oc) {
+      const w = String(x.candidate || '').split(' | ').filter(Boolean);
+      bg = 'var(--lead)'; k = 'ORANGE COUNTY · RACE CALL';
+      h = `${esc(w.map(last).join(', '))} ${w.length > 1 ? 'win' : 'wins'}`;
+      s = `${esc(x.name || x.race_id)} · Called by ${esc(x.source || 'OC Scanner')}`;
+    } else {
+      const p = pc(x.party);
+      bg = `var(--${p})`; k = `${x.flip ? 'FLIP · ' : ''}RACE CALL`;
+      h = `${esc(x.candidate || PFULL[p])} (${p}) wins`;
+      s = `${esc(r ? (r.chamber === 'house' ? `${r.stateName}'s ${r.district ? `${r.name.replace(r.stateName + ' ', '')} District` : 'at-large seat'}` : r.name) : x.race_id)}${x.flip && r?.holder?.party ? `, flipping it from ${PFULL[r.holder.party]}` : ''} · Called by ${esc(x.source || 'OC Scanner')}`;
+    }
+    box.style.background = bg;
+    box.innerHTML = `<div class="k">${SIM ? 'REHEARSAL · NOT REAL · ' : ''}${k}</div><div class="h">${h}</div><div class="s">${s}</div>`;
+    box.classList.add('show');
+    setTimeout(() => { box.classList.remove('show'); setTimeout(nextAlert, 600); }, 9000);
+  }
+
+  /* ── scenes ── */
+  const races = ch => (S.data?.races || []).filter(r => r.chamber === ch);
+  const anyResults = () => (S.data?.races || []).some(r => r.total > 0 || r.call);
+  const isClose = r => !r.call && r.total > 0 && r.margin != null && r.margin < CLOSE_PTS;
+  const flipList = () => (S.data?.races || []).filter(r => r.flip || (!r.call && r.leader && r.total && r.holder?.party && r.leader !== r.holder.party));
+  const ocList = () => (S.local?.contests || []).filter(c => c.total > 0 || c.call);
+  function buildScenes() {
+    const prev = S.scenes[S.idx];
+    S.scenes = WANT.filter(s => s === 'flips' ? flipList().length > 0 : s === 'oc' ? ocList().length > 0 : true);
+    if (!S.scenes.length) S.scenes = ['senate'];
+    const i = S.scenes.indexOf(prev);
+    S.idx = i >= 0 ? i : Math.min(S.idx, S.scenes.length - 1);
+  }
+  function go(i) {
+    if (S.scenes[S.idx] === 'close') S.watchPage = (S.watchPage ?? 0) + 1;
+    S.idx = (i + S.scenes.length) % S.scenes.length; S.sceneAt = Date.now();
+    const sc = $('scene'); sc.classList.add('fade');
+    setTimeout(() => { renderScene(true); renderSide(); sc.classList.remove('fade'); }, 450);
+  }
+  setInterval(() => { if (!S.paused && S.scenes.length > 1 && Date.now() - S.sceneAt >= SECS * 1000) go(S.idx + 1); }, 500);
+
+  function renderScene(rebuild) {
+    const name = S.scenes[S.idx] || 'senate', box = $('scene');
+    if (!S.data) { box.innerHTML = `<div class="empty">${esc(S.error || 'Loading results…')}</div>`; renderDots(); return; }
+    if (CH[name]) renderMapScene(box, name, rebuild);
+    else if (name === 'close') renderClose(box);
+    else if (name === 'flips') renderFlips(box);
+    else if (name === 'oc') renderOC(box);
+    renderDots();
+  }
+
+  function stateFill(st, ch) {
+    const rs = races(ch).filter(r => r.state === st);
+    if (!rs.length) return null;
+    if (ch !== 'house') {
+      const r = rs[0];
+      if (r.call) return r.flip ? `url(#bf-${pc(r.call.party)})` : `var(--${pc(r.call.party)})`;
+      return r.leader ? `var(--${pc(r.leader)}t)` : 'var(--wait)';
+    }
+    const c = { D: 0, R: 0, I: 0, O: 0 }; let called = 0, any = 0;
+    for (const r of rs) { const p = r.call?.party || r.leader; if (p) { c[pc(p)]++; any++; } if (r.call) called++; }
+    if (!any) return 'var(--wait)';
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1]);
+    if (top[0][1] === top[1][1]) return 'var(--Ot)';
+    return called === rs.length ? `var(--${top[0][0]})` : `var(--${top[0][0]}t)`;
+  }
+  function renderMapScene(box, ch, rebuild) {
+    const s = S.data.summary?.[ch];
+    const sub = ch === 'senate' ? `${s?.up ?? 35} seats up · 51 for control (50 + VP for Republicans)` : ch === 'house' ? `All 435 seats · ${s?.majority ?? 218} for a majority` : `${s?.up ?? 36} governor's races`;
+    if (rebuild || box.dataset.mode !== ch) {
+      box.dataset.mode = ch;
+      const stripes = p => `<pattern id="bf-${p}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" style="fill:var(--${p})"/><rect width="2.6" height="8" fill="rgba(255,255,255,.6)"/></pattern>`;
+      const shp = S.shapes;
+      const svg = shp ? `<svg viewBox="${shp.viewBox}"><defs>${['D', 'R', 'I', 'O'].map(stripes).join('')}</defs><g>${Object.entries(shp.shapes).map(([st, x]) => `<path data-st="${st}" d="${x.d}"/>`).join('')}</g><g>${Object.entries(shp.shapes).filter(([st]) => !SMALL.has(st)).map(([st, x]) => `<text x="${x.c[0]}" y="${x.c[1]}">${st}</text>`).join('')}</g></svg>` : '<div class="empty">Loading map…</div>';
+      box.innerHTML = `<div class="stitle"><h2>${CH[ch].toUpperCase()}</h2><span>${esc(sub)}</span></div><div class="map">${svg}</div>
+        <div class="key"><span><i style="background:var(--D)"></i>Dem won</span><span><i style="background:var(--Dt)"></i>Dem leading</span><span><i style="background:var(--Rt)"></i>Rep leading</span><span><i style="background:var(--R)"></i>Rep won</span><span><i style="background:var(--I)"></i>Ind</span>${ch !== 'house' ? '<span><i style="background:repeating-linear-gradient(45deg,var(--R) 0 4px,rgba(255,255,255,.6) 4px 6px)"></i>Flipped</span>' : '<span>State color: party ahead in most seats</span>'}<span><i style="background:var(--wait)"></i>No results yet</span><span><i style="border:2px dashed var(--muted)"></i>No race</span></div>`;
+    }
+    box.querySelectorAll('path[data-st]').forEach(p => {
+      const f = stateFill(p.dataset.st, ch);
+      p.setAttribute('class', f ? '' : 'norace'); p.style.fill = f || '';
+    });
+  }
+
+  function candLines(r, n) {
+    const cs = (r.candidates.length ? r.candidates : r.preCandidates.map(c => ({ ...c, pct: null }))).slice(0, n);
+    return cs.map(c => {
+      const p = pc(c.party), won = r.call && c.name === r.call.candidate;
+      return `<div class="cline"><span>${esc(c.name)}<em>${PNAME[p]}${c.incumbent ? ', inc.' : ''}</em>${won ? '<span class="win">✓</span>' : ''}</span>
+        <span class="pct">${c.pct != null ? `${c.pct}%` : ''}</span>
+        <span class="bar"><i style="width:${c.pct || 0}%;background:var(--${p}${r.call ? '' : 't'})"></i></span></div>`;
+    }).join('');
+  }
+  function raceBadge(r) {
+    if (r.call) { const p = pc(r.call.party); return `<div class="badge ${p}${r.flip ? ' flip' : ''}">${PNAME[p]} win${r.flip ? '<small style="color:#fff">FLIP</small>' : ''}</div>`; }
+    if (r.status === 'runoff') return '<div class="badge">Runoff</div>';
+    if (r.total) return `<div class="badge">${r.pctIn != null ? `${Math.round(r.pctIn)}%` : '–'}<small>${r.pctIn != null ? 'counted' : 'counting'}</small></div>`;
+    return '<div class="badge">No votes<small>yet</small></div>';
+  }
+  const raceRow = r => `<div class="row" style="border-left-color:var(--${pc(r.call?.party || r.leader)})">
+      <div class="nm">${esc(shortName(r))}<small>${esc(r.chamber === 'house' ? r.stateName : r.chamber === 'senate' ? 'Senate' : 'Governor')}${r.holder?.party ? ` · held by ${r.holder.party}${r.holder.open ? ', open' : ''}` : ''}</small></div>
+      <div class="cands">${candLines(r, 2)}</div>${raceBadge(r)}</div>`;
+
+  function renderClose(box) {
+    box.dataset.mode = 'close';
+    let rs, title, sub;
+    if (anyResults()) {
+      rs = (S.data.races).filter(isClose).sort((a, b) => (a.chamber === 'house') - (b.chamber === 'house') || a.margin - b.margin).slice(0, 6);
+      title = 'CLOSEST RACES'; sub = `Uncalled, within ${CLOSE_PTS} points`;
+      if (!rs.length) {
+        rs = S.data.races.filter(r => !r.call && r.total > 0).sort((a, b) => (a.chamber === 'house') - (b.chamber === 'house') || a.margin - b.margin).slice(0, 6);
+        sub = 'Uncalled races, tightest first';
+      }
+    } else {
+      // Before results: page through every contested Senate and governor race, six per visit
+      const all = S.data.races.filter(r => r.chamber !== 'house' && r.preCandidates.length >= 2 && new Set(r.preCandidates.slice(0, 2).map(c => c.party)).size === 2)
+        .sort((a, b) => (a.chamber === 'governor') - (b.chamber === 'governor') || a.stateName.localeCompare(b.stateName));
+      const pages = Math.max(1, Math.ceil(all.length / 6));
+      const pg = (S.watchPage ?? 0) % pages;
+      rs = all.slice(pg * 6, pg * 6 + 6);
+      title = 'RACES TO WATCH'; sub = `Results start after polls close · ${pg + 1} of ${pages}`;
+    }
+    box.innerHTML = `<div class="stitle"><h2>${title}</h2><span>${esc(sub)}</span></div>` +
+      (rs.length ? `<div class="rows">${rs.map(raceRow).join('')}</div>` : '<div class="empty">Every race with votes counted has been called.</div>');
+  }
+  function renderFlips(box) {
+    box.dataset.mode = 'flips';
+    const rs = flipList().sort((a, b) => !!b.call - !!a.call || (a.chamber === 'house') - (b.chamber === 'house') || (b.call?.at || 0) - (a.call?.at || 0)).slice(0, 6);
+    const s = S.data.summary || {};
+    const n = k => ['house', 'senate', 'governor'].reduce((t, ch) => t + (s[ch]?.flips?.[k] || 0), 0);
+    box.innerHTML = `<div class="stitle"><h2>FLIPS</h2><span>Seats changing hands · called so far: ${n('toD')} to Dem, ${n('toR')} to Rep</span></div><div class="rows">${rs.map(raceRow).join('')}</div>`;
+  }
+  const isYes = n => /^(yes|bonds? ?[–-] ?yes)/i.test(n), isNo = n => /^(no|bonds? ?[–-] ?no)/i.test(n);
+  function renderOC(box) {
+    box.dataset.mode = 'oc';
+    const L = S.local, cs = ocList();
+    const rank = c => c.call ? 1 : 0;
+    const pick = cs.slice().sort((a, b) => rank(a) - rank(b) || (a.group === 'county' ? -1 : 0) - (b.group === 'county' ? -1 : 0) || (a.margin ?? 99) - (b.margin ?? 99)).slice(0, 5);
+    const turnout = L?.ballotsCast != null && L.registered ? `${L.ballotsCast.toLocaleString()} ballots counted (${(L.ballotsCast / L.registered * 100).toFixed(1)}% turnout)` : 'OC Registrar of Voters';
+    const color = (c, x) => c.measure ? (isYes(x.name) ? 'var(--yes)' : isNo(x.name) ? 'var(--no)' : 'var(--Ot)') : c.call ? (x.winner ? 'var(--lead)' : 'var(--Ot)') : c.ahead.includes(x.name) ? 'var(--leadt)' : 'var(--Ot)';
+    box.innerHTML = `<div class="stitle"><h2>ORANGE COUNTY</h2><span>${esc(turnout)}</span></div><div class="rows">${pick.map(c => `
+      <div class="row" style="border-left-color:var(--lead)">
+        <div class="nm">${esc(c.measure ? c.office : c.place)}<small>${esc(c.measure ? 'Local measure' : c.office)}${c.voteFor > 1 ? ` · top ${c.voteFor} win` : ''}</small></div>
+        <div class="cands">${c.candidates.slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).slice(0, Math.max(2, Math.min(c.voteFor || 1, 3))).map(x => `<div class="cline"><span>${esc(x.name)}${x.winner ? '<span class="win">✓</span>' : ''}</span><span class="pct">${x.pct != null ? `${x.pct}%` : ''}</span><span class="bar"><i style="width:${x.pct || 0}%;background:${color(c, x)}"></i></span></div>`).join('')}</div>
+        ${c.call ? '<div class="badge L">Called</div>' : `<div class="badge">${c.pctIn != null ? `${Math.round(c.pctIn)}%` : '–'}<small>counted</small></div>`}
+      </div>`).join('')}</div>`;
+  }
+  function renderDots() {
+    const lbl = { senate: 'Senate', house: 'House', governor: 'Governors', close: anyResults() ? 'Closest' : 'To watch', flips: 'Flips', oc: 'Orange County' };
+    $('dots').innerHTML = S.scenes.map((s, i) => `<span class="${i === S.idx ? 'on' : ''}">${lbl[s]}</span>`).join('') + (S.paused ? '<span class="paused">Paused</span>' : '');
+  }
+
+  /* ── side column: balance of power + latest calls ── */
+  function renderSide() {
+    const cur = S.scenes[S.idx];
+    $('bals').innerHTML = ['senate', 'house', 'governor'].map(ch => {
+      const s = S.data?.summary?.[ch];
+      if (!s) return `<div class="bal" style="margin-bottom:12px"><h3>${CH[ch]}</h3><div class="nums"><span class="big">–</span></div></div>`;
+      const T = s.total, w = n => `${(n / T * 100).toFixed(2)}%`, seg = (n, c) => n ? `<i style="width:${w(n)};background:${c}"></i>` : '';
+      const note = ch === 'senate' ? 'R control at 50' : ch === 'governor' ? `${s.up} up` : `${s.majority} to win`;
+      return `<div class="bal${cur === ch ? ' on' : ''}" style="margin-bottom:12px">
+        <h3>${CH[ch]}<small>${note}${s.waiting ? ` · ${s.waiting} not reporting` : ''}</small></h3>
+        <div class="nums"><span class="big D">${s.seats.D}<small>Dem${s.seats.I ? ` +${s.seats.I} Ind` : ''}</small></span><span class="big R"><small>Rep</small>${s.seats.R}</span></div>
+        <div class="bbar">${seg(s.seats.D, 'var(--D)')}${seg(s.seats.I, 'var(--I)')}${seg(s.leading.D, 'var(--Dt)')}${seg(s.leading.I, 'var(--It)')}<i class="gap"></i>${seg(s.leading.O + s.seats.O, 'var(--Ot)')}${seg(s.leading.R, 'var(--Rt)')}${seg(s.seats.R, 'var(--R)')}<span class="tick" style="left:${w(s.majority)}"></span></div>
+        <div class="bsub"><span>${s.leading.D + s.leading.I ? `Leading ${s.leading.D + s.leading.I}` : ''}</span><span>${s.leading.R ? `Leading ${s.leading.R}` : ''}</span></div>
+      </div>`;
+    }).join('');
+    const items = S.feed.slice(0, 4);
+    $('calls').innerHTML = items.length ? items.map(x => {
+      const r = S.byId.get(x.race_id), oc = x.race_id.startsWith('OC-'), p = pc(x.party);
+      if (x.kind === 'retract') return `<div class="call x" style="border-left-color:var(--muted)"><span class="t">${fmtT(x.at)}</span><span>Call withdrawn: ${esc(oc ? x.name : r ? shortName(r) : x.race_id)}<small>${esc(x.source || '')}</small></span></div>`;
+      if (oc) { const w = String(x.candidate || '').split(' | ').filter(Boolean); return `<div class="call" style="border-left-color:var(--lead)"><span class="t">${fmtT(x.at)}</span><span>${esc(w.map(last).join(', '))} ${w.length > 1 ? 'win' : 'wins'}<small>${esc(x.name || '')} · ${esc(x.source || '')}</small></span></div>`; }
+      return `<div class="call" style="border-left-color:var(--${p})"><span class="t">${fmtT(x.at)}</span><span><b>${esc(last(x.candidate) || PNAME[p])}</b> (${p}) wins ${esc(r ? shortName(r) : x.race_id)}${x.flip ? ' · <b>FLIP</b>' : ''}<small>Called by ${esc(x.source || '')}</small></span></div>`;
+    }).join('') : `<div class="call" style="border-left-color:var(--muted)"><span class="t"></span><span>Race calls appear here the moment they're made.</span></div>`;
+  }
+
+  /* ── ticker ── */
+  function renderTicker() {
+    if (!S.data) return;
+    let parts;
+    if (!anyResults()) {
+      const d = new Date(S.data.resultsStart);
+      parts = [`Polls begin closing at <b>3 p.m. PT</b> (6 p.m. ET)`, `California polls close at <b>8 p.m. PT</b>`,
+        `All 435 House seats, 35 Senate races and 36 governor's races on the ballot`,
+        `Vote counts from state election offices refresh about every 10 minutes`, `Follow <b>@OC_Scanner</b> for every call`];
+      if (isNaN(d)) parts.splice(0, 1);
+    } else {
+      const called = S.data.races.filter(r => r.call).sort((a, b) => (b.call.at || 0) - (a.call.at || 0)).slice(0, 18)
+        .map(r => `<b style="color:var(--${pc(r.call.party)})">${esc(shortName(r))}</b> ${esc(last(r.call.candidate) || PNAME[r.call.party])} (${pc(r.call.party)}) wins${r.flip ? ' · FLIP' : ''}`);
+      const counting = S.data.races.filter(r => !r.call && r.total && r.chamber !== 'house').sort((a, b) => (a.margin ?? 99) - (b.margin ?? 99)).slice(0, 12)
+        .map(r => `<b>${esc(shortName(r))}</b> ${esc(last(r.candidates[0]?.name))} (${pc(r.candidates[0]?.party)}) +${r.margin}, ${r.pctIn ?? '?'}% in`);
+      parts = [...called, ...counting];
+      if (!parts.length) parts = ['Counting under way'];
+    }
+    const html = parts.join('<span class="sep">◆</span>') + '<span class="sep">◆</span>';
+    if (html === S.tickerKey) return;
+    S.tickerKey = html;
+    const el = $('tk');
+    el.innerHTML = html + html;   // doubled so the crawl loops seamlessly
+    el.getAnimations().forEach(a => a.cancel());
+    requestAnimationFrame(() => {
+      const w = el.scrollWidth / 2;
+      el.animate([{ transform: 'translateX(0)' }, { transform: `translateX(-${w}px)` }], { duration: w / 110 * 1000, iterations: Infinity });
+    });
+  }
+
+  /* ── status + clock ── */
+  function renderStatus() {
+    $('updated').textContent = S.error ? S.error : S.lastOk ? `Pacific · updated ${fmtT(S.lastOk)}` : 'Connecting…';
+    $('src').textContent = SIM ? 'REHEARSAL DATA · made-up numbers for testing, not real results'
+      : 'Unofficial results · Vote counts from state election offices · Calls by OC Scanner';
+  }
+  function tick() { $('clock').textContent = new Date().toLocaleTimeString('en-US', { ...PT, hour: 'numeric', minute: '2-digit', second: '2-digit' }); }
+  setInterval(tick, 1000); tick();
+
+  /* ── keys (OBS: Interact) ── */
+  addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') go(S.idx + 1);
+    else if (e.key === 'ArrowLeft') go(S.idx - 1);
+    else if (e.key === ' ') { e.preventDefault(); S.paused = !S.paused; S.sceneAt = Date.now(); renderDots(); }
+    else if (/^[1-9]$/.test(e.key) && +e.key <= S.scenes.length) go(+e.key - 1);
+  });
+
+  buildScenes(); renderScene(); loadShapes(); load();
+  setInterval(load, REFRESH * 1000);
+})();
+</script>
+</body>
+</html>

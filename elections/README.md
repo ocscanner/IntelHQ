@@ -207,6 +207,37 @@ here, copy them to the PublicSiteTest repo's `elections/` folder too**: `board.j
 `data/us-states.json` and `data/counties/`. If the site moves somewhere other than ocscanner.github.io or
 ocscanner.news, add that address to `ALLOWED_ORIGINS` in `wrangler.toml`.
 
+## Streaming the board on X (broadcast mode)
+
+`elections/broadcast.html` is a 1920×1080 results screen made for a livestream. It needs no sign-in and
+reads the same data as the public board.
+
+- It rotates every 22 seconds through Senate map, closest races, House map, governors map, flips, and
+  Orange County. Flips and Orange County only appear once there's something to show.
+- The right side always shows the balance of power for all three chambers and the latest calls.
+- When you publish a call, a full-width "RACE CALL" banner appears on the stream for about 9 seconds
+  (within about 30 seconds of the call).
+- The bottom ticker crawls called races and the closest uncalled Senate and governor races. Before
+  results, it shows poll-closing times, and the closest-races screen pages through every race to watch.
+
+**OBS setup:** Sources → + → **Browser** → URL `https://ocscanner.github.io/IntelHQ/elections/broadcast.html`,
+width 1920, height 1080. In Settings → Video set both resolutions to 1920×1080. Paste the RTMP URL and
+stream key from X Live Studio (x.com/i/live-studio) into Settings → Stream.
+
+**Options** (add to the URL):
+
+| Option | What it does |
+|---|---|
+| `?sim=1` | Rehearsal data; every screen is labeled REHEARSAL (use it for a private test stream) |
+| `?secs=30` | Seconds per screen (default 22) |
+| `?scenes=senate,close,house` | Which screens, in order: `senate`, `house`, `governor`, `close`, `flips`, `oc` |
+
+**Steering it live:** in OBS, right-click the source → **Interact**. → and ← change screens, Space pauses
+on the current screen, and 1–6 jump to a screen.
+
+If you host the page anywhere other than ocscanner.github.io or ocscanner.news, add that address to
+`ALLOWED_ORIGINS` in `worker/wrangler.toml`.
+
 ## Updating the race list
 
 Candidates and seat holders are in `data/src/house.txt`, `senate.txt` and `governor.txt`
