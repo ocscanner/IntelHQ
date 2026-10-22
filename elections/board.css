@@ -165,6 +165,9 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
   .eb-sub{font-size:.76rem;margin-top:5px}
   .eb-sub span:nth-child(2):not(:last-child){display:none}
   .eb-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .eb-chambers{overflow:visible}
+  .eb-chambers button{padding:8px 4px;min-width:0}
+  .eb-chambers button span{display:none}
   .eb-seg button{white-space:nowrap;padding:6px 10px}
   .eb-status{gap:8px 12px}
   .eb-feeds{position:static}
