@@ -24,7 +24,15 @@
     get(k, d) { try { const v = localStorage.getItem('eb-' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('eb-' + k, JSON.stringify(v)); } catch {} },
   };
-  const last = name => { const parts = String(name || '').split(/\s+/).filter(p => !SUFFIX.test(p)); return parts[parts.length - 1] || name || ''; };
+  // Last name, keeping particles: "Steven Von Der Porten" → "Von Der Porten", "Jenny Rae Le Roux" → "Le Roux"
+  const PARTICLE = /^(van|von|der|den|de|del|della|la|le|da|di|du|st\.?)$/i;
+  const last = name => {
+    const parts = String(name || '').replace(/"[^"]*"/g, ' ').split(/\s+/).filter(p => p && !SUFFIX.test(p));
+    if (!parts.length) return name || '';
+    let i = parts.length - 1;
+    while (i > 1 && PARTICLE.test(parts[i - 1])) i--;
+    return parts.slice(i).join(' ');
+  };
   const fmtN = n => n == null ? '–' : Number(n).toLocaleString();
   const fmtT = ts => { if (!ts) return ''; const d = new Date(ts); return isNaN(d) ? String(ts) : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
   const fmtHM = ts => { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); };
