@@ -33,7 +33,7 @@ const IDS = new Set(universe.races.map(r => r.id));
 const LOCAL_IDS = new Set(OC_LOCAL.contests.map(c => `OC-${c.id}`));
 const isLocalId = id => LOCAL_IDS.has(id) || /^OC-\d{4}$/.test(id);       // measures appear only on election night
 // States whose free files include county-by-county counts (see feeds/states.js)
-const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'UT', 'VA']);
+const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'PA', 'UT', 'VA']);
 const countiesOn = env => /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
 const CACHE_SECONDS = 60;
 const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T22:00:00Z');

@@ -7,8 +7,10 @@ election offices about every 10 minutes.
 
 It also has:
 
-- **County maps.** On the Senate and Governors tabs, select a state to see its counties, colored by
-  who's ahead (stronger color = wider lead). "← All states" goes back.
+- **Zoom into a state.** Select a state and the US map zooms into it and draws its counties. On the
+  Senate and Governors tabs the counties are colored by who's ahead (stronger color = wider lead); on the
+  House tab the state's races are listed below. Switching tabs keeps you on the same state; select a
+  neighboring state to jump there; "← US map" (or Esc) zooms back out. On phones, tap a county for its numbers.
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,
   77 city races in 31 cities, 47 school and college board races, 12 water and special districts,
   14 state legislative races (OC votes only), and local measures once the Registrar posts them.
@@ -53,7 +55,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 15 states, below | Free |
+| **State election offices** | 17 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -68,6 +70,8 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | CO, IA | Nov 3 not listed yet; their 2024 and 2026 primary files match the board |
 | WA | Nov 3 export not posted yet; the 2024 file matches the board |
 | UT, ID | Not opened yet (Chrome blocked the sites). Same system as AZ and GA; check with the preview tool |
+| PA | Nov 3 feed already posted in test mode (governor, all 17 House seats, by county) |
+| OH | Nov 3 contest API already serving practice numbers (governor, Senate special, all 15 House seats) |
 | TX | **Not found.** Texas's results system has nothing after 2024, and its 2026 primaries weren't posted there. Shows "not posted" until Texas publishes; enter key Texas races at the desk |
 
 Check again with the preview tool on Nov 2 or the morning of Nov 3.
@@ -87,10 +91,12 @@ County counts come from the same state offices, from their county-by-county file
 | NC | `precinct_0.txt`: every statewide contest by county |
 | MN | `allracesbycounty.txt` |
 | CO, IA | Clarity `detailxml.zip` |
+| PA | The Department of State's "Results by Office" election feed (every race by county, one download) |
 | GA, VA, AZ, ID, UT | Enhanced Voting "results by county" for each Senate or governor race |
 
-Texas, Nebraska and South Dakota don't publish a free county file, and states with no feed at all
-have none either. Their county maps say so (AP would fill them in if you license it).
+Texas, Nebraska, South Dakota and Ohio don't publish a free county file (Ohio's statewide numbers are
+on the board), Nevada's results site blocks automated downloads, Michigan posts no election-night file,
+and states with no feed at all have none either. Their county maps say so (AP would fill them in if you license it).
 
 **County downloads are off until you switch on Workers Paid.** The county files are large (Georgia's
 is about 2.5 MB per race), more than the free plan's 10 ms of computing time per run can read. When
@@ -237,6 +243,12 @@ on the current screen, and 1–6 jump to a screen.
 
 If you host the page anywhere other than ocscanner.github.io or ocscanner.news, add that address to
 `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
+
+## Candidate names
+
+Every race has its candidates loaded ahead of time, so names show before any results arrive and the desk
+call buttons name each candidate: all 435 House races (nominees from the 2026 House elections tables after
+the primaries, third-party candidates included), 35 Senate, 36 governor and 152 Orange County races.
 
 ## Updating the race list
 

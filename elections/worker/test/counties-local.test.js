@@ -58,7 +58,8 @@ test('county names: every spelling lands on the census county', () => {
 test('county files cover every state with every county', () => {
   const ga = JSON.parse(readFileSync(new URL('../../data/counties/GA.json', import.meta.url)));
   assert.equal(Object.keys(ga.counties).length, 159);
-  assert.match(ga.viewBox, /^-?\d+ -?\d+ \d+ \d+$/);
+  assert.equal(ga.bbox.length, 4);
+  assert.ok(ga.bbox[0] > 600 && ga.bbox[2] < 800, 'Georgia sits in the southeast of the 960×600 US map');
   for (const st of ['AK', 'HI', 'CA', 'TX', 'VA', 'RI']) assert.ok(Object.keys(JSON.parse(readFileSync(new URL(`../../data/counties/${st}.json`, import.meta.url))).counties).length > 1, st);
 });
 
@@ -250,4 +251,40 @@ test('rehearsal: county and local practice numbers', () => {
   assert.ok(late.contests.length > OC.contests.length);
   assert.ok(late.contests.every(x => x.candidates.every(y => y.votes >= 0)));
   assert.equal(simulateLocal(OC, 1 * 60000, 90).contests.length, 0, 'nothing before polls close in the cycle');
+});
+
+test('Pennsylvania: the "by office" feed gives statewide totals, House races and counties', async () => {
+  const row = (county, name, party, total) => `<tr><td>${county}</td><td>${name}</td><td>${party}</td><td style="text-align:right;">1</td><td style="text-align:right;">1</td><td style="text-align:right;">0</td><td style="text-align:right;">${total}</td><td style="text-align:right;">50.00</td></tr>`;
+  const item = (title, rows) => `<item>\r\n      <title>${title}</title>\r\n      <description><![CDATA[<table><tr style="background-color:#b0c4de;"><td><b>County</b></td><td><b>Candidate Name</b></td><td><b>Party</b></td><td><b>Election Day Votes</b></td><td><b>Mail Votes</b></td><td><b>Provisional Votes</b></td><td><b>Total Votes</b></td><td><b>% of Vote</b></td></tr>${rows.join('')}</table>]]></description>\r\n    </item>`;
+  const xml = `<rss version="2.0">\r\n  <channel>\r\n    <title>Results organized by office and vote totals for the 2026 General Election  2,212 Out of 9,066 Districts (24.40%)  - IN PERSON BALLOT REPORTING ONLY (Unofficial)</title>\r\n    ${[
+    item('Governor', [row('ADAMS', 'JOSH SHAPIRO', 'DEM', '120'), row('ALLEGHENY', 'JOSH SHAPIRO', 'DEM', '2,656'), row('ADAMS', 'STACY GARRITY', 'REP', '300'), row('ALLEGHENY', 'STACY GARRITY', 'REP', '1,000')]),
+    item('Representative in Congress (8th Congressional District)', [row('LUZERNE', 'PAIGE COGNETTI', 'DEM', '959'), row('LUZERNE', 'ROB BRESNAHAN JR', 'REP', '1,440')]),
+    item('Senator in the General Assembly (2nd Senatorial District)', [row('PHILADELPHIA', 'SOMEONE', 'DEM', '5')]),
+  ].join('\r\n')}\r\n  </channel>\r\n</rss>`;
+  const out = await run('PA', { 'https://www.electionreturns.pa.gov/electionFeed.aspx?ID=83': xml });
+  assert.equal(out.units[0].status, 'ok', out.units[0].error);
+  const gov = out.results.find(r => r.raceId === 'PA-GOV').payload;
+  assert.deepEqual(gov.candidates.map(c => [c.name, c.votes]), [['Josh Shapiro', 2776], ['Stacy Garrity', 1300]]);
+  assert.equal(gov.pctIn, 24.4);
+  assert.equal(out.results.find(r => r.raceId === 'PA-08').payload.candidates[0].name, 'Rob Bresnahan');
+  assert.equal(out.results.length, 2, 'state legislature skipped');
+  const c = cty(out, 'PA-GOV');
+  assert.equal(c.counties['42001'].v[c.cands.findIndex(x => x.name === 'Stacy Garrity')], 300);
+  assert.equal(out.counties.length, 1, 'counties only for statewide races');
+  const page = await run('PA', { 'https://www.electionreturns.pa.gov/electionFeed.aspx?ID=83': '<html><body>Request unsuccessful. Incapsula incident</body></html>' });
+  assert.equal(page.units[0].status, 'error');
+});
+
+test('Ohio: governor, Senate special and House districts from the contest API', async () => {
+  const api = n => `https://liveresults.ohiosos.gov/Api/v1/Contest/GetContestDetailsObject?contestName=${encodeURIComponent(n)}&resultsLevel=&countyId=`;
+  const cand = (n, p, v) => ({ primaryCandidate: n, candidateParty: p, vCount: v, isWriteIn: false });
+  const out = await run('OH', {
+    [api('Governor and Lieutenant Governor')]: JSON.stringify({ contestList: [{ name: 'Governor and Lieutenant Governor', reportedPrecincts: 50, totalPrecincts: 100, candidatesRunning: [cand('Vivek Ramaswamy', 'R', 600), cand('Amy Acton', 'D', 500)] }] }),
+    [api('U.S. Senator')]: JSON.stringify({ contestList: [{ name: 'U.S. Senator', reportedPrecincts: 50, totalPrecincts: 100, candidatesRunning: [cand('Sherrod Brown', 'D', 550), cand('Jon Husted', 'R', 540), { primaryCandidate: 'Write-in', isWriteIn: true, vCount: 3 }] }] }),
+    [api('Representative to Congress')]: JSON.stringify({ contestList: [{ name: 'Representative to Congress - District 09', reportedPrecincts: 10, totalPrecincts: 40, candidatesRunning: [cand('Marcy Kaptur', 'D', 90), cand('Derek Merrin', 'R', 95)] }] }),
+  });
+  assert.equal(out.units[0].status, 'ok', out.units[0].error);
+  const ids = out.results.map(r => r.raceId).sort();
+  assert.ok(ids.includes('OH-GOV') && ids.includes('OH-09') && ids.some(i => i.startsWith('OH-SEN')), ids.join());
+  assert.equal(out.results.find(r => r.raceId === 'OH-09').payload.pctIn, 25);
 });

@@ -406,6 +406,65 @@ add({
   }],
 });
 
+/* Pennsylvania: the Department of State's media feed "Results by Office" — every race, row by county */
+export function parsePAFeed(xml, c) {
+  const head = xml.slice(0, 1500);
+  const pm = head.match(/([\d,]+) Out of ([\d,]+) Districts/i);
+  const pctIn = pm ? pctFromUnits(toNum(pm[1]), toNum(pm[2])) : null;
+  const rows = [];
+  for (const m of xml.matchAll(/<item>\s*<title>([^<]*)<\/title>\s*<description>([\s\S]*?)<\/description>/g)) {
+    const raceId = raceIdFor(m[1].replace(/&amp;/g, '&'), 'PA', c.ids);
+    if (!raceId) continue;
+    for (const tr of m[2].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)) {
+      const cells = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(x => x[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim());
+      if (cells.length < 7 || /^county$/i.test(cells[0])) continue;
+      rows.push({ raceId, county: cells[0], fips: countyFips('PA', cells[0]), name: cells[1], party: cells[2], votes: cells[6] });
+    }
+  }
+  return { rows, pctIn };
+}
+add({
+  st: 'PA', label: 'Pennsylvania Department of State', confidence: 'verified', format: 'Election feed (RSS, by county)',
+  units: [{
+    id: 'PA', requests: 1,
+    async run(c) {
+      const xml = await c.text('https://www.electionreturns.pa.gov/electionFeed.aspx?ID=83', { conditional: true, allow404: true });
+      if (xml === undefined) return { notPosted: true };
+      if (xml === null) return { unchanged: true };
+      if (!/<rss\b/i.test(xml.slice(0, 500))) throw new Error('Feed answered with a web page, not the results feed (bot check?)');
+      if (!/2026 General/i.test(xml.slice(0, 1500))) return { notPosted: true };
+      const { rows, pctIn } = parsePAFeed(xml, c);
+      const out = { results: collect('PA', c, rows, { pctOf: () => pctIn, pctLabel: 'voting districts statewide' }) };
+      if (c.countiesOn) out.counties = collectCounties(c, rows);
+      return out;
+    },
+  }],
+});
+
+/* Ohio: "Ohio Decides" contest API — governor, U.S. Senate and all House districts (3 downloads) */
+add({
+  st: 'OH', label: 'Ohio Secretary of State', confidence: 'verified', format: 'Ohio Decides JSON',
+  units: [{
+    id: 'OH', requests: 3,
+    async run(c) {
+      const rows = [];
+      let any = false;
+      for (const name of ['Governor and Lieutenant Governor', 'U.S. Senator', 'Representative to Congress']) {
+        const j = await c.json(`https://liveresults.ohiosos.gov/Api/v1/Contest/GetContestDetailsObject?contestName=${encodeURIComponent(name)}&resultsLevel=&countyId=`, { allow404: true });
+        for (const k of j?.contestList || []) {
+          any = true;
+          for (const cand of k.candidatesRunning || []) {
+            if (cand.isWriteIn) continue;
+            rows.push({ contest: k.name, name: cand.primaryCandidate, party: cand.candidateParty, votes: cand.vCount ?? cand.voteCount, rep: k.reportedPrecincts, tot: k.totalPrecincts });
+          }
+        }
+      }
+      if (!any) return { notPosted: true };
+      return { results: collect('OH', c, rows) };
+    },
+  }],
+});
+
 /* Orange County Registrar: local contests (city councils, schools, districts, measures) */
 add(ocLocalAdapter);
 

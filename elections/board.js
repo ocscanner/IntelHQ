@@ -64,7 +64,7 @@
       sim: opts.publicMode ? false : qs.get('sim') === '1' ? true : store.get('sim', !!opts.sim),
       chamber: /^OC-/i.test(qs.get('race') || '') ? 'local' : store.get('chamber', 'senate'),
       group: 'all', local: null, localById: new Map(),
-      countyView: null, countyData: null, cshapes: new Map(),
+      zoomSt: null, vb: null, countyData: null, cshapes: new Map(),
       filter: 'all', sort: 'close', stateFilter: null, q: '', limit: 60,
       selected: qs.get('race') || null,
       watch: new Set(store.get('watch', [])),
@@ -106,18 +106,23 @@
 
     /* ── events ── */
     root.addEventListener('click', e => {
-      const t = e.target.closest('button, [data-race], path[data-st]');
+      const t = e.target.closest('button, [data-race], path[data-st], path[data-fips]');
       if (!t || !root.contains(t)) return;
       if (t.dataset.chamber) {
-        S.chamber = t.dataset.chamber; store.set('chamber', S.chamber); S.stateFilter = null; S.limit = 60; S.countyView = null; S.countyData = null;
+        S.chamber = t.dataset.chamber; store.set('chamber', S.chamber); S.limit = 60; S.countyData = null;
+        // Stay zoomed on the same state when switching between House, Senate and Governors
+        S.stateFilter = S.chamber === 'house' ? S.zoomSt : null;
         if (S.chamber === 'local' && !S.local) loadLocal();
-        renderAll(); return;
+        renderAll();
+        if (S.zoomSt && S.chamber !== 'local') loadCounties().then(() => renderMap());
+        return;
       }
       if (t.dataset.group) { S.group = t.dataset.group; S.limit = 60; renderMap(); renderList(); return; }
-      if (t.dataset.back != null) { S.countyView = null; S.countyData = null; renderMap(true); return; }
+      if (t.dataset.back != null) { unzoom(); return; }
+      if (t.dataset.fips) { showTip(e, countySummary(t.dataset.fips)); return; }
       if (t.dataset.filter) { S.filter = t.dataset.filter; S.limit = 60; renderTools(); renderList(); return; }
       if (t.dataset.sort) { S.sort = t.dataset.sort; renderTools(); renderList(); return; }
-      if (t.dataset.clearstate != null) { S.stateFilter = null; renderTools(); renderList(); renderMap(); return; }
+      if (t.dataset.clearstate != null) { if (S.zoomSt) unzoom(); else { S.stateFilter = null; renderTools(); renderList(); renderMap(); } return; }
       if (t.dataset.st) { selectState(t.dataset.st); return; }
       if (t.dataset.star) { e.stopPropagation(); toggleWatch(t.dataset.star); return; }
       if (t.dataset.more != null) { S.limit += 100; renderList(); return; }
@@ -135,9 +140,21 @@
       tip.hidden = false; tip.textContent = p.dataset.st ? stateSummary(p.dataset.st) : countySummary(p.dataset.fips);
       tip.style.left = `${e.clientX - rect.left}px`; tip.style.top = `${e.clientY - rect.top}px`;
     });
-    $('map').addEventListener('mouseleave', () => { const tip = $('map').querySelector('.eb-tip'); if (tip) tip.hidden = true; });
+    // Phones send a "mouse left" right after a tap; keep a tapped county's numbers showing
+    let lastTouch = 0;
+    $('map').addEventListener('touchstart', () => { lastTouch = Date.now(); }, { passive: true });
+    $('map').addEventListener('mouseleave', () => { if (Date.now() - lastTouch < 1500) return; const tip = $('map').querySelector('.eb-tip'); if (tip) tip.hidden = true; });
+    // Taps on phones don't hover, so a tap on a county shows its numbers
+    function showTip(e, text) {
+      const box = $('map'), tip = box.querySelector('.eb-tip');
+      if (!tip) return;
+      const rect = box.getBoundingClientRect();
+      tip.hidden = false; tip.textContent = text;
+      tip.style.left = `${e.clientX - rect.left}px`; tip.style.top = `${e.clientY - rect.top}px`;
+    }
     root.addEventListener('keydown', e => {
       if (e.key === 'Escape' && S.sheetOpen) { S.sheetOpen = false; renderDetail(); }
+      else if (e.key === 'Escape' && S.zoomSt && S.chamber !== 'local') unzoom();
       const row = e.target.closest?.('.eb-row');
       if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(row.dataset.race); }
     });
@@ -163,7 +180,7 @@
       }
       S.loading = false;
       renderAll();
-      if (S.countyView) { await loadCounties(); renderMap(); }
+      if (S.zoomSt && S.chamber !== 'house' && S.chamber !== 'local') { await loadCounties(); renderMap(); }
     }
     /* Orange County tab: only downloaded while it's open (or a local race is starred) */
     const needLocal = () => S.chamber === 'local' || [...S.watch].some(id => id.startsWith('OC-'));
@@ -172,13 +189,60 @@
     async function loadLocal() { const l = await fetchLocal(); if (l) { setLocal(l); renderAll(); } }
     const raceOf = id => S.byId?.get(id) || S.localById.get(id);
 
-    /* County drill-down for Senate and governor races */
-    async function openCounty(st, raceId) {
-      if (S.countyView?.raceId === raceId) return;
-      S.countyView = { st, raceId }; S.countyData = null;
-      renderMap(true);
-      await Promise.all([loadCountyShapes(st), loadCounties()]);
-      renderMap(true);
+    /* Zoom: clicking a state animates the national map into that state and draws its counties */
+    const FULL_VB = () => String(S.shapes?.viewBox || '0 0 960 600').split(/\s+/).map(Number);
+    function zoomRace() {
+      if (!S.zoomSt || S.chamber === 'house' || S.chamber === 'local') return null;
+      const sel = S.byId?.get(S.selected);
+      if (sel && sel.state === S.zoomSt && sel.chamber === S.chamber) return sel;
+      return (S.data?.races || []).find(r => r.state === S.zoomSt && r.chamber === S.chamber) || null;
+    }
+    async function zoomTo(st) {
+      if (S.zoomSt !== st) S.countyData = null;
+      S.zoomSt = st;
+      renderMap();
+      await loadCountyShapes(st);
+      if (S.zoomSt !== st) return;
+      renderMap();
+      animateTo(targetVB());
+      await loadCounties();
+      if (S.zoomSt === st) renderMap();
+    }
+    function unzoom() {
+      S.zoomSt = null; S.countyData = null;
+      if (S.chamber === 'house') S.stateFilter = null;
+      renderTools(); renderList(); renderMap();
+      animateTo(FULL_VB());
+    }
+    function targetVB() {
+      const shp = S.zoomSt && S.cshapes.get(S.zoomSt);
+      if (!shp) return FULL_VB();
+      const [, , fw, fh] = FULL_VB();
+      let [x0, y0, x1, y1] = shp.bbox;
+      let w = x1 - x0, h = y1 - y0;
+      const pad = Math.max(w, h) * 0.07 + 3;
+      x0 -= pad; y0 -= pad; w += pad * 2; h += pad * 2;
+      const aspect = fw / fh;                         // keep the map's own shape so nothing stretches
+      if (w / h > aspect) { const nh = w / aspect; y0 -= (nh - h) / 2; h = nh; }
+      else { const nw = h * aspect; x0 -= (nw - w) / 2; w = nw; }
+      return [x0, y0, w, h];
+    }
+    let anim = 0;
+    function animateTo(to) {
+      const svg = $('map').querySelector('svg.eb-us');
+      if (!svg) { S.vb = to; return; }
+      const from = S.vb || FULL_VB();
+      cancelAnimationFrame(anim);
+      const dur = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650;
+      const t0 = performance.now();
+      const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const step = now => {
+        const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = ease(k);
+        S.vb = from.map((v, i) => v + (to[i] - v) * e);
+        svg.setAttribute('viewBox', S.vb.map(v => v.toFixed(2)).join(' '));
+        if (k < 1) anim = requestAnimationFrame(step);
+      };
+      anim = requestAnimationFrame(step);
     }
     async function loadCountyShapes(st) {
       if (S.cshapes.has(st)) return;
@@ -186,12 +250,12 @@
       catch { S.cshapes.set(st, null); }
     }
     async function loadCounties() {
-      const v = S.countyView;
-      if (!v) return;
+      const race = zoomRace();
+      if (!race) { S.countyData = null; return; }
       try {
-        const d = await fetch(`${S.api}/v1/counties?race=${v.raceId}&sim=${S.sim ? 1 : 0}`, { cache: 'no-store' }).then(r => r.json());
-        if (S.countyView === v) S.countyData = d;
-      } catch { if (S.countyView === v) S.countyData = { available: false, reason: 'County results didn’t load. The board will try again on the next refresh.' }; }
+        const d = await fetch(`${S.api}/v1/counties?race=${race.id}&sim=${S.sim ? 1 : 0}`, { cache: 'no-store' }).then(r => r.json());
+        if (zoomRace()?.id === race.id) S.countyData = { ...d, raceId: race.id };
+      } catch { if (zoomRace()?.id === race.id) S.countyData = { raceId: race.id, available: false, reason: 'County results didn’t load. The board will try again on the next refresh.' }; }
     }
     async function loadShapes() {
       try { S.shapes = await fetch(S.shapesUrl).then(r => r.json()); }
@@ -341,7 +405,6 @@
     }
     function renderMap(rebuild) {
       if (S.chamber === 'local') return renderLocalPanel();
-      if (S.countyView && S.chamber !== 'house') return renderCountyMap(rebuild);
       const box = $('map');
       if (!S.shapes) { if (rebuild) { box.innerHTML = '<div class="eb-empty">The map didn’t load. Races are still listed below.</div>'; box.dataset.mode = ''; } return; }
       if (rebuild || box.dataset.mode !== 'us') {
@@ -349,20 +412,70 @@
         const stripes = p => `<pattern id="eb-flip-${p}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" style="fill:var(--${p})"/><rect width="2.4" height="7" fill="rgba(255,255,255,.55)"/></pattern>`;
         const paths = Object.entries(S.shapes.shapes).map(([st, s]) => `<path data-st="${st}" d="${s.d}" tabindex="-1"><title>${st}</title></path>`).join('');
         const labels = Object.entries(S.shapes.shapes).filter(([st]) => !SMALL.has(st)).map(([st, s]) => `<text x="${s.c[0]}" y="${s.c[1]}">${st}</text>`).join('');
-        box.innerHTML = `<svg viewBox="${S.shapes.viewBox}" role="img" aria-label="Results map by state"><defs>${['D', 'R', 'I', 'O'].map(stripes).join('')}</defs><g>${paths}</g><g>${labels}</g></svg><div class="eb-tip" hidden></div>`;
+        box.innerHTML = `<div class="eb-cbar" data-r="cbar" hidden></div>
+          <svg class="eb-us" viewBox="${(S.vb || FULL_VB()).join(' ')}" role="img" aria-label="Results map"><defs>${['D', 'R', 'I', 'O'].map(stripes).join('')}</defs>
+            <g class="eb-states">${paths}</g><g class="eb-counties" data-r="counties"></g><path class="eb-outline" data-r="outline" d=""></path><g class="eb-labels">${labels}</g></svg>
+          <div class="eb-cnote" data-r="cnote" hidden></div><div class="eb-tip" hidden></div>`;
       }
+      const z = S.zoomSt;
+      box.querySelector('svg').classList.toggle('zoomed', !!z);
       box.querySelectorAll('path[data-st]').forEach(p => {
         const st = p.dataset.st; const f = stateFill(st);
-        p.setAttribute('class', [f.cls, S.stateFilter === st ? 'sel' : '', S.stateFilter && S.stateFilter !== st ? 'dim' : ''].filter(Boolean).join(' '));
+        const dim = z ? st !== z : S.stateFilter && S.stateFilter !== st;
+        p.setAttribute('class', [f.cls, S.stateFilter === st && !z ? 'sel' : '', st === z ? 'focus' : '', dim ? 'dim' : ''].filter(Boolean).join(' '));
         p.style.fill = f.fill || '';
-        p.querySelector('title').textContent = stateSummary(st);
+        p.querySelector('title').textContent = z && st !== z ? `${stateName(st)}: select to zoom here` : stateSummary(st);
       });
-      $('key').innerHTML = `${S.chamber !== 'house' ? '<span class="eb-hint">Select a state to see its counties.</span>' : ''}<span><i style="background:var(--D)"></i>Dem won</span><span><i style="background:var(--Dt)"></i>Dem leading</span><span><i style="background:var(--Rt)"></i>Rep leading</span><span><i style="background:var(--R)"></i>Rep won</span><span><i style="background:var(--I)"></i>Ind</span>${S.chamber !== 'house' ? '<span><i style="background:url(#)" class="kflip"></i>Striped: flipped seat</span>' : '<span>State color: party ahead in most seats</span>'}<span><i style="background:var(--eb-wait)"></i>No results yet</span><span><i style="border:1px dashed var(--eb-muted)"></i>No race</span>`;
+
+      // counties of the zoomed state
+      const g = box.querySelector('[data-r="counties"]');
+      const shp = z && S.cshapes.get(z);
+      if (!shp) { g.innerHTML = ''; g.dataset.st = ''; }
+      else if (g.dataset.st !== z) {
+        g.innerHTML = Object.entries(shp.counties).map(([f, c]) => `<path data-fips="${f}" d="${c.d}"><title>${esc(c.n)}</title></path>`).join('');
+        g.dataset.st = z;
+      }
+      box.querySelector('[data-r="outline"]').setAttribute('d', z ? S.shapes.shapes[z]?.d || '' : '');
+      const race = zoomRace();
+      const d = race && S.countyData?.raceId === race.id ? S.countyData : null;
+      const has = !!(d?.available && d.counties && Object.values(d.counties).some(c => c.v.some(x => x > 0)));
+      g.querySelectorAll('path').forEach(p => {
+        p.style.fill = has ? countyFill(p.dataset.fips) : 'transparent';
+        p.querySelector('title').textContent = countySummary(p.dataset.fips);
+      });
+
+      // header bar, note and key
+      const bar = box.querySelector('[data-r="cbar"]');
+      bar.hidden = !z;
+      if (z) {
+        const word = { senate: 'Senate', governor: 'governor’s', house: 'House' }[S.chamber];
+        const title = race ? `${race.name} by county` : S.chamber === 'house' ? `${stateName(z)} House races` : `${stateName(z)}: no ${word} race this year`;
+        bar.innerHTML = `<button type="button" class="eb-back" data-back>← US map</button><b>${esc(title)}</b>${race ? '<button type="button" class="eb-back eb-narrow" data-act="opensheet">Race details</button>' : ''}`;
+      }
+      let note = '';
+      if (z && race) {
+        if (shp === undefined) note = 'Loading counties…';
+        else if (shp === null) note = 'The county map didn’t load.';
+        else if (!d) note = 'Loading county results…';
+        else if (!d.available) note = S.pub && d.off ? 'County-by-county results aren’t available for this race yet.' : S.pub ? 'County-by-county results aren’t available for this state.' : d.reason || 'No county results for this race.';
+        else if (!has) note = S.sim ? 'Rehearsal counties fill in as the practice count starts.' : 'County results appear here once counting starts.';
+      }
+      const n = box.querySelector('[data-r="cnote"]');
+      n.hidden = !note; n.textContent = note;
+
+      if (z && race) {
+        $('key').innerHTML = has
+          ? `${d.cands.slice(0, 4).map((c, i) => `<span><i style="background:${countyColor(i)}"></i>${esc(last(c.name))} ahead</span>`).join('')}<span>Stronger color = wider lead</span><span><i style="background:var(--eb-wait)"></i>No votes yet</span>${d.simulation ? '<span><b>Rehearsal data</b></span>' : ''}`
+          : '<span>Counties are colored by who’s ahead; the stronger the color, the wider the lead.</span>';
+        return;
+      }
+      if (z && S.chamber === 'house') { $('key').innerHTML = '<span>House results are by district, so counties stay uncolored here. This state’s races are listed below.</span>'; return; }
+      $('key').innerHTML = `<span class="eb-hint">${z ? 'Select another state to zoom there.' : 'Select a state to zoom in to its counties.'}</span><span><i style="background:var(--D)"></i>Dem won</span><span><i style="background:var(--Dt)"></i>Dem leading</span><span><i style="background:var(--Rt)"></i>Rep leading</span><span><i style="background:var(--R)"></i>Rep won</span><span><i style="background:var(--I)"></i>Ind</span>${S.chamber !== 'house' ? '<span><i style="background:url(#)" class="kflip"></i>Striped: flipped seat</span>' : '<span>State color: party ahead in most seats</span>'}<span><i style="background:var(--eb-wait)"></i>No results yet</span><span><i style="border:1px dashed var(--eb-muted)"></i>No race</span>`;
       const k = $('key').querySelector('.kflip');
       if (k) k.style.background = 'repeating-linear-gradient(45deg,var(--R) 0 3px,rgba(255,255,255,.6) 3px 5px)';
     }
 
-    /* county map */
+    /* county colors */
     function countyColor(i) {
       const cands = S.countyData?.cands || [];
       const p = cands[i]?.party;
@@ -380,38 +493,14 @@
       return `color-mix(in srgb, ${countyColor(order[0][1])} ${strength}%, var(--eb-bg2))`;
     }
     function countySummary(fips) {
-      const name = S.cshapes.get(S.countyView?.st)?.counties?.[fips]?.n || fips;
-      const d = S.countyData, c = d?.counties?.[fips];
+      const name = S.cshapes.get(S.zoomSt)?.counties?.[fips]?.n || fips;
+      const race = zoomRace();
+      const d = race && S.countyData?.raceId === race.id ? S.countyData : null, c = d?.counties?.[fips];
       const tot = c ? c.v.reduce((a, b) => a + b, 0) : 0;
-      if (!tot) return `${name}: no votes counted yet`;
+      if (!tot) return race ? `${name}: no votes counted yet` : name;
       const parts = c.v.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).slice(0, 3)
         .map(([v, i]) => `${last(d.cands[i].name)} ${(v / tot * 100).toFixed(1)}%`);
       return `${name}: ${parts.join(', ')}${c.pct != null ? ` (${Math.round(c.pct)}% in)` : ''}`;
-    }
-    function renderCountyMap(rebuild) {
-      const box = $('map');
-      const v = S.countyView, r = S.byId?.get(v.raceId), shp = S.cshapes.get(v.st);
-      const bar = `<div class="eb-cbar"><button type="button" class="eb-back" data-back>← All states</button><b>${esc(r?.name || v.st)} by county</b><button type="button" class="eb-back eb-narrow" data-act="opensheet">Race details</button></div>`;
-      if (shp === undefined) { box.innerHTML = `${bar}<div class="eb-empty">Loading counties…</div>`; box.dataset.mode = ''; return; }
-      if (shp === null) { box.innerHTML = `${bar}<div class="eb-empty">The county map didn’t load.</div>`; box.dataset.mode = ''; return; }
-      const mode = `county:${v.raceId}`;
-      if (rebuild || box.dataset.mode !== mode) {
-        box.dataset.mode = mode;
-        const paths = Object.entries(shp.counties).map(([f, c]) => `<path data-fips="${f}" d="${c.d}"><title>${esc(c.n)}</title></path>`).join('');
-        box.innerHTML = `${bar}<svg class="eb-cmap" viewBox="${shp.viewBox}" role="img" aria-label="${esc(r?.name || '')} results by county"><g>${paths}</g></svg><div class="eb-cnote" data-r="cnote" hidden></div><div class="eb-tip" hidden></div>`;
-      }
-      box.querySelectorAll('path[data-fips]').forEach(p => { p.style.fill = countyFill(p.dataset.fips); p.querySelector('title').textContent = countySummary(p.dataset.fips); });
-      const d = S.countyData;
-      const has = d?.counties && Object.values(d.counties).some(c => c.v.some(x => x > 0));
-      let note = '';
-      if (!d) note = 'Loading county results…';
-      else if (!d.available) note = S.pub && d.off ? 'County-by-county results aren’t available for this race yet.' : S.pub ? 'County-by-county results aren’t available for this state.' : d.reason || 'No county results for this race.';
-      else if (!has) note = S.sim ? 'Rehearsal counties fill in as the fake count starts.' : 'County results appear here once counting starts.';
-      const n = box.querySelector('[data-r="cnote"]');
-      n.hidden = !note; n.textContent = note;
-      $('key').innerHTML = has
-        ? `${d.cands.slice(0, 4).map((c, i) => `<span><i style="background:${countyColor(i)}"></i>${esc(last(c.name))} ahead</span>`).join('')}<span>Stronger color = wider lead</span><span><i style="background:var(--eb-wait)"></i>No votes yet</span>${d.simulation ? '<span><b>Rehearsal data</b></span>' : ''}`
-        : '<span>Counties are colored by who’s ahead; the stronger the color, the wider the lead.</span>';
     }
 
     /* Orange County panel (in place of the map) */
@@ -439,10 +528,9 @@
     }
 
     function selectState(st) {
-      if (!(S.data?.races || []).some(r => r.state === st && r.chamber === S.chamber)) return;
-      if (S.chamber !== 'house') { const r = S.data.races.find(x => x.state === st && x.chamber === S.chamber); select(r.id, { sheet: false }); return; }
-      S.stateFilter = S.stateFilter === st ? null : st; S.limit = 60;
-      renderTools(); renderMap(); renderList();
+      if (S.chamber === 'house') { S.stateFilter = st; S.limit = 60; renderTools(); renderList(); zoomTo(st); return; }
+      const r = (S.data?.races || []).find(x => x.state === st && x.chamber === S.chamber);
+      if (r) select(r.id, { sheet: false }); else zoomTo(st);
     }
 
     /* list */
@@ -687,8 +775,11 @@
       // On narrow screens the race opens as a sheet; a tap on the map shows the county map first instead
       S.sheetOpen = sheet && window.matchMedia('(max-width:1100px)').matches;
       renderList(); renderDetail();
-      // Senate and governor races open their county map
-      if (r && r.chamber !== 'house' && r.chamber === S.chamber) openCounty(r.state, r.id);
+      // Senate and governor races zoom the map into their state's counties
+      if (r && r.chamber !== 'house' && r.chamber === S.chamber) {
+        if (S.zoomSt === r.state) { if (S.countyData?.raceId !== r.id) { S.countyData = null; renderMap(); loadCounties().then(() => renderMap()); } }
+        else zoomTo(r.state);
+      }
     }
     function toggleWatch(id) {
       S.watch.has(id) ? S.watch.delete(id) : S.watch.add(id);

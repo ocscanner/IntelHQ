@@ -1,13 +1,13 @@
 // Builds the county map shapes and the county-name lookup the Worker uses.
 // Run: cd elections/tools && npm install && node build-counties.mjs
 // Outputs:
-//   elections/data/counties/XX.json        one file per state: {viewBox, counties:{fips:{n,d}}}
+//   elections/data/counties/XX.json        one file per state: {bbox, counties:{fips:{n,d}}}, in the US map's coordinates
 //   elections/worker/src/county-fips.json  {XX: {nameKey: fips}} for matching state files' county names
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { geoAlbersUsa, geoConicEqualArea, geoPath } from 'd3-geo';
+import { geoAlbersUsa, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,31 +29,29 @@ const topo = JSON.parse(readFileSync(join(here, 'node_modules/us-atlas/counties-
 const counties = feature(topo, topo.objects.counties).features;
 const states = feature(topo, topo.objects.states).features;
 
-const W = 600, H = 420;
+// Counties use the national map's own projection (same as us-states.json), so the board can zoom the
+// US map straight into a state. Small states keep an extra decimal so they stay crisp when zoomed.
+const proj = geoAlbersUsa().scale(1280).translate([480, 300]);
+const path = geoPath(proj);
 const names = {};
 let total = 0, bytes = 0;
 for (const sf of states) {
   const st = FIPS[sf.id];
   if (!st) continue;
-  // Alaska crosses the date line; give it its own conic projection. Everything else fits fine in Albers USA.
-  const proj = st === 'AK'
-    ? geoConicEqualArea().rotate([154, 0]).center([0, 62]).parallels([55, 65]).fitSize([W, H], sf)
-    : st === 'HI'
-      ? geoConicEqualArea().rotate([157, 0]).center([0, 20.5]).parallels([19, 22]).fitSize([W, H], sf)
-      : geoAlbersUsa().fitSize([W, H], sf);
-  const path = geoPath(proj);
+  const [[x0, y0], [x1, y1]] = path.bounds(sf);
+  const size = Math.max(x1 - x0, y1 - y0);
+  const re = size < 60 ? /(\d+\.\d{3})\d+/g : size < 160 ? /(\d+\.\d{2})\d+/g : /(\d+\.\d)\d+/g;
   const out = {};
   names[st] = {};
   for (const f of counties.filter(c => c.id.slice(0, 2) === sf.id)) {
     const d = path(f);
     if (!d) continue;
-    out[f.id] = { n: f.properties.name + (isIndepCity(f.id) ? ' (city)' : ''), d: d.replace(/(\d+\.\d)\d+/g, '$1') };
+    out[f.id] = { n: f.properties.name + (isIndepCity(f.id) ? ' (city)' : ''), d: d.replace(re, '$1') };
     names[st][countyKey(f.properties.name, isIndepCity(f.id))] = f.id;
     total++;
   }
-  const [[x0, y0], [x1, y1]] = path.bounds(sf);
-  const pad = 6;
-  const json = JSON.stringify({ st, viewBox: `${Math.floor(x0 - pad)} ${Math.floor(y0 - pad)} ${Math.ceil(x1 - x0 + pad * 2)} ${Math.ceil(y1 - y0 + pad * 2)}`, counties: out });
+  const r = v => Math.round(v * 10) / 10;
+  const json = JSON.stringify({ st, bbox: [r(x0), r(y0), r(x1), r(y1)], counties: out });
   writeFileSync(join(outDir, `${st}.json`), json);
   bytes += json.length;
 }

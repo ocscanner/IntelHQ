@@ -59,7 +59,7 @@ html[data-theme="light"] .eb{--D:#1f5fd6;--R:#d63339;--I:#7c4dd6;--O:#6b7780;--D
 .eb-chambers button{flex:1;padding:9px 12px;font-family:var(--eb-fh);font-size:1.05rem;font-weight:700;letter-spacing:.02em}
 .eb-chambers button b{font-weight:inherit}.eb-chambers .ts{display:none}
 .eb-narrow{display:none}
-.eb-cbar .eb-narrow{margin-left:auto}
+.eb-map .eb-cbar .eb-narrow{margin-left:auto}
 .eb-chambers button span{font-family:var(--eb-fu);font-weight:500;font-size:.85rem;color:var(--eb-muted);margin-left:6px}
 .eb-chambers button[aria-pressed="true"] span{color:inherit;opacity:.75}
 
@@ -91,14 +91,21 @@ html[data-theme="light"] .eb{--D:#1f5fd6;--R:#d63339;--I:#7c4dd6;--O:#6b7780;--D
 .eb-map text{font-family:var(--eb-fu);font-size:11px;font-weight:600;fill:#fff;pointer-events:none;text-anchor:middle;dominant-baseline:middle;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:2px}
 html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-tip{position:absolute;pointer-events:none;background:var(--eb-card);border:1px solid var(--eb-line2);border-radius:6px;padding:6px 9px;font-size:.85rem;white-space:nowrap;transform:translate(-50%,-115%);z-index:3;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-/* County drill-down */
-.eb-cbar{display:flex;align-items:center;gap:10px;padding:4px 4px 2px;font-family:var(--eb-fh);font-size:1.05rem}
-.eb-back{background:none;border:1px solid var(--eb-line2);border-radius:6px;padding:3px 10px;color:var(--eb-text2);font-family:var(--eb-fu);font-weight:600;font-size:.9rem}
+/* Zoom into a state */
+.eb-map svg.eb-us path{vector-effect:non-scaling-stroke}
+.eb-map svg.eb-us .eb-states path{transition:opacity .35s}
+.eb-map svg.zoomed .eb-states path.dim{opacity:.16}
+.eb-map svg.zoomed .eb-labels{display:none}
+.eb-counties path{stroke:var(--eb-bg2);stroke-width:.6px;cursor:default}
+.eb-counties path:hover{stroke:var(--eb-sel);stroke-width:1.6px}
+.eb-map svg.zoomed .eb-states path.focus{stroke:none}
+.eb-outline{fill:none;stroke:var(--eb-text2);stroke-width:1.3px;pointer-events:none}
+.eb-map .eb-cbar{position:absolute;z-index:2;left:8px;right:8px;top:8px;display:flex;align-items:center;gap:10px;font-family:var(--eb-fh);font-size:1.05rem;pointer-events:none}
+.eb-map .eb-cbar > *{pointer-events:auto}
+.eb-map .eb-cbar b{background:color-mix(in srgb,var(--eb-bg2) 82%,transparent);padding:2px 8px;border-radius:6px}
+.eb-back{background:var(--eb-bg2);border:1px solid var(--eb-line2);border-radius:6px;padding:4px 11px;color:var(--eb-text);font-family:var(--eb-fu);font-weight:600;font-size:.9rem;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .eb-back:hover{border-color:var(--eb-text2)}
-.eb-map svg.eb-cmap{max-height:520px}
-.eb-map svg.eb-cmap path{stroke:var(--eb-bg2);stroke-width:.6;cursor:default;vector-effect:non-scaling-stroke}
-.eb-map svg.eb-cmap path:hover{stroke:var(--eb-sel);stroke-width:1.6}
-.eb-cnote{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:80%;text-align:center;background:var(--eb-card);border:1px solid var(--eb-line2);border-radius:8px;padding:9px 14px;color:var(--eb-text2);font-size:.92rem;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.eb-cnote{position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);max-width:80%;text-align:center;background:var(--eb-card);border:1px solid var(--eb-line2);border-radius:8px;padding:9px 14px;color:var(--eb-text2);font-size:.92rem;box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none}
 .eb-hint{color:var(--eb-text2)}
 /* Orange County panel */
 .eb-local{padding:10px 8px 6px}
@@ -208,5 +215,8 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
   .eb-row .barcell{grid-column:2/-1;grid-row:2}
   .eb-row .pin{display:none}
   .eb-map text{display:none}
+  .eb-map .eb-cbar{position:static;margin:2px 0 6px;font-size:.95rem;flex-wrap:wrap;gap:6px}
+  .eb-map .eb-cbar b{background:none;padding:0}
+  .eb-back{padding:3px 9px;font-size:.85rem}
 }
 @media (prefers-reduced-motion:reduce){.eb *{animation:none!important;transition:none!important}}

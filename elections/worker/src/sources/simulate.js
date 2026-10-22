@@ -18,7 +18,8 @@ export function simulate(races, now, cycleMinutes = 90) {
       { name: `${r.holder.party === 'R' ? 'Republican' : 'Democratic'} candidate`, party: r.holder.party || 'D' },
       { name: `${r.holder.party === 'R' ? 'Democratic' : 'Republican'} candidate`, party: r.holder.party === 'R' ? 'D' : 'R' },
     ];
-    const competitive = r.candidates.length > 0;
+    // About one race in six is a toss-up; the rest lean toward the party holding the seat
+    const competitive = r.chamber !== 'house' ? r.candidates.length > 0 : hash(r.id + 'c') < 0.17;
     const lean = (r.holder.party === 'R' ? -1 : 1) * (competitive ? (h2 - 0.45) * 14 : 18 + h2 * 20); // D margin in pts
     const drift = Math.sin(progress * 3 + h * 6) * (competitive ? 4 : 2) * (1 - progress);
     const dShare = Math.max(5, Math.min(95, 50 + (lean + drift) / 2));
