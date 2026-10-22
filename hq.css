@@ -257,6 +257,9 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .wxs .wl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--fu);margin-top:2px}
 .rdrwrap{width:100%;height:360px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000}
 .rdrwrap iframe{width:100%;height:100%;border:0}
+/* SoCal radar (wx-radar.html) gets a full-width row; tall enough for its control rail */
+.rdrwrap.wxr{height:min(78vh,720px);min-height:560px}
+@media(max-width:820px){.rdrwrap.wxr{height:640px}}
 .frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:11px}
 .fcd{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 7px;text-align:center}
 .fcd .fn{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;font-family:var(--fu)}

@@ -10,6 +10,9 @@ function toggleTheme(){
   else { html.setAttribute('data-theme','light'); localStorage.setItem('ocs-theme','light'); }
   const btn = document.getElementById('theme-toggle');
   if (btn) btn.textContent = isLight ? '🌙' : '☀';
+  // The radar frame reads the theme when it loads, so reload it to match
+  const wxr = document.getElementById('wx-radar-frame');
+  if (wxr && wxr.src) wxr.src = wxr.src;
 }
 // Set correct icon on load
 document.addEventListener('DOMContentLoaded', () => {
@@ -351,9 +354,9 @@ function wxSetLocation(lat, lon, name){
   WX_LAT = lat; WX_LON = lon; WX_NAME = name;
   const nameEl = document.getElementById('wx-loc-name');
   if (nameEl) nameEl.textContent = name;
-  // Re-point the Windy radar embed
+  // Re-center the SoCal radar (wx-radar.html) on the new location
   const frame = document.getElementById('wx-radar-frame');
-  if (frame) frame.src = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=7&overlay=radar&product=radar&level=surface&lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}&detailLat=${lat.toFixed(2)}&detailLon=${lon.toFixed(2)}&marker=true&message=true`;
+  if (frame) frame.src = `wx-radar.html?embed=1&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&z=8`;
   loadWeather();
 }
 
