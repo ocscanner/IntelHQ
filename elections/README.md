@@ -79,7 +79,8 @@ Cloudflare's free plan allows 100,000 requests a day **per account** (shared wit
 
 Cloudflare builds and deploys the `oc-election-wire` Worker automatically whenever the
 `election-board` branch changes (Workers & Pages → oc-election-wire → Settings → Builds,
-root directory `/elections/worker`). After merging the branch into `main`, change that
+root directory `/elections/worker`, deploy command `npx wrangler deploy -c wrangler.toml`; the `-c`
+matters, because without it Cloudflare picks up the IntelHQ site's own settings file instead). After merging the branch into `main`, change that
 Worker's production branch to `main`.
 
 ## One-time setup (about 15 minutes)
