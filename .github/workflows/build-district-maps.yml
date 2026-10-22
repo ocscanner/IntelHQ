@@ -1,0 +1,47 @@
+# Builds the election board's House district maps (elections/data/districts/) from the Census Bureau's
+# 2026 (120th Congress) districts and saves them to the repo. Run it from Actions → "Build district maps"
+# → Run workflow whenever a state's map changes. It also runs when the build script changes.
+name: Build district maps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - elections/tools/build-districts.mjs
+      - .github/workflows/build-district-maps.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-district-maps
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install map tools
+        working-directory: elections/tools
+        run: npm install --no-audit --no-fund
+      - name: Download and build district maps
+        working-directory: elections/tools
+        run: node build-districts.mjs
+      - name: Save the maps to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add elections/data/districts
+          if git diff --cached --quiet; then
+            echo "District maps unchanged."
+          else
+            git commit -m "Election board: update House district maps (Census 120th Congress)"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
