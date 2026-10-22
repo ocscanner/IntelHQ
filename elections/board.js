@@ -63,6 +63,9 @@
       <div class="eb-status" data-r="status"></div>
       <div data-r="banner"></div>
       <div class="eb-strip" data-r="strip"></div>
+      <div class="eb-seg eb-chambers" role="tablist" aria-label="Which races to show">
+        ${CHAMBERS.map(([ch, label]) => `<button type="button" role="tab" data-chamber="${ch}">${label} <span data-r="n-${ch}"></span></button>`).join('')}
+      </div>
       <div class="eb-tools">
         <div class="eb-seg" data-r="filters" role="group" aria-label="Show races">
           ${[['all', 'All'], ['close', 'Close'], ['flips', 'Flips'], ['called', 'Called'], ['uncalled', 'Not called'], ['watch', 'Watching']].map(([k, l]) => `<button type="button" data-filter="${k}">${l}</button>`).join('')}
@@ -232,6 +235,8 @@
     }
 
     function renderTools() {
+      root.querySelectorAll('.eb-chambers [data-chamber]').forEach(b => { b.setAttribute('aria-pressed', b.dataset.chamber === S.chamber); b.setAttribute('aria-selected', b.dataset.chamber === S.chamber); });
+      for (const [ch] of CHAMBERS) { const n = S.data?.summary?.[ch]?.up; const el = $(`n-${ch}`); if (el) el.textContent = n ? `${n} races` : ''; }
       root.querySelectorAll('[data-filter]').forEach(b => b.setAttribute('aria-pressed', b.dataset.filter === S.filter));
       root.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === S.sort));
       $('chip').innerHTML = S.stateFilter ? `<button type="button" class="eb-chip" data-clearstate aria-label="Show all states">${esc(stateName(S.stateFilter))}<span aria-hidden="true">×</span></button>` : '';

@@ -52,6 +52,12 @@ html[data-theme="light"] .eb{--D:#1f5fd6;--R:#d63339;--I:#7c4dd6;--O:#6b7780;--D
 .eb-sub{display:flex;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--eb-muted);margin-top:7px}
 .eb-sub b{color:var(--eb-text2);font-weight:600}
 
+/* Chamber tabs */
+.eb-chambers{display:flex;width:100%;margin-bottom:12px}
+.eb-chambers button{flex:1;padding:9px 12px;font-family:var(--eb-fh);font-size:1.05rem;font-weight:700;letter-spacing:.02em}
+.eb-chambers button span{font-family:var(--eb-fu);font-weight:500;font-size:.85rem;color:var(--eb-muted);margin-left:6px}
+.eb-chambers button[aria-pressed="true"] span{color:inherit;opacity:.75}
+
 /* Toolbar */
 .eb-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .eb-seg{display:inline-flex;border:1px solid var(--eb-line2);border-radius:7px;overflow:hidden}
