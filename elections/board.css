@@ -98,6 +98,10 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-map svg.zoomed .eb-labels{display:none}
 .eb-counties path{stroke:var(--eb-bg2);stroke-width:.6px;cursor:default}
 .eb-counties path:hover{stroke:var(--eb-sel);stroke-width:1.6px}
+.eb-districts path{stroke:var(--eb-bg2);stroke-width:.8px;cursor:pointer}
+.eb-districts path:hover{stroke:var(--eb-sel);stroke-width:1.8px}
+.eb-districts path.sel{stroke:var(--eb-sel);stroke-width:2.6px}
+.eb-map svg:not(.zoomed) .eb-dlabels{display:none}
 .eb-map svg.zoomed .eb-states path.focus{stroke:none}
 .eb-outline{fill:none;stroke:var(--eb-text2);stroke-width:1.3px;pointer-events:none}
 .eb-map .eb-cbar{position:absolute;z-index:2;left:8px;right:8px;top:8px;display:flex;align-items:center;gap:10px;font-family:var(--eb-fh);font-size:1.05rem;pointer-events:none}

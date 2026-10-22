@@ -7,10 +7,12 @@ election offices about every 10 minutes.
 
 It also has:
 
-- **Zoom into a state.** Select a state and the US map zooms into it and draws its counties. On the
-  Senate and Governors tabs the counties are colored by who's ahead (stronger color = wider lead); on the
-  House tab the state's races are listed below. Switching tabs keeps you on the same state; select a
-  neighboring state to jump there; "← US map" (or Esc) zooms back out. On phones, tap a county for its numbers.
+- **Zoom into a state.** Select a state and the US map zooms into it. On the Senate and Governors tabs
+  it draws the state's counties, colored by who's ahead (stronger color = wider lead). On the House tab
+  it draws the state's congressional districts, using the new 2026 lines, each colored like the US map
+  (won, leading, striped for a flip) and numbered. Select a district for its race; selecting a House race
+  in the list also zooms to its district. Switching tabs keeps you on the same state; select a neighboring
+  state to jump there; "← US map" (or Esc) zooms back out. On phones, tap a county or district for its numbers.
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,
   77 city races in 31 cities, 47 school and college board races, 12 water and special districts,
   14 state legislative races (OC votes only), and local measures once the Registrar posts them.
@@ -29,11 +31,15 @@ elections/
   data/races-2026.json    every race: seat holder and named candidates
   data/us-states.json     state shapes for the map
   data/counties/XX.json   county shapes, one small file per state (loaded when you open a state)
+  data/districts/XX.json  2026 House district shapes, one file per state (loaded when you open a state on the House tab)
   data/oc-local-2026.json Orange County local contests and candidates
   data/src/oc-local.txt   the OC list it's built from (Registrar's candidate list, Aug 28)
   data/src/*.txt          the race lists the JSON is built from
   tools/build-data.mjs    rebuilds the race list and state shapes
   tools/build-counties.mjs  rebuilds the county shapes and county-name lookup
+  tools/build-districts.mjs rebuilds the district shapes from the Census Bureau's 2026 (120th Congress) map.
+                            GitHub runs it: Actions → "Build district maps" → Run workflow. Rerun it if a
+                            court changes a state's map; it keeps the old file for any state that fails.
   tools/build-local.mjs   rebuilds the Orange County list
   worker/                 the "oc-election-wire" Cloudflare Worker that collects results
 ```
@@ -210,7 +216,7 @@ Your IntelHQ calls, county maps and the Orange County tab all appear there withi
 
 It uses copies of this folder's files, so **when `board.js`, `board.css` or anything in `data/` changes
 here, copy them to the PublicSiteTest repo's `elections/` folder too**: `board.js`, `board.css`,
-`data/us-states.json` and `data/counties/`. If the site moves somewhere other than ocscanner.github.io or
+`data/us-states.json`, `data/counties/` and `data/districts/`. If the site moves somewhere other than ocscanner.github.io or
 ocscanner.news, add that address to `ALLOWED_ORIGINS` in `wrangler.toml`.
 
 ## Streaming the board on X (broadcast mode)
