@@ -46,19 +46,18 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 When two sources cover a race, numbers come from AP first, then the state, then what you typed in.
 
-| State | Office | How sure the file location is |
-|---|---|---|
-| CA | Secretary of State (governor + all 52 House districts) | Confirmed |
-| NE | Secretary of State | Confirmed |
-| WA | Secretary of State (House only; no Senate or governor race this year) | Confirmed pattern |
-| GA, UT | Enhanced Voting results API | Found working by another project on Oct 18 |
-| CO, IA | Clarity results files | Found working by another project on Oct 18 |
-| NC, TX, FL, MN, SD | Each state's own file | Found working by another project on Oct 18 |
-| AZ, VA, ID | Enhanced Voting, same platform as GA | **Best guess.** Check with the preview tool below |
+| State | What was found when the real files were checked (Oct 21) |
+|---|---|
+| FL, NC, MN, NE, SD | **Nov 3 files already posted** and match the board. Minnesota's and California's currently hold practice numbers |
+| CA | Live and serving practice numbers (Hilton "leading" at 100% reporting); held off the board until Nov 3 |
+| AZ, VA | Nov 3 election listed on the Enhanced Voting system; race data matches the board |
+| GA | Same system; Nov 3 not listed yet. The board looks it up every run until it appears |
+| CO, IA | Nov 3 not listed yet; their 2024 and 2026 primary files match the board |
+| WA | Nov 3 export not posted yet; the 2024 file matches the board |
+| UT, ID | Not opened yet (Chrome blocked the sites). Same system as AZ and GA; check with the preview tool |
+| TX | **Not found.** Texas's results system has nothing after 2024, and its 2026 primaries weren't posted there. Shows "not posted" until Texas publishes; enter key Texas races at the desk |
 
-The formats come from each office's published files, but none of the 15 has been run against a
-real Nov. 3 file yet: those don't exist until each state posts them. **Use the preview tool in the
-days before (and the morning of) Nov 3** to check each one.
+Check again with the preview tool on Nov 2 or the morning of Nov 3.
 
 States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, Wyoming,
 Mississippi and others) fill in only from your desk entries or AP. The full state-by-state

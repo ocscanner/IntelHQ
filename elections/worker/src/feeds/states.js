@@ -3,9 +3,10 @@
 // runs when it is due; results are saved per race, so a unit that fails leaves the last good
 // numbers on the board.
 //
-// confidence: "verified"  = file location confirmed on the state's own site
-//             "reported"  = found by an independent project's Oct 18, 2026 dry run
-//             "inferred"  = same platform as a working state; location not yet confirmed
+// confidence (checked against the live files on Oct 21, 2026):
+//   "verified"           = the state's real files were opened and match this reader
+//   "unverified"         = same platform as a verified state, but not opened yet
+//   "not found for 2026" = Texas: its results system has nothing after 2024 yet
 // Field names come from each office's published formats. State files don't mark winners in a way
 // we use: race calls stay with the desk (or AP, if licensed).
 import { raceIdFor, makeResult, pctFromUnits, isElectionDay, isGeneralName, csvObjects, findCol, unzipEntry } from './util.js';
@@ -64,6 +65,7 @@ function enhanced(st, label, apiBase, jurisdiction, confidence) {
           const contest = textOf(it.name);
           const rs = it.reportingStatus || {};
           for (const o of it.summaryResults?.ballotOptions || []) {
+            if (o.isWriteIn && !o.isQualifiedWriteIn) continue;
             rows.push({ contest, name: textOf(o.name), party: o.party?.abbreviation || textOf(o.party?.name), votes: o.voteCount, rep: rs.reportingUnits, tot: rs.totalUnits });
           }
         }
@@ -156,22 +158,22 @@ add({
     })),
 });
 
-add(enhanced('AZ', 'Arizona Secretary of State', 'https://app.enhancedvoting.com/results/public/api', 'Arizona', 'inferred'));
-add(enhanced('GA', 'Georgia Secretary of State', 'https://results.sos.ga.gov/results/public/api', 'Georgia', 'reported'));
-add(enhanced('UT', 'Utah elections office', 'https://electionresults.utah.gov/results/public/api', 'Utah', 'reported'));
-add(enhanced('VA', 'Virginia Department of Elections', 'https://enr.elections.virginia.gov/results/public/api', 'Virginia', 'inferred'));
-add(enhanced('ID', 'Idaho Secretary of State', 'https://results.voteidaho.gov/results/public/api', 'id', 'inferred'));
-add(clarity('CO', 'Colorado Secretary of State', 'https://results.enr.clarityelections.com/CO/elections.json', 'https://results.enr.clarityelections.com/CO', 'reported'));
-add(clarity('IA', 'Iowa Secretary of State', 'https://electionresults.iowa.gov/IA/elections.json', 'https://electionresults.iowa.gov/IA', 'reported'));
+add(enhanced('AZ', 'Arizona Secretary of State', 'https://app.enhancedvoting.com/results/public/api', 'Arizona', 'verified'));
+add(enhanced('GA', 'Georgia Secretary of State', 'https://results.sos.ga.gov/results/public/api', 'Georgia', 'verified'));
+add(enhanced('UT', 'Utah elections office', 'https://electionresults.utah.gov/results/public/api', 'Utah', 'unverified'));
+add(enhanced('VA', 'Virginia Department of Elections', 'https://enr.elections.virginia.gov/results/public/api', 'Virginia', 'verified'));
+add(enhanced('ID', 'Idaho Secretary of State', 'https://results.voteidaho.gov/results/public/api', 'id', 'unverified'));
+add(clarity('CO', 'Colorado Secretary of State', 'https://results.enr.clarityelections.com/CO/elections.json', 'https://results.enr.clarityelections.com/CO', 'verified'));
+add(clarity('IA', 'Iowa Secretary of State', 'https://electionresults.iowa.gov/IA/elections.json', 'https://electionresults.iowa.gov/IA', 'verified'));
 add(aspxCsv('NE', 'Nebraska Secretary of State', [
   'https://electionresults.nebraska.gov/resultsCSV.aspx?text=All&type=SW&map=CTY',
   'https://electionresults.nebraska.gov/resultsCSV.aspx?text=All&type=CG&map=DIST',
 ], 'verified'));
-add(aspxCsv('SD', 'South Dakota Secretary of State', ['https://electionresults.sd.gov/resultsCSV.aspx?text=All&type=SWR&map=CTY'], 'reported'));
+add(aspxCsv('SD', 'South Dakota Secretary of State', ['https://electionresults.sd.gov/resultsCSV.aspx?text=All&type=SWR&map=CTY'], 'verified'));
 
 /* North Carolina: one JSON file of statewide contest totals */
 add({
-  st: 'NC', label: 'NC State Board of Elections', confidence: 'reported', format: 'ENR JSON',
+  st: 'NC', label: 'NC State Board of Elections', confidence: 'verified', format: 'ENR JSON',
   units: [{
     id: 'NC', requests: 1,
     async run(c) {
@@ -186,7 +188,7 @@ add({
 
 /* Texas: Version.json → election id → Federal.json + StateWide.json */
 add({
-  st: 'TX', label: 'Texas Secretary of State', confidence: 'reported', format: 'ENR JSON',
+  st: 'TX', label: 'Texas Secretary of State', confidence: 'not found for 2026', format: 'ENR JSON',
   units: [{
     id: 'TX', requests: 5,
     async run(c) {
@@ -216,7 +218,7 @@ add({
 
 /* Florida: one tab-separated file, votes by county */
 add({
-  st: 'FL', label: 'Florida Division of Elections', confidence: 'reported', format: 'Election Watch TSV',
+  st: 'FL', label: 'Florida Division of Elections', confidence: 'verified', format: 'Election Watch TSV',
   units: [{
     id: 'FL', requests: 1,
     async run(c) {
@@ -246,7 +248,7 @@ add({
 
 /* Minnesota: semicolon-separated media files; county rows skipped */
 add({
-  st: 'MN', label: 'Minnesota Secretary of State', confidence: 'reported', format: 'Media text files',
+  st: 'MN', label: 'Minnesota Secretary of State', confidence: 'verified', format: 'Media text files',
   units: [{
     id: 'MN', requests: 3,
     async run(c) {
@@ -278,8 +280,8 @@ add({
       if (text === undefined) return { notPosted: true };
       if (text === null) return { unchanged: true };
       const { rows: objs } = csvObjects(text);
-      const districtWide = objs.filter(r => !r.JurisdictionName || r.JurisdictionName === r.Race);
-      const use = districtWide.length ? districtWide : objs;
+      const WIDE = /^(|congressional|federal|united states|state|statewide)$/i;
+      const use = objs.filter(r => WIDE.test((r.JurisdictionName || '').trim()) || r.JurisdictionName === r.Race);
       return { results: collect('WA', c, use.map(r => ({ contest: r.Race, name: r.Candidate, party: r.Party, votes: r.Votes }))) };
     },
   }],

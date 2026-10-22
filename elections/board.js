@@ -167,7 +167,7 @@
           const good = states.filter(s => s.status === 'ok' || s.status === 'partial').length, bad = states.filter(s => s.status === 'error').length;
           const held = states.every(s => s.status === 'waiting');
           const label = held ? `State feeds start ${fmtStart(d.resultsStart)}` : `State feeds: ${good} of ${states.length} reporting${bad ? `, ${bad} failing` : ''}`;
-          const rows = states.map(s => `<li><i class="eb-dot ${dot(s)}"></i><b>${esc(s.name)}</b> ${esc(s.label)}: ${esc(feedWords(s))}${s.confidence !== 'verified' ? ` <em>(${esc(s.confidence)} location)</em>` : ''}</li>`).join('');
+          const rows = states.map(s => `<li><i class="eb-dot ${dot(s)}"></i><b>${esc(s.name)}</b> ${esc(s.label)}: ${esc(feedWords(s))}${s.confidence !== 'verified' ? ` <em>(${esc(s.confidence)})</em>` : ''}</li>`).join('');
           feedHtml += `<details class="eb-feeds"${S.feedsOpen ? ' open' : ''}><summary><i class="eb-dot ${held ? '' : bad ? 'bad' : good ? 'ok' : ''}"></i>${label}</summary><ul>${rows}</ul></details>`;
         }
       }

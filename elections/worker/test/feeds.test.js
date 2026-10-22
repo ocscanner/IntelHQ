@@ -114,7 +114,8 @@ test('Georgia (Enhanced Voting): finds the Nov 3 election and reads every page',
       item('Governor', [['Keisha Lance Bottoms', 'DEM', 450], ['Rick Jackson', 'REP', 650]]),
     ] }),
     [`${api}/elections/Georgia/Gen110326/ballot-items?limit=500&offset=2`]: JSON.stringify({ totalRecordCount: 3, data: [
-      item('US House District 13', [['Everton Blair Jr.', 'DEM', 90]], 10, 20),
+      { ...item('US House District 13', [['Everton Blair Jr.', 'DEM', 90]], 10, 20),
+        summaryResults: { ballotOptions: [{ name: [{ text: 'Everton Blair Jr.' }], party: { abbreviation: 'DEM' }, voteCount: 90 }, { name: [{ text: 'Write-in' }], voteCount: 4, isWriteIn: true, isQualifiedWriteIn: false }] } },
     ] }),
   };
   const out = await run('GA', routes);
@@ -123,6 +124,7 @@ test('Georgia (Enhanced Voting): finds the Nov 3 election and reads every page',
   assert.equal(res(out, 'GA-SEN').pctIn, 25.2);
   assert.equal(res(out, 'GA-GOV').candidates[0].votes, 650);
   assert.equal(res(out, 'GA-13').pctIn, 50);
+  assert.equal(res(out, 'GA-13').candidates.length, 1, 'unqualified write-ins are left out');
 });
 
 test('Enhanced Voting: not posted yet when the election list has no Nov 3 general', async () => {
@@ -225,6 +227,16 @@ test('Washington: congressional CSV with long party names', async () => {
     'Congressional District 3,Marie Gluesenkamp Perez,Prefers Democratic Party,200,50,Clark',
   ].join('\n') });
   assert.deepEqual(res(out, 'WA-03').candidates.map(c => [c.party, c.votes]), [['D', 510], ['R', 490]]);
+});
+
+test('Washington: 2024-style file where district rows are labeled "Congressional"', async () => {
+  const out = await run('WA', { 'https://results.vote.wa.gov/results/20261103/export/20261103_Congressional.csv': [
+    '"Race","Candidate","Party","Votes","PercentageOfTotalVotes","JurisdictionName"',
+    '"Congressional District 1 - U.S. Representative","Suzan DelBene","(Prefers Democratic Party)",227213,63,"Congressional"',
+    '"Congressional District 1 - U.S. Representative","Jeb Brewer","(Prefers Republican Party)",132538,36.75,"Congressional"',
+    '"Congressional District 1 - U.S. Representative","WRITE-IN"," ",907,0.25,"Congressional"',
+  ].join('\n') });
+  assert.deepEqual(res(out, 'WA-01').candidates.map(c => [c.name, c.party]), [['Suzan DelBene', 'D'], ['Jeb Brewer', 'R']]);
 });
 
 test('scheduler: stays inside the download budget, oldest jobs first, and fills the board', async () => {
