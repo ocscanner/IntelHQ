@@ -83,9 +83,8 @@ You need Node.js installed. In a terminal:
 cd elections/worker
 npm install
 npx wrangler login                                  # opens Cloudflare in your browser
-npx wrangler d1 create oc-election-wire             # copy the database_id it prints…
-#   …and paste it into wrangler.toml where it says REPLACE_WITH_ID_FROM_wrangler_d1_create
-npm run db:init                                     # creates the tables
+# The database (oc-election-wire) and its tables already exist; its id is in wrangler.toml.
+# On a new Cloudflare account: npx wrangler d1 create oc-election-wire, put the id in wrangler.toml, then npm run db:init
 npx wrangler secret put DESK_TOKEN                  # make up a long password; this unlocks desk mode
 npm run deploy
 ```

@@ -39,4 +39,4 @@ AP_TEST = "false"
 [[d1_databases]]
 binding = "DB"
 database_name = "oc-election-wire"
-database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
+database_id = "3be6f405-2bff-403d-9d19-d29e49a63862"
