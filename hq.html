@@ -26,9 +26,10 @@
 <!-- Leaflet (maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link rel="stylesheet" href="hq.css">
-<link rel="stylesheet" href="newsroom.css">
-<link rel="stylesheet" href="elections/board.css">
+<!-- Bump ?v= on these six links whenever hq/newsroom/board .js or .css change, so browsers don't run a stale cached copy -->
+<link rel="stylesheet" href="hq.css?v=20261022a">
+<link rel="stylesheet" href="newsroom.css?v=20261022a">
+<link rel="stylesheet" href="elections/board.css?v=20261022a">
 </head>
 <body>
 
@@ -1399,9 +1400,9 @@
   </div>
 </div>
 
-<script src="newsroom.js"></script>
-<script src="hq.js"></script>
-<script src="elections/board.js"></script>
+<script src="newsroom.js?v=20261022a"></script>
+<script src="hq.js?v=20261022a"></script>
+<script src="elections/board.js?v=20261022a"></script>
 <script>
   // Results board: refreshes every 60s, but only while the Politics & Elections tab is open
   (function(){
