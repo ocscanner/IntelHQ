@@ -11,7 +11,7 @@ Setup and election-night instructions are in [`elections/README.md`](elections/R
 ## Storm Index
 
 The **Storm Index** tab (Live Ops) is a live storm map for Orange County, modeled on the Waffle House
-storm center: 17 NWS weather stations colored by wind and humidity (normal, elevated, critical), NWS
+storm center: 17 airport weather stations (Iowa State Mesonet, with NWS as backup) colored by wind and humidity (normal, elevated, critical), NWS
 alert areas for Orange County, active wildfires and perimeters (NIFC WFIGS), and a 50-minute radar loop.
 The tiles along the bottom give an overall county status. The page lives at `conditions/` and the tab
 shows it in a frame; **Full screen** opens it on its own. Every feed is public, so it needs no keys or Worker.

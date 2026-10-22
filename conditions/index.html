@@ -306,7 +306,7 @@ L.tileLayer(`${ESRI}World_${shade}_Gray_Base/MapServer/tile/{z}/{y}/{x}`,{
 }).addTo(map);
 map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
 L.tileLayer(`${ESRI}World_${shade}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,{maxZoom:16, pane:"labels"}).addTo(map);
-map.attributionControl.addAttribution('Radar: Iowa Environmental Mesonet · Alerts &amp; obs: NWS · Fires: NIFC WFIGS');
+map.attributionControl.addAttribution('Radar &amp; obs: Iowa Environmental Mesonet, NWS · Alerts: NWS · Fires: NIFC WFIGS');
 
 const layers = {
   alerts: L.layerGroup().addTo(map),
@@ -344,18 +344,31 @@ $("play").addEventListener("click", () => {
 /* ---------- data ---------- */
 const state = {stations:[], alerts:[], fires:null, perims:[], error:"", updated:null};
 
+// Primary: Iowa Environmental Mesonet current obs (one request, all CA airports, usually < 1 h old).
+// Fallback per station: NWS "latest" (it can lag several hours). Whichever reading is newer wins.
+const kt2mph = v => v == null ? null : v * 1.15078;
+async function loadIEM(){
+  const j = await getJSON("https://mesonet.agron.iastate.edu/api/1/currents.json?network=CA_ASOS");
+  const m = new Map();
+  (j.data||[]).forEach(x => m.set("K"+x.station, {wind:kt2mph(x.sknt), gust:kt2mph(x.gust), dir:x.drct, rh:x.relh, temp:x.tmpf, time:x.utc_valid}));
+  return m;
+}
+async function loadNWS(id){
+  const p = (await getJSON(`https://api.weather.gov/stations/${id}/observations/latest`,{headers:UA_HDR})).properties || {};
+  return {wind:kmh2mph(p.windSpeed?.value), gust:kmh2mph(p.windGust?.value), dir:p.windDirection?.value,
+    rh:p.relativeHumidity?.value, temp:c2f(p.temperature?.value), time:p.timestamp};
+}
 async function loadStations(){
-  const res = await Promise.allSettled(STATIONS.map(([id]) =>
-    getJSON(`https://api.weather.gov/stations/${id}/observations/latest`,{headers:UA_HDR})));
-  return STATIONS.map(([id,name,lat,lon],i) => {
-    const r = res[i];
-    if(r.status !== "fulfilled") return {id,name,lat,lon,ok:false};
-    const p = r.value.properties || {};
-    return {id,name,lat,lon,ok:true,
-      wind: kmh2mph(p.windSpeed?.value), gust: kmh2mph(p.windGust?.value),
-      dir: p.windDirection?.value, rh: p.relativeHumidity?.value,
-      temp: c2f(p.temperature?.value), time: p.timestamp, age: minsAgo(p.timestamp)};
-  });
+  const iem = await loadIEM().catch(() => new Map());
+  return Promise.all(STATIONS.map(async ([id,name,lat,lon]) => {
+    let ob = iem.get(id);
+    if(!ob || minsAgo(ob.time) > 75){
+      const nws = await loadNWS(id).catch(() => null);
+      if(nws && nws.time && (!ob || new Date(nws.time) > new Date(ob.time))) ob = nws;
+    }
+    if(!ob || !ob.time) return {id,name,lat,lon,ok:false};
+    return {id,name,lat,lon,ok:true, ...ob, age:minsAgo(ob.time)};
+  }));
 }
 
 const zoneCache = new Map();
