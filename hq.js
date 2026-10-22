@@ -837,9 +837,9 @@ function initMilAirMap(){
   if (milAirInited || typeof L === 'undefined') return;
   const r = MILAIR_REGIONS[milAirRegion];
   milAirMap = L.map('milair-map', { zoomControl:true, attributionControl:false }).setView([r.lat, r.lon], r.zoom);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 12, subdomains:'abcd'
-  }).addTo(milAirMap);
+  // Esri dark gray canvas + labels: no API key needed (CARTO tiles now require one)
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 12 }).addTo(milAirMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 12 }).addTo(milAirMap);
   milAirLayer = L.layerGroup().addTo(milAirMap);
   milAirInited = true;
   loadMilAir();
@@ -939,9 +939,9 @@ const FLEET_POSITIONS = [
 function initFleetMap(){
   if (fleetInited || typeof L === 'undefined') return;
   fleetMap = L.map('fleet-map', { zoomControl:true, attributionControl:false, worldCopyJump:true }).setView([25, 20], 2);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 8, subdomains:'abcd'
-  }).addTo(fleetMap);
+  // Esri dark gray canvas + labels: no API key needed (CARTO tiles now require one)
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 8 }).addTo(fleetMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 8 }).addTo(fleetMap);
   fleetLayer = L.layerGroup().addTo(fleetMap);
   fleetInited = true;
   renderFleetMap();

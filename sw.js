@@ -1,6 +1,6 @@
 // OC Scanner · Intel HQ — Service Worker
 // Bump CACHE_VERSION any time you deploy updates to force a cache refresh
-const CACHE_VERSION = 'inthq-v6-election-board';
+const CACHE_VERSION = 'inthq-v7-esri-basemap';
 
 const STATIC_ASSETS = [
   '/IntelHQ/',
