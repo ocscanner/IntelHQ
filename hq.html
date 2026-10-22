@@ -643,7 +643,18 @@
 
 <!-- ══════════════════ WEATHER ══════════════════ -->
 <div id="panel-weather" class="panel">
-  <div class="two">
+  <!-- SoCal radar: NEXRAD via IEM (wx-radar.html), replaces the Windy embed -->
+  <div class="sh"><h2>🗺 NEXRAD Radar — SoCal</h2><span class="ltag">LIVE</span></div>
+  <div class="rdrwrap wxr">
+    <iframe id="wx-radar-frame" src="wx-radar.html?embed=1" loading="lazy" title="SoCal NEXRAD radar" allow="fullscreen; geolocation"></iframe>
+  </div>
+  <div class="pills" style="margin-top:8px">
+    <a class="pill" href="wx-radar.html" target="_blank">Open full screen →</a>
+    <a class="pill" href="https://radar.weather.gov/station/KSOX/standard" target="_blank">NWS KSOX →</a>
+    <a class="pill" href="https://www.pivotalweather.com/" target="_blank">Pivotal Weather →</a>
+  </div>
+
+  <div class="two" style="margin-top:18px">
     <div>
       <div class="sh"><h2>☀ Conditions — <span id="wx-loc-name">Orange County, CA</span></h2><span class="ltag">LIVE</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
@@ -664,25 +675,17 @@
       </div>
       <div class="sh" style="margin-top:14px"><h2>📅 7-Day Forecast</h2></div>
       <div class="frow" id="frow"><div class="loader">Fetching…</div></div>
-      <div class="sh" style="margin-top:14px"><h2>⚠ NWS Alerts</h2><span class="ltag">LIVE</span></div>
-      <div id="wx-alerts" class="afeed" style="max-height:180px"><div class="loader">Loading…</div></div>
+    </div>
+    <div>
+      <div class="sh"><h2>⚠ NWS Alerts</h2><span class="ltag">LIVE</span></div>
+      <div id="wx-alerts" class="afeed" style="max-height:420px"><div class="loader">Loading…</div></div>
       <div class="pills" style="margin-top:8px">
         <a class="pill" href="https://www.weather.gov/lox/" target="_blank">NWS LA →</a>
+        <a class="pill" href="https://www.weather.gov/sgx/" target="_blank">NWS San Diego →</a>
         <a class="pill" href="https://www.spc.noaa.gov/" target="_blank">SPC →</a>
         <a class="pill" href="https://www.nhc.noaa.gov/" target="_blank">NHC →</a>
         <a class="pill" href="https://www.aqmd.gov/" target="_blank">AQMD →</a>
         <a class="pill" href="https://www.airnow.gov/" target="_blank">AirNow →</a>
-      </div>
-    </div>
-    <div>
-      <div class="sh"><h2>🗺 NEXRAD Radar — SoCal</h2></div>
-      <div class="rdrwrap">
-        <iframe id="wx-radar-frame" src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=7&overlay=radar&product=radar&level=surface&lat=33.7&lon=-117.8&detailLat=33.7&detailLon=-117.8&marker=true&message=true" loading="lazy" title="Weather Radar" allow="fullscreen"></iframe>
-      </div>
-      <div class="pills" style="margin-top:8px">
-        <a class="pill" href="https://radar.weather.gov/station/KSOX/standard" target="_blank">NWS KSOX →</a>
-        <a class="pill" href="https://www.rainviewer.com/map.html" target="_blank">RainViewer →</a>
-        <a class="pill" href="https://www.pivotalweather.com/" target="_blank">Pivotal Weather →</a>
       </div>
     </div>
   </div>
