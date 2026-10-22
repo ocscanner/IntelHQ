@@ -8,6 +8,14 @@ The Politics & Elections tab includes a live results board for the 2026 midterms
 (House, Senate and governors, nationwide), with desk tools for entering race calls.
 Setup and election-night instructions are in [`elections/README.md`](elections/README.md).
 
+## Conditions map
+
+`conditions/` is a live storm map for Orange County, modeled on the Waffle House storm center:
+17 NWS weather stations colored by wind and humidity (normal, elevated, critical), NWS alert areas
+for Orange County, active wildfires and perimeters (NIFC WFIGS), and a 50-minute radar loop.
+The tiles along the bottom give an overall county status. Open it from the **Conditions Map** link
+in the IntelHQ header or directly at `conditions/`. It needs no keys or Worker; every feed is public.
+
 ## Newsroom workflow
 
 The Newsroom module adds a private, device-local editorial workspace alongside
