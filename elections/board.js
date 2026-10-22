@@ -440,7 +440,8 @@
       const d = race && S.countyData?.raceId === race.id ? S.countyData : null;
       const has = !!(d?.available && d.counties && Object.values(d.counties).some(c => c.v.some(x => x > 0)));
       g.querySelectorAll('path').forEach(p => {
-        p.style.fill = has ? countyFill(p.dataset.fips) : 'transparent';
+        // No data yet: let the state's own color show through; a state with no race on this tab goes gray
+        p.style.fill = has ? countyFill(p.dataset.fips) : race || S.chamber === 'house' ? 'transparent' : 'var(--eb-wait)';
         p.querySelector('title').textContent = countySummary(p.dataset.fips);
       });
 
