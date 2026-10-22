@@ -295,9 +295,14 @@ const offshore = s => s.dir != null && s.dir >= 0 && s.dir <= 100 && (s.wind ?? 
 /* ---------- map ---------- */
 const map = L.map("map",{zoomControl:true,attributionControl:true,preferCanvas:true}).setView([33.75,-117.78],10);
 const isLight = document.documentElement.getAttribute("data-theme") === "light";
-L.tileLayer(`https://{s}.basemaps.cartocdn.com/${isLight?"light_all":"dark_all"}/{z}/{x}/{y}{r}.png`,{
-  subdomains:"abcd",maxZoom:18,attribution:'&copy; OpenStreetMap &copy; CARTO'
+// Esri gray canvas: no API key needed (CARTO now requires one). Labels sit in their own pane above radar and alerts.
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
+const shade = isLight ? "Light" : "Dark";
+L.tileLayer(`${ESRI}World_${shade}_Gray_Base/MapServer/tile/{z}/{y}/{x}`,{
+  maxZoom:16, attribution:'Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
 }).addTo(map);
+map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
+L.tileLayer(`${ESRI}World_${shade}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,{maxZoom:16, pane:"labels"}).addTo(map);
 map.attributionControl.addAttribution('Radar: Iowa Environmental Mesonet · Alerts &amp; obs: NWS · Fires: NIFC WFIGS');
 
 const layers = {
@@ -312,7 +317,7 @@ const radarFrames = [];
 for(let i=10;i>=0;i--){
   const m = i*5, suffix = i===0 ? "" : "-m"+String(m).padStart(2,"0")+"m";
   radarFrames.push({label: i===0 ? "Now" : "−"+m+" min",
-    layer: L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913${suffix}/{z}/{x}/{y}.png`,{opacity:0,zIndex:300,maxZoom:18})});
+    layer: L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913${suffix}/{z}/{x}/{y}.png`,{opacity:0,zIndex:300,maxZoom:16})});
 }
 let radarOn = true, frameIdx = 10, playing = null;
 function showFrame(i){
