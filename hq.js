@@ -2737,6 +2737,10 @@ function activateTab(pid){
   if (pid === 'firecams') {
     initFireCams();
   }
+  if (pid === 'storm') {
+    const sf = document.getElementById('storm-frame');
+    if (sf && !sf.src) sf.src = sf.dataset.src;
+  }
   if (pid === 'military' && !militaryInitialized) {
     militaryInitialized = true;
     loadMilitaryNews();
@@ -2779,7 +2783,7 @@ document.querySelectorAll('.ntab').forEach(t=>{
 /* ── GROUP NAV (dropdowns) ── */
 const TAB_GROUP = {
   newsroom:'desk',
-  streams:'ops', traffic:'ops', radar:'ops', firecams:'ops',
+  streams:'ops', traffic:'ops', radar:'ops', firecams:'ops', storm:'ops',
   space:'intel', military:'intel', osint:'intel', intel:'intel',
   news:'news', elections:'news', weather:'news',
   status:'system',
@@ -2817,7 +2821,7 @@ function syncGroupNav(pid){
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','osint','intel','status'];
+  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','storm','osint','intel','status'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);

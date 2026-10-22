@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Storm Index — OC Scanner IntelHQ</title>
+<meta name="robots" content="noindex">
+<script>try{if(localStorage.getItem('ocs-theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}
+if(window.self!==window.top)document.documentElement.classList.add('embedded');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* Layout: full-bleed ops map under a slim command bar, floating legend + radar time control, tracked-value tiles along the bottom. Uses IntelHQ's tokens and fonts. */
+:root{
+  color-scheme: dark;
+  --bg:#060a0f; --panel:#111d28; --panel-2:#16263a;
+  --line:rgba(0,180,255,.18);
+  --fg:#eef4f8; --muted:#7a9aaa;
+  --accent:#00b4ff;
+  --ok:#3fd46b; --warn:#ffc21a; --crit:#ff3b30; --off:#5b6577; --fire:#ff7a2f;
+  --mapbg:#0e1622;
+  --f-display:'Rajdhani', "Arial Narrow", sans-serif;
+  --f-body:'Barlow Condensed', "Arial Narrow", system-ui, sans-serif;
+  --f-data:'Share Tech Mono', ui-monospace, Menlo, monospace;
+}
+html[data-theme="light"]{
+  color-scheme: light;
+  --bg:#eef2f6; --panel:#ffffff; --panel-2:#e3e9ef;
+  --line:rgba(0,90,160,.22);
+  --fg:#12222e; --muted:#5a7484;
+  --accent:#0077cc;
+  --ok:#1f9d4a; --warn:#c99500; --crit:#c62b20; --off:#8792a3; --fire:#e0601a;
+  --mapbg:#dfe6ec;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;display:flex;flex-direction:column;overflow:hidden;padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+.brand img{width:30px;height:30px;border-radius:6px}
+.back{color:var(--muted);text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:4px 10px;white-space:nowrap}
+.back:hover{color:var(--fg)}
+.embedded .brand,.embedded .back{display:none}
+.embedded .seg{margin-left:0}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* command bar */
+.bar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--bg);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand b{font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:.02em}
+.brand span{font-family:var(--f-display);color:var(--muted);font-size:18px;font-weight:500}
+.chip{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+.chip[data-level="crit"]{background:color-mix(in srgb,var(--crit) 22%,var(--panel));border-color:var(--crit)}
+.chip[data-level="warn"]{background:color-mix(in srgb,var(--warn) 18%,var(--panel));border-color:var(--warn)}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px;margin-inline:auto}
+.seg button{background:none;border:0;padding:5px 14px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--fg)}
+.refresh{display:flex;align-items:center;gap:6px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.ago{font-family:var(--f-data);font-size:12px;color:var(--muted)}
+
+/* map */
+.stage{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:var(--mapbg)}
+.notice{position:absolute;left:50%;transform:translateX(-50%);top:10px;z-index:500;background:color-mix(in srgb,var(--accent) 16%,var(--panel));border:1px solid var(--accent);color:var(--fg);font-size:12px;padding:6px 12px;border-radius:8px;max-width:calc(100% - 32px);text-align:center}
+.float{position:absolute;z-index:500;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(6px)}
+.legend{right:12px;bottom:12px;width:190px;padding:10px 12px;display:grid;gap:10px}
+.legend h3{font-family:var(--f-display);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+.legend ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px}
+.legend li{display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;border:1.5px solid rgba(0,0,0,.45)}
+.legend label{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
+.legend input{accent-color:var(--accent)}
+.legend small{color:var(--muted);font-size:11px;line-height:1.4}
+.legend-toggle{display:none}
+.timectl{left:12px;bottom:12px;padding:8px 12px;display:flex;align-items:center;gap:10px;width:min(340px,calc(100% - 24px))}
+.timectl input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+.timectl .lbl{font-family:var(--f-data);font-size:12px;min-width:74px;text-align:right}
+.play{width:30px;height:30px;padding:0;justify-content:center}
+
+/* details */
+.details{position:absolute;inset:0;overflow:auto;padding:16px;display:grid;gap:20px;align-content:start;background:var(--bg)}
+.details h2{font-family:var(--f-display);font-size:15px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px;color:var(--muted)}
+.alerts{display:grid;gap:8px;max-width:900px}
+.alert{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,var(--warn));border-radius:8px;padding:10px 12px}
+.alert b{display:block;font-size:14px}
+.alert p{margin:4px 0 0;color:var(--muted);font-size:13px;max-width:75ch}
+.tablewrap{overflow-x:auto;max-width:900px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--f-display);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--panel)}
+td.num{font-family:var(--f-data);text-align:right}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.empty{color:var(--muted);font-size:13px}
+
+/* tracked values */
+.tracked{border-top:1px solid var(--line);padding:10px 16px 12px;background:var(--bg)}
+.tracked h2{margin:0 0 8px;font-size:13px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:0}
+.tile .k{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{font-family:var(--f-data);font-weight:700;font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:500}
+.tile.county{border-color:var(--c,var(--line))}
+.tile.county .v{font-family:var(--f-display);font-size:22px;color:var(--c,var(--fg))}
+
+/* leaflet skin */
+.leaflet-container{font-family:var(--f-body)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.leaflet-popup-content{margin:10px 12px;font-size:13px;line-height:1.45}
+.leaflet-popup-content b{font-family:var(--f-display);font-size:15px}
+.pop-grid{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin-top:6px;font-family:var(--f-data);font-size:12px}
+.pop-grid span:nth-child(odd){color:var(--muted);font-family:var(--f-body)}
+.leaflet-bar a{background:var(--panel);color:var(--fg);border-color:var(--line)}
+.leaflet-bar a:hover{background:var(--panel-2)}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--bg) 75%,transparent)!important;color:var(--muted)!important;font-size:10px}
+.perim-label{background:none;border:0;box-shadow:none;color:var(--fire);font-family:var(--f-display);font-weight:700;font-size:12px;text-shadow:0 0 3px var(--bg),0 0 3px var(--bg)}
+.perim-label::before{display:none}
+.leaflet-control-attribution a{color:var(--muted)!important}
+
+@media (max-width:720px){
+  .seg{margin-inline:0;order:3}
+  .refresh{margin-left:auto}
+  .legend{width:auto;left:12px;right:12px;bottom:64px;display:none}
+  .legend.open{display:grid}
+  .legend-toggle{display:inline-flex;position:absolute;right:12px;bottom:12px;z-index:501}
+  .tile .v{font-size:22px}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tracked{max-height:38vh;overflow:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <img src="../assets/oc-scanner-logo.png" alt="">
+    <b>OC Scanner</b><span>| Storm Index</span>
+  </div>
+  <span class="chip" id="chip">Loading…</span>
+  <div class="seg" role="group" aria-label="View">
+    <button id="vMap" aria-pressed="true">Map</button>
+    <button id="vDetails" aria-pressed="false">Details</button>
+  </div>
+  <div class="refresh">
+    <button class="btn" id="refreshBtn" title="Refresh now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg><span class="ago" id="ago">—</span></button>
+    <select class="btn" id="interval" aria-label="Auto-refresh interval">
+      <option value="2">2m</option><option value="5" selected>5m</option><option value="10">10m</option>
+    </select>
+    <a class="back" href="../hq.html">IntelHQ</a>
+  </div>
+</header>
+
+<main class="stage">
+  <div id="map" aria-label="Map of Orange County conditions"></div>
+  <div class="notice" id="notice" hidden></div>
+
+  <div class="float timectl" id="timectl">
+    <button class="btn play" id="play" aria-label="Play radar loop">▶</button>
+    <input type="range" id="frame" min="0" max="10" value="10" aria-label="Radar time">
+    <span class="lbl" id="frameLbl">Now</span>
+  </div>
+
+  <button class="btn legend-toggle" id="legendToggle" aria-expanded="false">Legend</button>
+  <aside class="float legend" id="legend">
+    <div>
+      <h3>Station status</h3>
+      <ul>
+        <li><i class="dot" style="background:var(--ok)"></i>Normal</li>
+        <li><i class="dot" style="background:var(--warn)"></i>Elevated</li>
+        <li><i class="dot" style="background:var(--crit)"></i>Critical</li>
+        <li><i class="dot" style="background:var(--off)"></i>No recent report</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Layers</h3>
+      <ul>
+        <li><label><input type="checkbox" id="lStations" checked>Wind stations</label></li>
+        <li><label><input type="checkbox" id="lAlerts" checked>NWS alerts</label></li>
+        <li><label><input type="checkbox" id="lFires" checked>Active fires</label></li>
+        <li><label><input type="checkbox" id="lRadar" checked>Radar</label></li>
+      </ul>
+    </div>
+    <small>Elevated: gusts 30+ mph, wind 20+ mph or humidity 20% or lower. Critical: gusts 45+ mph, or humidity 15% or lower with gusts 25+ mph.</small>
+  </aside>
+
+  <section class="details" id="details" hidden>
+    <div>
+      <h2>Active alerts · Orange County</h2>
+      <div class="alerts" id="alertList"></div>
+    </div>
+    <div>
+      <h2>Stations</h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Station</th><th>Status</th><th style="text-align:right">Wind</th><th style="text-align:right">Gust</th><th>Dir</th><th style="text-align:right">RH</th><th style="text-align:right">Temp</th><th>Reported</th></tr></thead>
+        <tbody id="stationRows"></tbody>
+      </table></div>
+    </div>
+    <div>
+      <h2>Active fires · SoCal</h2>
+      <div class="alerts" id="fireList"></div>
+    </div>
+  </section>
+</main>
+
+<section class="tracked" aria-label="Tracked values">
+  <h2>Tracked Values</h2>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+(() => {
+"use strict";
+
+/* ---------- config ---------- */
+// NWS observation stations in and around Orange County (ASOS/AWOS).
+const STATIONS = [
+  ["KSNA","John Wayne / Santa Ana",33.6757,-117.8682],
+  ["KFUL","Fullerton",33.8720,-117.9798],
+  ["KSLI","Los Alamitos",33.7900,-118.0517],
+  ["KLGB","Long Beach",33.8177,-118.1516],
+  ["KTOA","Torrance",33.8034,-118.3396],
+  ["KEMT","El Monte",34.0860,-118.0350],
+  ["KPOC","La Verne",34.0916,-117.7818],
+  ["KCNO","Chino",33.9747,-117.6366],
+  ["KONT","Ontario",34.0560,-117.6012],
+  ["KAJO","Corona",33.8977,-117.6024],
+  ["KRAL","Riverside",33.9519,-117.4451],
+  ["KRIV","March ARB",33.8807,-117.2595],
+  ["KHMT","Hemet",33.7340,-117.0226],
+  ["KF70","French Valley",33.5742,-117.1285],
+  ["KNFG","Camp Pendleton",33.3013,-117.3550],
+  ["KOKB","Oceanside",33.2196,-117.3494],
+  ["KCRQ","Carlsbad",33.1283,-117.2803]
+];
+const OC_FIPS = "006059";               // Orange County SAME code in NWS alerts
+const SOCAL = {s:32.5,n:34.9,w:-119.6,e:-116.0};
+const UA_HDR = {"Accept":"application/geo+json"};
+// NIFC WFIGS (national interagency fire data). CAL FIRE's own API blocks browser requests.
+const WFIGS = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/";
+const BBOX = `${SOCAL.w},${SOCAL.s},${SOCAL.e},${SOCAL.n}`;
+const geoQ = (svc, where, fields) => `${WFIGS}${svc}/FeatureServer/0/query?where=${encodeURIComponent(where)}` +
+  `&geometry=${BBOX}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outSR=4326` +
+  `&outFields=${fields}&f=geojson`;
+const FIRE_POINTS_URL = geoQ("WFIGS_Incident_Locations_Current", "IncidentTypeCategory='WF' AND ContainmentDateTime IS NULL",
+  "IncidentName,IncidentSize,PercentContained,POOCounty,FireDiscoveryDateTime,ModifiedOnDateTime_dt");
+const FIRE_PERIM_URL = geoQ("WFIGS_Interagency_Perimeters_Current", "attr_IncidentTypeCategory='WF'",
+  "poly_IncidentName,attr_IncidentSize,attr_PercentContained,poly_GISAcres");
+const FIRE_RECENT_H = 12;   // also show small or unsized fires reported in the last 12 h
+const FIRE_MIN_ACRES = 10;  // otherwise show fires this big or bigger
+const STALE_MIN = 120;
+
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COLORS = {};
+function readColors(){ ["ok","warn","crit","off","fire","bg"].forEach(k => COLORS[k] = cssVar("--"+k)); }
+readColors();
+const ALERT_COLORS = {
+  "Red Flag Warning":"#ff3b8d","Fire Weather Watch":"#ffcc66","High Wind Warning":"#d6a347",
+  "High Wind Watch":"#b8860b","Wind Advisory":"#d2b48c","Excessive Heat Warning":"#c71585",
+  "Heat Advisory":"#ff7f50","Flash Flood Warning":"#ff2d2d","Flood Advisory":"#00ff7f",
+  "Dense Fog Advisory":"#8fa3b5","Beach Hazards Statement":"#40e0d0","High Surf Advisory":"#ba55d3"
+};
+const alertColor = e => ALERT_COLORS[e] || "#7aa7ff";
+const CRIT_EVENTS = ["Red Flag Warning","High Wind Warning","Excessive Heat Warning","Flash Flood Warning","Extreme Wind Warning","Evacuation Immediate","Fire Warning"];
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const kmh2mph = v => v == null ? null : v * 0.621371;
+const c2f = v => v == null ? null : v * 9/5 + 32;
+const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const compass = d => d == null ? "—" : DIRS[Math.round(d/22.5)%16];
+const fmt = (v,d=0) => v == null || isNaN(v) ? "—" : v.toFixed(d);
+const minsAgo = t => t ? Math.round((Date.now()-new Date(t).getTime())/60000) : null;
+const agoText = m => m == null ? "—" : m < 1 ? "now" : m < 60 ? m+"m ago" : Math.round(m/60)+"h ago";
+
+async function getJSON(url, opts={}, ms=12000){
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), ms);
+  try{ const r = await fetch(url,{...opts,signal:ctl.signal}); if(!r.ok) throw new Error(r.status); return await r.json(); }
+  finally{ clearTimeout(t); }
+}
+
+function classify(s){
+  if(!s.ok || s.age == null || s.age > STALE_MIN) return "off";
+  const g = s.gust ?? 0, w = s.wind ?? 0, rh = s.rh;
+  if(g >= 45 || (rh != null && rh <= 15 && (g >= 25 || w >= 15))) return "crit";
+  if(g >= 30 || w >= 20 || (rh != null && rh <= 20)) return "warn";
+  return "ok";
+}
+const STATUS_LABEL = {ok:"Normal",warn:"Elevated",crit:"Critical",off:"No report"};
+const offshore = s => s.dir != null && s.dir >= 0 && s.dir <= 100 && (s.wind ?? 0) >= 10; // NE–E flow = Santa Ana
+
+/* ---------- map ---------- */
+const map = L.map("map",{zoomControl:true,attributionControl:true,preferCanvas:true}).setView([33.75,-117.78],10);
+const isLight = document.documentElement.getAttribute("data-theme") === "light";
+// Esri gray canvas: no API key needed (CARTO now requires one). Labels sit in their own pane above radar and alerts.
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
+const shade = isLight ? "Light" : "Dark";
+L.tileLayer(`${ESRI}World_${shade}_Gray_Base/MapServer/tile/{z}/{y}/{x}`,{
+  maxZoom:16, attribution:'Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+}).addTo(map);
+map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
+L.tileLayer(`${ESRI}World_${shade}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,{maxZoom:16, pane:"labels"}).addTo(map);
+map.attributionControl.addAttribution('Radar: Iowa Environmental Mesonet · Alerts &amp; obs: NWS · Fires: NIFC WFIGS');
+
+const layers = {
+  alerts: L.layerGroup().addTo(map),
+  perims: L.layerGroup().addTo(map),
+  fires: L.layerGroup().addTo(map),
+  stations: L.layerGroup().addTo(map)
+};
+
+// Radar: IEM NEXRAD composite, 11 frames at 5-minute steps (−50 → now)
+const radarFrames = [];
+for(let i=10;i>=0;i--){
+  const m = i*5, suffix = i===0 ? "" : "-m"+String(m).padStart(2,"0")+"m";
+  radarFrames.push({label: i===0 ? "Now" : "−"+m+" min",
+    layer: L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913${suffix}/{z}/{x}/{y}.png`,{opacity:0,zIndex:300,maxZoom:16})});
+}
+let radarOn = true, frameIdx = 10, playing = null;
+function showFrame(i){
+  frameIdx = i;
+  radarFrames.forEach((f,j)=>{
+    if(!radarOn){ if(map.hasLayer(f.layer)) map.removeLayer(f.layer); return; }
+    if(!map.hasLayer(f.layer)) f.layer.addTo(map);
+    f.layer.setOpacity(j===i ? .62 : 0);
+  });
+  $("frame").value = i; $("frameLbl").textContent = radarFrames[i].label;
+}
+showFrame(10);
+$("frame").addEventListener("input", e => { stopPlay(); showFrame(+e.target.value); });
+function stopPlay(){ if(playing){ clearInterval(playing); playing=null; $("play").textContent="▶"; $("play").setAttribute("aria-label","Play radar loop"); } }
+$("play").addEventListener("click", () => {
+  if(playing) return stopPlay();
+  $("play").textContent="❚❚"; $("play").setAttribute("aria-label","Pause radar loop");
+  playing = setInterval(()=> showFrame((frameIdx+1)%11), 650);
+});
+
+/* ---------- data ---------- */
+const state = {stations:[], alerts:[], fires:null, perims:[], error:"", updated:null};
+
+async function loadStations(){
+  const res = await Promise.allSettled(STATIONS.map(([id]) =>
+    getJSON(`https://api.weather.gov/stations/${id}/observations/latest`,{headers:UA_HDR})));
+  return STATIONS.map(([id,name,lat,lon],i) => {
+    const r = res[i];
+    if(r.status !== "fulfilled") return {id,name,lat,lon,ok:false};
+    const p = r.value.properties || {};
+    return {id,name,lat,lon,ok:true,
+      wind: kmh2mph(p.windSpeed?.value), gust: kmh2mph(p.windGust?.value),
+      dir: p.windDirection?.value, rh: p.relativeHumidity?.value,
+      temp: c2f(p.temperature?.value), time: p.timestamp, age: minsAgo(p.timestamp)};
+  });
+}
+
+const zoneCache = new Map();
+async function zoneGeom(url){
+  if(zoneCache.has(url)) return zoneCache.get(url);
+  const j = await getJSON(url,{headers:UA_HDR}).catch(()=>null);
+  const g = j && j.geometry ? j : null; zoneCache.set(url,g); return g;
+}
+async function loadAlerts(){
+  const j = await getJSON("https://api.weather.gov/alerts/active?area=CA",{headers:UA_HDR});
+  const oc = (j.features||[]).filter(f => (f.properties?.geocode?.SAME||[]).includes(OC_FIPS));
+  for(const f of oc){
+    if(f.geometry) continue;
+    const zones = (f.properties.affectedZones||[]).slice(0,12);
+    const geoms = (await Promise.all(zones.map(zoneGeom))).filter(Boolean);
+    f._zones = geoms;
+  }
+  return oc;
+}
+async function loadFires(){
+  const [pts, per] = await Promise.all([getJSON(FIRE_POINTS_URL), getJSON(FIRE_PERIM_URL).catch(()=>({features:[]}))]);
+  const now = Date.now();
+  const fires = (pts.features||[]).map(f => {
+    const p = f.properties, [lon,lat] = f.geometry?.coordinates || [];
+    return {name: p.IncidentName || "Unnamed fire", lat, lon, acres: p.IncidentSize, contained: p.PercentContained,
+      county: p.POOCounty || "", found: p.FireDiscoveryDateTime, updated: p.ModifiedOnDateTime_dt};
+  }).filter(f => f.lat != null && (
+    (f.acres ?? 0) >= FIRE_MIN_ACRES || (f.found && now - f.found < FIRE_RECENT_H*3600e3)
+  )).sort((a,b) => (b.acres??0) - (a.acres??0));
+  return {fires, perims: per.features || []};
+}
+
+/* ---------- render ---------- */
+function render(){
+  const {stations, alerts, fires} = state;
+  stations.forEach(s => s.status = classify(s));
+
+  // stations
+  layers.stations.clearLayers();
+  stations.forEach(s => {
+    L.circleMarker([s.lat,s.lon],{radius:9,weight:2,color:COLORS.bg,fillColor:COLORS[s.status],fillOpacity:1})
+      .bindPopup(`<b>${esc(s.name)}</b><div style="color:var(--muted);font-size:12px">${s.id} · ${STATUS_LABEL[s.status]}${offshore(s)?" · Offshore flow":""}</div>
+        <div class="pop-grid"><span>Wind</span><span>${fmt(s.wind)} mph ${compass(s.dir)}</span><span>Gust</span><span>${fmt(s.gust)} mph</span>
+        <span>Humidity</span><span>${fmt(s.rh)}%</span><span>Temp</span><span>${fmt(s.temp)}°F</span><span>Reported</span><span>${agoText(s.age)}</span></div>`)
+      .bindTooltip(`${s.id} · ${fmt(s.gust)} mph`,{direction:"top",offset:[0,-8]})
+      .addTo(layers.stations);
+  });
+
+  // alerts
+  layers.alerts.clearLayers();
+  alerts.forEach(f => {
+    const p = f.properties, col = alertColor(p.event);
+    const style = {color:col,weight:2,fillColor:col,fillOpacity:.14,dashArray:p.event.includes("Watch")?"6 4":null};
+    const pop = `<b>${esc(p.event)}</b><div style="margin-top:4px;max-width:260px">${esc(p.headline||p.areaDesc||"")}</div>`;
+    if(f.geometry) L.geoJSON(f.geometry,{style}).bindPopup(pop).addTo(layers.alerts);
+    (f._zones||[]).forEach(z => L.geoJSON(z,{style}).bindPopup(pop).addTo(layers.alerts));
+  });
+
+  // fires
+  layers.fires.clearLayers(); layers.perims.clearLayers();
+  const firePop = f => `<b>${esc(f.name)}</b><div class="pop-grid"><span>Acres</span><span>${fmt(f.acres)}</span><span>Contained</span><span>${f.contained==null?"—":fmt(f.contained)+"%"}</span><span>County</span><span>${esc(f.county)}</span><span>Discovered</span><span>${f.found?agoText(minsAgo(f.found)):"—"}</span></div>`;
+  (state.perims||[]).forEach(p => {
+    const pr = p.properties;
+    L.geoJSON(p,{style:{color:COLORS.fire,weight:2,fillColor:COLORS.fire,fillOpacity:.28}})
+      .bindPopup(`<b>${esc(pr.poly_IncidentName)}</b><div class="pop-grid"><span>Mapped acres</span><span>${fmt(pr.poly_GISAcres)}</span><span>Contained</span><span>${pr.attr_PercentContained==null?"—":fmt(pr.attr_PercentContained)+"%"}</span></div>`)
+      .addTo(layers.perims);
+  });
+  (fires||[]).forEach(f => {
+    const r = 6 + Math.min(14, Math.sqrt(f.acres||0)/4);
+    L.circleMarker([f.lat,f.lon],{radius:r,weight:2,color:COLORS.bg,fillColor:COLORS.fire,fillOpacity:.9})
+      .bindPopup(firePop(f))
+      .bindTooltip(esc(f.name),{direction:"top",offset:[0,-r]})
+      .addTo(layers.fires);
+  });
+
+  // county status
+  const counts = {ok:0,warn:0,crit:0,off:0}; stations.forEach(s=>counts[s.status]++);
+  const rf = alerts.filter(a=>a.properties.event==="Red Flag Warning").length;
+  const critAlert = alerts.some(a=>CRIT_EVENTS.includes(a.properties.event));
+  const level = (critAlert || counts.crit >= 2) ? "crit" : (alerts.length || counts.crit || counts.warn >= 2) ? "warn" : "ok";
+  const live = stations.filter(s=>s.status!=="off");
+  const maxG = live.reduce((m,s)=> s.gust!=null && (m==null||s.gust>m.gust) ? s : m, null);
+  const minRH = live.reduce((m,s)=> s.rh!=null && (m==null||s.rh<m.rh) ? s : m, null);
+  const off = live.filter(offshore).length;
+
+  // chip
+  const chip = $("chip");
+  const top = alerts.slice().sort((a,b)=> (CRIT_EVENTS.includes(b.properties.event)?1:0)-(CRIT_EVENTS.includes(a.properties.event)?1:0))[0];
+  chip.textContent = top ? top.properties.event + (alerts.length>1?` +${alerts.length-1}`:"") : "No active alerts";
+  chip.dataset.level = level === "ok" ? "" : level;
+
+  // tiles
+  const lvlName = {ok:"NORMAL",warn:"ELEVATED",crit:"CRITICAL"}[level];
+  const tile = (k,v,dot,extra="") => `<div class="tile ${extra}"><div class="k">${dot?`<i class="dot" style="background:${dot}"></i>`:""}${k}</div><div class="v">${v}</div></div>`;
+  $("tiles").innerHTML =
+    `<div class="tile county" style="--c:${COLORS[level]}"><div class="k">County status</div><div class="v">${lvlName}</div></div>` +
+    tile("Stations", stations.length) +
+    tile("Normal", counts.ok, COLORS.ok) +
+    tile("Elevated", counts.warn, COLORS.warn) +
+    tile("Critical", counts.crit, COLORS.crit) +
+    tile("Peak gust", maxG ? `${fmt(maxG.gust)}<small> mph ${maxG.id}</small>` : "—") +
+    tile("Lowest RH", minRH ? `${fmt(minRH.rh)}<small>% ${minRH.id}</small>` : "—") +
+    tile("Offshore flow", `${off}<small> stns</small>`) +
+    tile("OC alerts", alerts.length) +
+    tile("Red Flag", rf, rf?ALERT_COLORS["Red Flag Warning"]:null) +
+    tile("Active fires", fires==null ? "—" : fires.length, COLORS.fire);
+
+  // details
+  $("alertList").innerHTML = alerts.length ? alerts.map(a=>{const p=a.properties;return `<div class="alert" style="--c:${alertColor(p.event)}"><b>${esc(p.event)}</b><p>${esc(p.headline||"")}</p><p>${esc(p.areaDesc||"")}</p></div>`}).join("")
+    : `<p class="empty">No active NWS alerts for Orange County.</p>`;
+  $("stationRows").innerHTML = stations.slice().sort((a,b)=>(b.gust??-1)-(a.gust??-1)).map(s=>
+    `<tr><td>${esc(s.name)} <span style="color:var(--muted)">${s.id}</span></td>
+     <td><span class="pill"><i class="dot" style="background:${COLORS[s.status]}"></i>${STATUS_LABEL[s.status]}</span></td>
+     <td class="num">${fmt(s.wind)}</td><td class="num">${fmt(s.gust)}</td><td>${compass(s.dir)}</td>
+     <td class="num">${fmt(s.rh)}%</td><td class="num">${fmt(s.temp)}°</td><td>${agoText(s.age)}</td></tr>`).join("");
+  $("fireList").innerHTML = fires==null ? `<p class="empty">The fire feed didn't load. It will retry at the next refresh.</p>`
+    : fires.length ? fires.map(f=>`<div class="alert" style="--c:${COLORS.fire}"><b>${esc(f.name)}</b><p>${fmt(f.acres)} acres · ${f.contained==null?"containment not reported":fmt(f.contained)+"% contained"} · ${esc(f.county)} County · discovered ${f.found?agoText(minsAgo(f.found)):"—"}</p></div>`).join("")
+    : `<p class="empty">No uncontained wildfires of ${FIRE_MIN_ACRES}+ acres, or new in the last ${FIRE_RECENT_H} hours, in Southern California.</p>`;
+
+  const n = $("notice");
+  n.hidden = !state.error;
+  if(state.error) n.textContent = state.error;
+}
+
+async function refresh(){
+  $("ago").textContent = "…";
+  const [st, al, fi] = await Promise.allSettled([loadStations(), loadAlerts(), loadFires()]);
+  const stations = st.status==="fulfilled" ? st.value : [];
+  const anyLive = stations.some(s=>s.ok);
+  const problems = [];
+  if(!anyLive) problems.push("weather stations");
+  if(al.status!=="fulfilled") problems.push("NWS alerts");
+  if(fi.status!=="fulfilled") problems.push("fires");
+  state.error = problems.length ? `Couldn't load ${problems.join(", ")}. Showing what did load; retrying at the next refresh.` : "";
+  state.stations = stations;
+  if(al.status==="fulfilled") state.alerts = al.value;
+  state.fires = fi.status==="fulfilled" ? fi.value.fires : null;
+  state.perims = fi.status==="fulfilled" ? fi.value.perims : [];
+  state.updated = Date.now();
+  render(); tickAgo();
+  // refresh radar tiles too
+  radarFrames.forEach(f=>f.layer.redraw && f.layer.redraw());
+}
+function tickAgo(){ $("ago").textContent = state.updated ? agoText(Math.floor((Date.now()-state.updated)/60000)) : "—"; }
+setInterval(tickAgo, 30000);
+
+let timer = null;
+function schedule(){ clearInterval(timer); timer = setInterval(refresh, (+$("interval").value)*60000); }
+$("interval").addEventListener("change", () => { try{localStorage.setItem("ocCondInt",$("interval").value)}catch(e){} schedule(); });
+try{ const v = localStorage.getItem("ocCondInt"); if(v) $("interval").value = v; }catch(e){}
+$("refreshBtn").addEventListener("click", refresh);
+
+/* ---------- UI ---------- */
+function setView(v){
+  const d = v==="details";
+  $("details").hidden = !d;
+  $("vMap").setAttribute("aria-pressed", String(!d)); $("vDetails").setAttribute("aria-pressed", String(d));
+  ["timectl","legend","legendToggle"].forEach(id=>$(id).style.visibility = d ? "hidden" : "");
+  if(!d) setTimeout(()=>map.invalidateSize(),0);
+}
+$("vMap").onclick = () => setView("map");
+$("vDetails").onclick = () => setView("details");
+$("legendToggle").onclick = () => { const o = $("legend").classList.toggle("open"); $("legendToggle").setAttribute("aria-expanded",String(o)); };
+const bindLayer = (id,key) => $(id).addEventListener("change", e => e.target.checked ? layers[key].addTo(map) : map.removeLayer(layers[key]));
+bindLayer("lStations","stations"); bindLayer("lAlerts","alerts"); bindLayer("lFires","fires"); bindLayer("lFires","perims");
+$("lRadar").addEventListener("change", e => { radarOn = e.target.checked; if(!radarOn) stopPlay(); $("timectl").style.opacity = radarOn ? "" : ".5"; showFrame(frameIdx); });
+
+refresh(); schedule();
+})();
+</script>
+</body>
+</html>

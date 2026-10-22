@@ -90,6 +90,7 @@
       <button class="ngitem" data-p="traffic">✈ Flights &amp; Traffic</button>
       <button class="ngitem" data-p="radar">📡 Radar</button>
       <button class="ngitem" data-p="firecams">🔥 Fire Cams</button>
+      <button class="ngitem" data-p="storm">🌀 Storm Index</button>
     </div>
   </div>
   <div class="ngroup" data-g="intel">
@@ -126,6 +127,7 @@
   <button class="ntab" data-p="military">🎖 Military</button>
   <button class="ntab" data-p="news">📰 Live News <span class="nbadge" id="news-badge" style="display:none">NEW</span></button>
   <button class="ntab" data-p="firecams">🔥 Fire Cams</button>
+  <button class="ntab" data-p="storm">🌀 Storm Index</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
   <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
@@ -1339,6 +1341,12 @@
     <a class="ol" href="https://inciweb.wildfire.gov/" target="_blank" rel="noopener"><span class="oi">📍</span><div><span>InciWeb</span><span class="od">National incident information</span></div></a>
     <a class="ol" href="https://www.watchduty.org/" target="_blank" rel="noopener"><span class="oi">🐕</span><div><span>Watch Duty</span><span class="od">Real-time wildfire alerts app</span></div></a>
   </div>
+</div>
+
+<!-- ══════════════════ STORM INDEX ══════════════════ -->
+<div id="panel-storm" class="panel">
+  <div class="sh"><h2>🌀 Storm Index</h2><span class="ltag">LIVE</span><span style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">Wind stations · NWS alerts · Wildfires · Radar</span><a class="rbtn" href="conditions/" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none">⤢ Full screen</a></div>
+  <iframe id="storm-frame" title="OC Storm Index map" data-src="conditions/" style="display:block;width:100%;height:calc(100vh - 220px);min-height:560px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2)"></iframe>
 </div>
 
 <!-- ══════════════════ STATUS ══════════════════ -->
