@@ -75,6 +75,13 @@ Cloudflare's free plan allows 100,000 requests a day **per account** (shared wit
   Set `SUBREQUEST_BUDGET = "500"` in `wrangler.toml` and redeploy so every state refreshes every run.
   Recommended for November, especially if the public page gets shared; cancel afterward.
 
+## How it's deployed
+
+Cloudflare builds and deploys the `oc-election-wire` Worker automatically whenever the
+`election-board` branch changes (Workers & Pages → oc-election-wire → Settings → Builds,
+root directory `/elections/worker`). After merging the branch into `main`, change that
+Worker's production branch to `main`.
+
 ## One-time setup (about 15 minutes)
 
 You need Node.js installed. In a terminal:
