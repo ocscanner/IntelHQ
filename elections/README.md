@@ -77,11 +77,13 @@ Cloudflare's free plan allows 100,000 requests a day **per account** (shared wit
 
 ## How it's deployed
 
-Cloudflare builds and deploys the `oc-election-wire` Worker automatically whenever the
-`election-board` branch changes (Workers & Pages → oc-election-wire → Settings → Builds,
-root directory `/elections/worker`, deploy command `npx wrangler deploy -c wrangler.toml`; the `-c`
-matters, because without it Cloudflare picks up the IntelHQ site's own settings file instead). After merging the branch into `main`, change that
-Worker's production branch to `main`.
+- **The board** is part of IntelHQ, so it goes live with IntelHQ whenever `main` changes
+  (GitHub Pages at ocscanner.github.io/IntelHQ, and the `intelhq` Cloudflare Worker).
+- **The results service** (`oc-election-wire` Worker) rebuilds automatically from `main` too:
+  Workers & Pages → oc-election-wire → Settings → Builds, root directory `/elections/worker`, deploy
+  command `npx wrangler deploy -c wrangler.toml`. The `-c` matters: without it Cloudflare picks up the
+  IntelHQ site's own settings file instead.
+- Its database (`oc-election-wire`) and the `DESK_TOKEN` secret are already set up in Cloudflare.
 
 ## One-time setup (about 15 minutes)
 
