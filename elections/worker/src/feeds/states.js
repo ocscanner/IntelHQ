@@ -9,9 +9,11 @@
 //   "not found for 2026" = Texas: its results system has nothing after 2024 yet
 // Field names come from each office's published formats. State files don't mark winners in a way
 // we use: race calls stay with the desk (or AP, if licensed).
-import { raceIdFor, makeResult, pctFromUnits, isElectionDay, isGeneralName, csvObjects, findCol, unzipEntry } from './util.js';
+import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, findCol, unzipEntry } from './util.js';
+import { countyFips, mnCountyFips } from './county-names.js';
 import { parseCASOS } from '../sources/ca-sos.js';
 import { toNum } from '../parties.js';
+import { ocLocalAdapter } from './oc-local.js';
 
 const textOf = v => Array.isArray(v) ? (v.find(x => /^en/i.test(x.languageId || 'en')) || v[0] || {}).text || '' : String(v || '');
 
@@ -37,12 +39,26 @@ function collect(st, c, rows, meta = {}) {
   return out;
 }
 
+/** Group per-county rows by race into county results (statewide races only): Map raceId → result */
+function collectCounties(c, rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    if (!r.raceId || !isStatewide(c.races.get(r.raceId))) continue;
+    const g = groups.get(r.raceId) || [];
+    g.push(r);
+    groups.set(r.raceId, g);
+  }
+  const out = new Map();
+  for (const [id, g] of groups) out.set(id, makeCountyResult(c.races.get(id), g));
+  return out;
+}
+
 /* ── Enhanced Voting (results/public/api) ── */
 function enhanced(st, label, apiBase, jurisdiction, confidence) {
   return {
     st, label, confidence, format: 'Enhanced Voting JSON',
     units: [{
-      id: st, requests: 4,
+      id: st, requests: 6,
       async run(c) {
         let eid = c.meta.eid;
         if (!eid) {
@@ -61,18 +77,72 @@ function enhanced(st, label, apiBase, jurisdiction, confidence) {
           if (!data.length) break;
         }
         const rows = [];
+        const statewide = [];
         for (const it of items) {
           const contest = textOf(it.name);
           const rs = it.reportingStatus || {};
+          const raceId = raceIdFor(contest, st, c.ids);
+          if (isStatewide(c.races.get(raceId))) statewide.push({ raceId, itemId: it.id });
           for (const o of it.summaryResults?.ballotOptions || []) {
             if (o.isWriteIn && !o.isQualifiedWriteIn) continue;
-            rows.push({ contest, name: textOf(o.name), party: o.party?.abbreviation || textOf(o.party?.name), votes: o.voteCount, rep: rs.reportingUnits, tot: rs.totalUnits });
+            rows.push({ raceId, contest, name: textOf(o.name), party: o.party?.abbreviation || textOf(o.party?.name), votes: o.voteCount, rep: rs.reportingUnits, tot: rs.totalUnits });
           }
         }
-        return { results: collect(st, c, rows, { pctLabel: 'reporting units' }) };
+        const out = { results: collect(st, c, rows, { pctLabel: 'reporting units' }) };
+        if (c.countiesOn && statewide.length) {
+          // One "results by county" download per statewide race (the same data the state's own county map uses)
+          const crow = [];
+          for (const { raceId, itemId } of statewide.slice(0, 2)) {
+            const j = await c.json(`${apiBase}/elections/${jurisdiction}/${eid}/data/ballot-item/${itemId}`);
+            crow.push(...parseEVBreakdown(j, st, raceId));
+          }
+          out.counties = collectCounties(c, crow);
+        }
+        return out;
       },
     }],
   };
+}
+
+/** Enhanced Voting "results by county": the response carries breakdownResults[] for the ballot item. */
+export function parseEVBreakdown(j, st, raceId) {
+  const holder = j && (j.breakdownResults ? j : Object.values(j).find(v => v && typeof v === 'object' && Array.isArray(v.breakdownResults)));
+  const rows = [];
+  for (const b of holder?.breakdownResults || []) {
+    const loc = b.locality || {};
+    const fips = countyFips(st, textOf(loc.name)) || countyFips(st, loc.mapFeatureId);
+    const pct = toNum(loc.percentReporting);
+    for (const o of b.ballotOptions || []) {
+      if (o.isWriteIn && !o.isQualifiedWriteIn) continue;
+      rows.push({ raceId, fips, name: textOf(o.name), party: o.party?.abbreviation || textOf(o.party?.name), votes: o.voteCount, pct });
+    }
+  }
+  return rows;
+}
+
+/** Clarity detail.xml: Contest → Choice → VoteType → County votes (summed over vote types). */
+export function parseClarityDetail(xml, st, ids) {
+  const rows = [];
+  const attr = (tag, k) => { const m = tag.match(new RegExp(`\\b${k}="([^"]*)"`)); return m ? m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'") : null; };
+  const contestRe = /<Contest\b([^>]*)>([\s\S]*?)<\/Contest>/g;
+  let m;
+  while ((m = contestRe.exec(xml))) {
+    const raceId = raceIdFor(attr(m[1], 'text'), st, ids);
+    if (!raceId) continue;
+    const body = m[2];
+    const pct = new Map();
+    for (const cm of body.matchAll(/<County\b([^>]*?)precinctsReportingPercent="([\d.]+)"/g)) pct.set(attr(cm[1], 'name'), +cm[2]);
+    for (const ch of body.matchAll(/<Choice\b([^>]*)>([\s\S]*?)<\/Choice>/g)) {
+      const name = attr(ch[1], 'text'), party = attr(ch[1], 'party');
+      const sum = new Map();
+      for (const ct of ch[2].matchAll(/<County\b([^>]*)\/>/g)) {
+        const cn = attr(ct[1], 'name');
+        sum.set(cn, (sum.get(cn) || 0) + (toNum(attr(ct[1], 'votes')) || 0));
+      }
+      for (const [cn, votes] of sum) rows.push({ raceId, fips: countyFips(st, cn), name, party, votes, pct: pct.get(cn) ?? null });
+    }
+  }
+  return rows;
 }
 
 /* ── Clarity ENR (elections.json → current_ver.txt → reports/summary.zip) ── */
@@ -80,7 +150,7 @@ function clarity(st, label, indexUrl, fileBase, confidence) {
   return {
     st, label, confidence, format: 'Clarity summary CSV',
     units: [{
-      id: st, requests: 3,
+      id: st, requests: 4,
       async run(c) {
         let eid = c.meta.eid;
         if (!eid) {
@@ -99,10 +169,15 @@ function clarity(st, label, indexUrl, fileBase, confidence) {
           contest: findCol(head, /^contest name$/i), name: findCol(head, /^choice name$/i), party: findCol(head, /^party name$/i),
           votes: findCol(head, /^total votes$/i), tot: findCol(head, /^num (area|precinct)s? total$/i), rep: findCol(head, /^num (area|precinct)s? rptg$/i),
         };
-        return {
+        const out = {
           results: collect(st, c, rows.map(r => ({ contest: r[k.contest], name: r[k.name], party: r[k.party], votes: r[k.votes], rep: r[k.rep], tot: r[k.tot] })),
             { pctLabel: /area/i.test(k.tot || '') ? 'reporting areas' : 'precincts' }),
         };
+        if (c.countiesOn) {
+          const xml = await unzipEntry(await c.bytes(`${fileBase}/${eid}/${ver}/reports/detailxml.zip`), /detail\.xml$/i);
+          out.counties = collectCounties(c, parseClarityDetail(xml, st, c.ids));
+        }
+        return out;
       },
     }],
   };
@@ -140,6 +215,18 @@ function aspxCsv(st, label, urls, confidence) {
   };
 }
 
+/** California "maps" file: { statewide: {...}, "contra-costa": { raceTitle, Reporting, candidates[] }, ... } */
+export function parseCASOSCounties(json, raceId) {
+  const rows = [];
+  for (const [key, r] of Object.entries(json || {})) {
+    if (key === 'statewide' || !Array.isArray(r?.candidates)) continue;
+    const fips = countyFips('CA', key.replace(/-/g, ' '));
+    const pct = toNum(String(r.Reporting || '').match(/([\d.]+)%/)?.[1]);
+    for (const cand of r.candidates) rows.push({ raceId, fips, name: cand.Name, party: cand.Party, votes: cand.Votes, pct });
+  }
+  return rows;
+}
+
 const A = {};
 const add = a => { A[a.st] = a; };
 
@@ -150,10 +237,15 @@ add({
     .map((u, order) => ({
       id: `CA:${u.raceId}`, requests: 1, order,
       async run(c) {
-        const json = await c.json(`https://api.sos.ca.gov/returns/${u.path}`);
-        const p = parseCASOS(json);
+        const race = c.races.get(u.raceId);
+        // Statewide races: the "maps" file has the statewide total plus every county in one download
+        const maps = c.countiesOn && isStatewide(race);
+        const json = await c.json(`https://api.sos.ca.gov/returns/${maps ? `maps/${u.path}` : u.path}`);
+        const p = parseCASOS(maps && json?.statewide ? json.statewide : json);
         if (!p) return { notPosted: true };
-        return { results: new Map([[u.raceId, makeResult(c.races.get(u.raceId), p.candidates, { pctIn: p.pctIn, pctLabel: 'precincts' })]]) };
+        const out = { results: new Map([[u.raceId, makeResult(race, p.candidates, { pctIn: p.pctIn, pctLabel: 'precincts' })]]) };
+        if (maps) out.counties = new Map([[u.raceId, makeCountyResult(race, parseCASOSCounties(json, u.raceId))]]);
+        return out;
       },
     })),
 });
@@ -175,13 +267,23 @@ add(aspxCsv('SD', 'South Dakota Secretary of State', ['https://electionresults.s
 add({
   st: 'NC', label: 'NC State Board of Elections', confidence: 'verified', format: 'ENR JSON',
   units: [{
-    id: 'NC', requests: 1,
+    id: 'NC', requests: 2,
     async run(c) {
       const text = await c.text('https://er.ncsbe.gov/enr/20261103/data/results_0.txt', { conditional: true, allow404: true });
       if (text === undefined) return { notPosted: true };
       if (text === null) return { unchanged: true };
-      const rows = JSON.parse(text).map(r => ({ contest: r.cnm, name: r.bnm, party: r.pty, votes: r.vct, rep: toNum(r.prt), tot: toNum(r.ptl) }));
-      return { results: collect('NC', c, rows) };
+      const raw = JSON.parse(text);
+      const rows = raw.map(r => ({ contest: r.cnm, name: r.bnm, party: r.pty, votes: r.vct, rep: toNum(r.prt), tot: toNum(r.ptl) }));
+      const out = { results: collect('NC', c, rows) };
+      if (c.countiesOn) {
+        // precinct_0.txt: every statewide contest by county ("lid" = contest, "anm" = county)
+        const contestOf = new Map(raw.map(r => [String(r.lid ?? r.gid), raceIdFor(r.cnm, 'NC', c.ids)]));
+        const cty = JSON.parse(await c.text('https://er.ncsbe.gov/enr/20261103/data/precinct_0.txt'));
+        out.counties = collectCounties(c, cty.map(r => ({
+          raceId: contestOf.get(String(r.lid)), fips: countyFips('NC', r.anm), name: r.bnm, party: r.pty, votes: r.vct, rep: r.prt, tot: r.ptl,
+        })));
+      }
+      return out;
     },
   }],
 });
@@ -235,13 +337,18 @@ add({
         let rep = 0, tot = 0;
         if (!seen.has(r.CountyCode)) { seen.add(r.CountyCode); rep = toNum(r.PrecinctsReporting) || 0; tot = toNum(r.Precincts) || 0; }
         counties.set(raceId, seen);
-        rows.push({ raceId, name: `${r.CanNameFirst} ${r.CanNameLast}`, party: r.PartyCode, votes: r.CanVotes, addRep: rep, addTot: tot });
+        rows.push({
+          raceId, name: `${r.CanNameFirst} ${r.CanNameLast}`, party: r.PartyCode, votes: r.CanVotes, addRep: rep, addTot: tot,
+          fips: countyFips('FL', r.CountyName), rep: r.PrecinctsReporting, tot: r.Precincts,
+        });
       }
-      return {
+      const out = {
         results: collect('FL', c, rows, {
           pctOf: g => pctFromUnits(g.rows.reduce((s, x) => s + x.addRep, 0), g.rows.reduce((s, x) => s + x.addTot, 0)),
         }),
       };
+      if (c.countiesOn) out.counties = collectCounties(c, rows);
+      return out;
     },
   }],
 });
@@ -250,7 +357,7 @@ add({
 add({
   st: 'MN', label: 'Minnesota Secretary of State', confidence: 'verified', format: 'Media text files',
   units: [{
-    id: 'MN', requests: 3,
+    id: 'MN', requests: 4,
     async run(c) {
       const rows = [];
       let found = false;
@@ -265,7 +372,19 @@ add({
         }
       }
       if (!found) return { notPosted: true };
-      return { results: collect('MN', c, rows) };
+      const out = { results: collect('MN', c, rows) };
+      if (c.countiesOn) {
+        const text = await c.text('https://electionresultsfiles.sos.mn.gov/20261103/allracesbycounty.txt', { allow404: true });
+        const crow = [];
+        for (const line of String(text || '').split(/\r?\n/)) {
+          const p = line.split(';');
+          if (p.length < 14 || !p[1] || p[2]) continue;
+          if (!/^(U\.S\. Senator|Governor)/i.test(p[4])) continue;
+          crow.push({ raceId: raceIdFor(p[4], 'MN', c.ids), fips: mnCountyFips(p[1]), name: p[7], party: p[10], votes: p[13], rep: p[11], tot: p[12] });
+        }
+        out.counties = collectCounties(c, crow);
+      }
+      return out;
     },
   }],
 });
@@ -286,6 +405,9 @@ add({
     },
   }],
 });
+
+/* Orange County Registrar: local contests (city councils, schools, districts, measures) */
+add(ocLocalAdapter);
 
 export const ADAPTERS = A;
 /** Adapters switched on by STATE_FEEDS (comma list, default all). */

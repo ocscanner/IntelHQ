@@ -64,3 +64,20 @@ CREATE TABLE IF NOT EXISTS feed_result (
   updated_at INTEGER,
   PRIMARY KEY (race_id, source)
 );
+
+-- Per-county results for statewide races (Senate, governor), one row per race and source.
+-- Filled only when COUNTY_FEEDS = "on" (needs Workers Paid: the county files are large).
+CREATE TABLE IF NOT EXISTS county_result (
+  race_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  payload TEXT NOT NULL,  -- JSON {cands:[{name,party}], counties:{fips:{v:[...], pct}}}
+  updated_at INTEGER,
+  PRIMARY KEY (race_id, source)
+);
+
+-- Local contests (Orange County Registrar): one row per area with every contest
+CREATE TABLE IF NOT EXISTS local_result (
+  area TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at INTEGER
+);

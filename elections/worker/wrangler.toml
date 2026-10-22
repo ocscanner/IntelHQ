@@ -27,6 +27,13 @@ MIN_REFRESH_MINUTES = "9"
 # Workers Paid ($5/mo): raise to 500 so every state refreshes every run.
 SUBREQUEST_BUDGET = "45"
 
+# County-by-county results for Senate and governor races (the county map). The county files are
+# large (up to a few MB each), more than the free plan's 10 ms of computing time per run can read,
+# so leave this "off" on the free plan. With Workers Paid: set "on" (and SUBREQUEST_BUDGET "500").
+COUNTY_FEEDS = "off"
+# Orange County Registrar results file: the election number to start looking from (Nov 2026 ≈ 24)
+OC_ELECTION_FROM = "24"
+
 # Set to "true" to serve rehearsal data by default (the board can always ask with ?sim=1)
 SIMULATE = "false"
 SIM_CYCLE_MINUTES = "90"

@@ -85,6 +85,37 @@ export function makeResult(race, rows, extra) {
   return { candidates, ...extra };
 }
 
+/**
+ * Per-county results for one race, in a compact shape the map reads directly:
+ *   { cands: [{name, party}], counties: { "13121": { v: [votes per cand], pct } } }
+ * Candidates are ordered by statewide total; v[] lines up with cands[].
+ * @param {object} race   race from the board's race list
+ * @param {{fips:string, name:string, party?:string, votes:any, rep?:any, tot?:any, pct?:number}[]} rows
+ */
+export function makeCountyResult(race, rows) {
+  const ticket = race.chamber === 'governor';
+  const totals = new Map(), parties = new Map(), byCounty = new Map();
+  for (const r of rows) {
+    if (!r.fips || !isRealCandidate(r.name)) continue;
+    const name = cleanName(r.name, race, { ticket });
+    const v = Math.max(0, Math.round(toNum(r.votes) || 0));
+    totals.set(name, (totals.get(name) || 0) + v);
+    if (!parties.has(name)) parties.set(name, normParty(r.party));
+    const c = byCounty.get(r.fips) || { votes: new Map(), pct: null };
+    c.votes.set(name, (c.votes.get(name) || 0) + v);
+    const pct = r.pct ?? pctFromUnits(r.rep, r.tot);
+    if (pct != null) c.pct = pct;
+    byCounty.set(r.fips, c);
+  }
+  const names = [...totals.keys()].sort((a, b) => totals.get(b) - totals.get(a));
+  const counties = {};
+  for (const [fips, c] of byCounty) counties[fips] = { v: names.map(n => c.votes.get(n) || 0), pct: c.pct };
+  return { cands: names.map(n => ({ name: n, party: parties.get(n) })), counties };
+}
+
+/** True for races the county map covers (statewide: Senate and governor). */
+export const isStatewide = race => race && (race.chamber === 'senate' || race.chamber === 'governor');
+
 export function pctFromUnits(rep, total) {
   const a = toNum(rep), b = toNum(total);
   if (a == null || !b) return null;

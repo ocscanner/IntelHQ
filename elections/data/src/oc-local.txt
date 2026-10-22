@@ -1,0 +1,159 @@
+# Orange County local contests, Nov 3, 2026 General Election
+# From the OC Registrar of Voters "Contest/Candidate Proof List" (candlog.pdf, printed 8/28/2026):
+#   https://ocvote.gov/fileadmin/user_upload/data/candlog/GEN2026/candlog.pdf
+# Contest numbers match RaceID in the Registrar's results file (summary_NN.xml on livevoterturnout.com).
+# Format: contest id|official heading|short name|vote for (blank = 1)|incumbent|candidates (NAME~party;...)
+# Ballot measures aren't in the candidate list; they appear from the results file on election night.
+# Rebuild: cd elections/tools && node build-data.mjs
+1200|Voter Nominated STATE SENATOR STATE SENATOR 30th District|State Senator, 30th District|1||BOB J. ARCHULETA~D;ARACELI MARTINEZ~R
+1210|Voter Nominated STATE SENATOR STATE SENATOR 32nd District|State Senator, 32nd District|1|Kelly Seyarto|TIFFANIE TATE~D;KELLY SEYARTO~R
+1220|Voter Nominated STATE SENATOR STATE SENATOR 34th District|State Senator, 34th District|1||RHONDA SHADER~R;AVELINO VALENCIA~D
+1230|Voter Nominated STATE SENATOR STATE SENATOR 36th District|State Senator, 36th District|1|Tony Strickland|CHRIS DUNCAN~D;TONY STRICKLAND~R
+1250|Voter Nominated STATE SENATOR STATE SENATOR 38th District|State Senator, 38th District|1|Catherine Blakespear|LAURA BASSETT~R;CATHERINE S. BLAKESPEAR~D
+1300|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 59th District|State Assembly, 59th District|1||PHILLIP CHEN~R;VICTOR HERNANDEZ~G
+1310|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 64th District|State Assembly, 64th District|1|Blanca Pacheco|RAUL ORTIZ JR.~R;BLANCA PACHECO~D
+1320|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 67th District|State Assembly, 67th District|1||MARK PULIDO~D;PAULO MORALES~R
+1330|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 68th District|State Assembly, 68th District|1|Avelino Valencia|DAVID PENALOZA~D;JESSIE LOPEZ~D
+1340|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 70th District|State Assembly, 70th District|1|Tri Ta|PAULA SWIFT~D;TRI TA~R
+1350|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 71st District|State Assembly, 71st District|1||KATE SANCHEZ~R;JJ GALVEZ~D
+1360|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 72nd District|State Assembly, 72nd District|1|Diane Dixon|CHRIS KLUWE~D;GRACEY VAN DER MARK~R
+1370|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 73rd District|State Assembly, 73rd District|1||COTTIE PETRIE-NORRIS~D;URSON RUSSELL~R
+1380|Voter Nominated MEMBER OF THE STATE ASSEMBLY MEMBER OF THE STATE ASSEMBLY 74th District|State Assembly, 74th District|1|Laurie Davies|SERGIO FARIAS~D;LAURIE DAVIES~R
+3034|Nonpartisan SCHOOL NORTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT Governing Board Member|North OC College Dist, Trustee Area 1|1||BARBARA DUNSHEATH;RAMA R. MALINE
+3036|Nonpartisan SCHOOL NORTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT Governing Board Member|North OC College Dist, Trustee Area 3|1|Stephen T Blount|LARRY ANDRE;CHLOE SERRANO;PAUL GONZALES
+3039|Nonpartisan SCHOOL NORTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT Governing Board Member|North OC College Dist, Trustee Area 6|1|Jeffrey P Brown|PAULETTE CHAFFEE;JESUS SILVA;JEFFREY P. BROWN;ZONYA TOWNSEND
+3042|Nonpartisan SCHOOL COAST COMMUNITY COLLEGE DISTRICT Governing Board Member|Coast Comm College Dist, Trustee Area 1|1|Jim Moreno|JOE KALMICK;ASHTON KAUWE;AUSTIN J. EDSELL
+3044|Nonpartisan SCHOOL COAST COMMUNITY COLLEGE DISTRICT Governing Board Member|Coast Comm College Dist, Trustee Area 3, Short Term|1||KIM CARR;JAMES CAMERON;CONRAD MAZEIKA
+3046|Nonpartisan SCHOOL COAST COMMUNITY COLLEGE DISTRICT Governing Board Member|Coast Comm College Dist, Trustee Area 5|1|Elizabeth Dorn Parker|XERXEZ MEGINO CALILUNG;ELIZABETH "LIZ" DORN PARKER
+3051|Nonpartisan SCHOOL RANCHO SANTIAGO COMMUNITY COLLEGE DISTRICT Governing Board Member|Rcho Santiago Coll Dist, Trustee Area 2|1||JOHN R. HANNA;STEVE ROCCO
+3053|Nonpartisan SCHOOL RANCHO SANTIAGO COMMUNITY COLLEGE DISTRICT Governing Board Member|Rcho Santiago Coll Dist, Trustee Area 4|1|Daisy Tong|BEATRIZ MENDOZA;DAISY TONG
+3061|Nonpartisan SCHOOL SOUTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT Governing Board Member|South OC College Dist, Trustee Area 4|1|Terri Whitt|GILA JONES;JOHN BLACK;NARGES RAKIN;KARIMA FELDHUS
+3104|Nonpartisan SCHOOL BREA OLINDA UNIFIED SCHOOL DISTRICT Governing Board Member|Brea Olinda Unified Sch Dist, Trustee Area 4|1|Natalie Johnson|WENDY CRINER;NATALIE JOHNSON
+3114|Nonpartisan SCHOOL CAPISTRANO UNIFIED SCHOOL DISTRICT Governing Board Member|Capistrano Unified Sch, Dist, Trustee Area 4|1||MELISSA CALDWELL;MARCO CARRALERO
+3116|Nonpartisan SCHOOL CAPISTRANO UNIFIED SCHOOL DISTRICT Governing Board Member|Capistrano Unified Sch, Dist, Trustee Area 6|1|Gila Jones|MANDY BOURNE;JEANNA EMMONS
+3117|Nonpartisan SCHOOL CAPISTRANO UNIFIED SCHOOL DISTRICT Governing Board Member|Capistrano Unified Sch, Dist, Trustee Area 7||Judy Bullockus|LINDA SHEPARD;RON RUEF
+3124|Nonpartisan SCHOOL GARDEN GROVE UNIFIED SCHOOL DISTRICT Governing Board Member|Garden Grove Unified School, Dist, Trustee Area 2|1||CHARLENE CUELLAR;LAN QUOC NGUYEN
+3126|Nonpartisan SCHOOL GARDEN GROVE UNIFIED SCHOOL DISTRICT Governing Board Member|Garden Grove Unified School, Dist, Trustee Area 4|1|Robert Harden|TRACY LA;JOHN GIANG NGUYEN;QUAN VUONG
+3132|Nonpartisan SCHOOL IRVINE UNIFIED SCHOOL DISTRICT Governing Board Member|Irvine Unified Sch Dist, Trustee Area 2|1|Katie McEwen|RON SCOLESDANG;KATIE MCEWEN
+3134|Nonpartisan SCHOOL IRVINE UNIFIED SCHOOL DISTRICT Governing Board Member|Irvine Unified Sch Dist, Trustee Area 4|1|Jeff Kim|JEFF KIM;JANE WOOD
+3141|Nonpartisan SCHOOL LAGUNA BEACH UNIFIED SCHOOL DISTRICT Governing Board Member|Laguna Beach Unified Sch, Dist|3||DEE NAMBA PERRY;SHAHEEN SHEIK-SADHAL;KIMBERLY SMITH;ELIZABETH BATES;JOAN MALCZEWSKI
+3162|Nonpartisan SCHOOL NEWPORT-MESA UNIFIED SCHOOL DISTRICT Governing Board Member|Newport-Mesa USD, Trust Area 2|1|Michelle Murphy|CRAIG HOLIDAY;MICHELLE MURPHY
+3167|Nonpartisan SCHOOL NEWPORT-MESA UNIFIED SCHOOL DISTRICT Governing Board Member|Newport-Mesa USD, Trust Area 7|1|Ashley Anderson|GRACE DAÑINO HICKOK;ANDY GODINEZ
+3171|Nonpartisan SCHOOL ORANGE UNIFIED SCHOOL DISTRICT Governing Board Member|Orange Unified Sch Dist, Trustee Area 1|1||IVAN KOKOS;ANDREA YAMASAKI
+3174|Nonpartisan SCHOOL ORANGE UNIFIED SCHOOL DISTRICT Governing Board Member|Orange Unified Sch Dist, Trustee Area 4|1|Sara Pelly|SARA J. PELLY;ARMANDO "MANDO" PEREZ-SERRATO;CRYSTAL K. MILES
+3175|Nonpartisan SCHOOL ORANGE UNIFIED SCHOOL DISTRICT Governing Board Member|Orange Unified Sch Dist, Trustee Area 5|1|Kris Erickson|CHIP AHLSWEDE;KRISTIN "KRIS" ERICKSON
+3177|Nonpartisan SCHOOL ORANGE UNIFIED SCHOOL DISTRICT Governing Board Member|Orange Unified Sch Dist, Trustee Area 7|1|Stephen Glass|JACK CHANG;STEPHEN GLASS
+3187|Nonpartisan SCHOOL PLACENTIA-YORBA LINDA UNIFIED SCHOOL DISTRICT Governing Board Member|Placentia-Yorba Linda USD, Trustee Area 4|1||CHRIS LOWE;BARBARA "BARB" BUCKLEY;TODD FRAZIER
+3188|Nonpartisan SCHOOL PLACENTIA-YORBA LINDA UNIFIED SCHOOL DISTRICT Governing Board Member|Placentia-Yorba Linda USD, Trustee Area 5|1|Carrie Buck|JUSTIN AGUIRRE;CARRIE BUCK
+3189|Nonpartisan SCHOOL ROWLAND UNIFIED SCHOOL DISTRICT Governing Board Member|Rowland Unified School Dist, Trustee Area 5|1||KEVIN T. HAYAKAWA;FALYNN LOVE THOMPSON
+3195|Nonpartisan SCHOOL SADDLEBACK VALLEY UNIFIED SCHOOL DISTRICT Governing Board Member|Saddleback Valley USD, Trustee Area 5|1|Barbara Schulman|KRIS SPOWART;EDGAR MONTES
+3205|Nonpartisan SCHOOL SANTA ANA UNIFIED SCHOOL DISTRICT Governing Board Member|Santa Ana Unified School District, Trustee Area 4|1|Katelyn Brazer Aceves|KATELYN BRAZER ACEVES;SYLVIA IGLESIAS
+3206|Nonpartisan SCHOOL SANTA ANA UNIFIED SCHOOL DISTRICT Governing Board Member|Santa Ana Unified School District, Trustee Area 5|1||HECTOR BUSTOS;ALEJANDRA RODRIGUEZ
+3213|Nonpartisan SCHOOL TUSTIN UNIFIED SCHOOL DISTRICT Governing Board Member|Tustin Unified School Dist, Trustee Area 3|1|Lynn Davis|LYNN DAVIS;KELLY FELTON
+3215|Nonpartisan SCHOOL TUSTIN UNIFIED SCHOOL DISTRICT Governing Board Member|Tustin Unified School, Dist, Trustee Area 5|1||JONATHAN ABELOVE;ZIGGY MCBRIDE
+3223|Nonpartisan SCHOOL ANAHEIM UNION HIGH SCHOOL DISTRICT Governing Board Member|Anaheim Union High Sch, Dist, Trustee Area 1|1|Jessica Guerrero|GERMAINE NEUMANN;ALFONSO RODRIGUEZ;JESSICA GUERRERO;LINDA MARTINEZ QUIJANO
+3224|Nonpartisan SCHOOL ANAHEIM UNION HIGH SCHOOL DISTRICT Governing Board Member|Anaheim Union High Sch, Dist, Trustee Area 2|1|Annemarie Randle-Trejo|ANNEMARIE RANDLE-TREJO;ROBERTO GARCIA
+3233|Nonpartisan SCHOOL FULLERTON JOINT UNION HIGH SCHOOL DISTRICT Governing Board Member|Fullerton Joint Union, HS Dist, Trustee Area 1|1|Vacant|REGINA CUADRA;MATTHEW MATIAS
+3237|Nonpartisan SCHOOL FULLERTON JOINT UNION HIGH SCHOOL DISTRICT Governing Board Member|Fullerton Joint Union, HS Dist, Trustee Area 5|1||AMY DUDICH;MARILYN BUCHI
+3254|Nonpartisan SCHOOL ANAHEIM ELEMENTARY SCHOOL DISTRICT Governing Board Member|Anaheim Elementary School, Dist, Trustee Area 2|1|Juan Gabriel Alvarez|JEFF COLE;JUAN GABRIEL ALVAREZ
+3256|Nonpartisan SCHOOL ANAHEIM ELEMENTARY SCHOOL DISTRICT Governing Board Member|Anaheim Elementary School, Dist, Trustee Area 4|1|Alva Alvarez|ALVA ALVAREZ;MARK LOPEZ
+3284|Nonpartisan SCHOOL CYPRESS SCHOOL DISTRICT Governing Board Member|Cypress School District, Trustee Area B|||JON PEAT;JACK TOROSSIAN
+3285|Nonpartisan SCHOOL CYPRESS SCHOOL DISTRICT Governing Board Member|Cypress School District, Trustee Area C|1|Meghna Parikh|MEGHNA PARIKH;STEVE BLOUNT;VERNON MILLER
+3291|Nonpartisan SCHOOL FOUNTAIN VALLEY SCHOOL DISTRICT Governing Board Member|Fountain Valley School, Dist|3|Dennis Cole|DENNIS COLE;RICK NICHOLS;CARL BLANKENHORN;EUGENE M. MURRAY
+3305|Nonpartisan SCHOOL FULLERTON SCHOOL DISTRICT Governing Board Member|Fullerton School District, Trustee Area 3|1|Beverly Berryman|AMY CHOI-WON;JORDAN ABUSHAWISH
+3314|Nonpartisan SCHOOL HUNTINGTON BEACH CITY SCHOOL DISTRICT Governing Board Member|Huntington Beach City SD, Trustee Area 4|1|Diana Marks|LAURA COSTELLOE;DIANA MARKS
+3324|Nonpartisan SCHOOL LA HABRA CITY SCHOOL DISTRICT Governing Board Member|La Habra City School, Dist, Trustee Area 4|1||ADAM ROGERS;BERTHA MANZANARES
+3335|Nonpartisan SCHOOL LOWELL JOINT SCHOOL DISTRICT Governing Board Member|Lowell Joint School Dist, Trustee Area 4|1|Karen L Shaw|KAREN SHAW;YOONY TAKEUCHI
+3347|Nonpartisan SCHOOL MAGNOLIA SCHOOL DISTRICT Governing Board Member|Magnolia School Dist, Trustee Area 5|1||ANNIE WARNE;GARY SHIELDS
+3355|Nonpartisan SCHOOL OCEAN VIEW SCHOOL DISTRICT Governing Board Member|Ocean View School Dist., Trustee Area 5|1|Vacant|DAVID CLIFFORD;JENNIFER L RANK
+4004|Nonpartisan COUNTY OF ORANGE County Supervisor 4th District|Supervisor, 4th District||Doug Chaffee|TIM SHAW;CONNOR TRAUT
+4005|Nonpartisan COUNTY OF ORANGE County Supervisor 5th District|Supervisor, 5th District|1||DIANE DIXON;KATRINA FOLEY
+4902|Nonpartisan CITY OF ALISO VIEJO Member, City Council District 2|City of Aliso Viejo, City Council, District 2|1||MAX DUNCAN;STEVEN VON DER PORTEN
+4903|Nonpartisan CITY OF ALISO VIEJO Member, City Council District 3, Short Term|City of Aliso Viejo, City Council, District 3, Short Term|1|Richard Hurt|GARRETT DWYER;MARIE TSAASAN
+5001|Nonpartisan CITY OF ANAHEIM Mayor|City of Anaheim, Mayor|1|Ashleigh Aitken|ASHLEIGH AITKEN;IMRAN SHARIEF;ALFREDO RODRIGUEZ
+5005|Nonpartisan CITY OF ANAHEIM Member, City Council District 2|City of Anaheim, City Council, District 2|1|Carlos A. Leon|CARLOS A. LEON
+5006|Nonpartisan CITY OF ANAHEIM Member, City Council District 3|City of Anaheim, City Council, District 3|1||ELIA RENTERIA-GARCIA;NATALIE RUBALCAVA
+5009|Nonpartisan CITY OF ANAHEIM Member, City Council District 6|City of Anaheim, City Council, District 6|1|Natalie Meeks|NATALIE MEEKS
+5012|Nonpartisan CITY OF BREA Member, City Council|City of Brea, Member, City Council|3|Cecilia Hupp|ANDREW HERRERA;CECILIA HUPP;BLAKE PEREZ;BLAIR STEWART;STEVEN C. VARGAS
+5024|Nonpartisan CITY OF BUENA PARK Member, City Council District 2|City of Buena Park, City Council, District 2|1|Carlos Franco|YONG "CHUY" CHOI;CARLOS FRANCO
+5027|Nonpartisan CITY OF BUENA PARK Member, City Council District 5|City of Buena Park, City Council, District 5|1|Connor Traut|SHARENA WALKER;BRANDON SCHOONER
+5031|Nonpartisan CITY OF COSTA MESA Mayor|City of Costa Mesa, Mayor|1|John Stephens|MIKE BULEY;LOREN GAMEROS
+5036|Nonpartisan CITY OF COSTA MESA Member, City Council District 3|City of Costa Mesa, City Council, District 3|1|Andrea Marr|CARA STEWART;DANIEL MORGAN
+5037|Nonpartisan CITY OF COSTA MESA Member, City Council District 4|City of Costa Mesa, City Council, District 4|1|Manuel Chavez|ANGELY ANDRADE VALLARTA;FISHER DERDERIAN
+5038|Nonpartisan CITY OF COSTA MESA Member, City Council District 5|City of Costa Mesa, City Council, District 5|1|Arlis Reynolds|STEVE SMITH;KELLY BROWN
+5041|Nonpartisan CITY OF CYPRESS Member, City Council District 1|City of Cypress, City Council, District 1|1|Vacant|ANNE HERTZ MALLARI;DAVID BURKE
+5042|Nonpartisan CITY OF CYPRESS Member, City Council District 2|City of Cypress, City Council, District 2|1|Vacant|BONNIE PEAT;HELEN LE
+5045|Nonpartisan CITY OF CYPRESS Member, City Council District 5|City of Cypress, City Council, District 5|1|Vacant|RANDY HARPER;RACHEL STRONG CARNAHAN
+5062|Nonpartisan CITY OF FOUNTAIN VALLEY Member, City Council|City of Fountain Valley, Member, City Council|3|Jim Cunneen|DAN HAY;KATY WRIGHT;KIM CONSTANTINE;JIM CUNNEEN;ELIZABETH ANDRADE;MARK LEONARD;HARRISON F DIBBLEE;JOHN NGUYEN;PATRICIA ODETTE NEAL
+5073|Nonpartisan CITY OF FULLERTON Member, City Council District 3|City of Fullerton, City Council, District 3|1|Shana Charles|DANIEL KIM;SHANA CHARLES
+5075|Nonpartisan CITY OF FULLERTON Member, City Council District 5|City of Fullerton, City Council, District 5|1|Ahmad Zahra|OSCAR VALADEZ;DAVID FISCHBEIN;JOZEF MALDONADO
+5081|Nonpartisan CITY OF GARDEN GROVE Mayor|City of Garden Grove, Mayor|1||STEPHANIE KLOPFENSTEIN;THU-HA NGUYEN
+5084|Nonpartisan CITY OF GARDEN GROVE Member, City Council District 1|City of Garden Grove, City Council, District 1|1|George S Brietigam III|WILLIAM ZYLLA;LONG NGUYEN;ROGER FLANDERS
+5086|Nonpartisan CITY OF GARDEN GROVE Member, City Council District 3|City of Garden Grove, City Council, District 3|1|Cindy Ngoc Tran|AMANDA NGUYEN;THOMAS QUOC THAI NGUYEN;CINDY NGOC TRAN
+5087|Nonpartisan CITY OF GARDEN GROVE Member, City Council District 4|City of Garden Grove, City Council, District 4|1|Joe DoVinh|JOE DOVINH;HIEU NGUYEN;PATRICK PHAT BUI;AMANDA MOHR
+5092|Nonpartisan CITY OF HUNTINGTON BEACH Member, City Council|City of Huntington Beach, Member, City Council|4|Andrew Gruel|AMORY HANSON;TARYN TADDEO PALUMBO;ROSALIND "ROZ" PRICE;BEN DAVIS;ERIN SPIVEY;BRIAN BURLEY;PAT BURNS;BRENDA GLIM;ANDREW GRUEL;CASEY MCKEON;BRIAN THIENES
+5095|Nonpartisan CITY OF HUNTINGTON BEACH City Attorney|City of Huntington Beach, City Attorney|1|Mike Vigliotta|MIKE VIGLIOTTA
+5101|Nonpartisan CITY OF IRVINE Mayor|City of Irvine, Mayor|1|Larry Agran|LARRY AGRAN;MAKSIM V EGOROV
+5102|Nonpartisan CITY OF IRVINE Member, City Council District 1|City of Irvine, City Council, District 1|1|Melinda Liu|SUKHEE KANG;JOHN PARK;MELINDA LIU
+5106|Nonpartisan CITY OF IRVINE Member, City Council District 5|City of Irvine, City Council, District 5|1|Betty Martinez Franco|ANTHONY KUO;STEVEN ALVES;BYRON SALVATIERRA;JULIE GLOSSBRENNER;BETTY MARTINEZ FRANCO
+5107|Nonpartisan CITY OF IRVINE Member, City Council District 6|City of Irvine, City Council, District 6|1||SCOTTY HONG;KATHLEEN TRESEDER
+5112|Nonpartisan CITY OF LAGUNA BEACH Member, City Council|City of Laguna Beach, Member, City Council|3||SUE KEMPF;ASHLEY CINTAS;LAURA PARISI;MARK ORGILL;NICK ARONOFF;EDWARD BAYUK;JOY BERRY;ALEX ROUNAGHI;KAREN MARTIN
+5117|Nonpartisan CITY OF LAGUNA HILLS Member, City Council|City of Laguna Hills, City Council, District 1|1||HARRY HUGGINS;LAURA THIES
+5120|Nonpartisan CITY OF LAGUNA HILLS Member, City Council|City of Laguna Hills, City Council, District 4|1||MICHAEL CAPUTO;TIFFANY BOCCIERI;VALERIE ANNE GELLER;SCOTT MILLER
+5126|Nonpartisan CITY OF LAGUNA WOODS Member, City Council|City of Laguna Woods, Member, City Council|2|Carol A Moore|SUE QUAM;ANNIE MCCARY;CAROL MOORE
+5132|Nonpartisan CITY OF LA HABRA Member, City Council|City of La Habra, Member, City Council|2|Jose Medrano|SUSAN PRITCHARD;JAMES "JIM" GOMEZ;MILES C. MATIAS;JOSE MEDRANO
+5136|Nonpartisan CITY OF LAKE FOREST Member, City Council District 2|City of Lake Forest, City Council, District 2|1||BECKY KEENE;BRANDON COUNCIL;"GEORGE" GIURGUIS AZER;BENJAMIN YU;BRITTANY THOMPSON
+5137|Nonpartisan CITY OF LAKE FOREST Member, City Council District 3|City of Lake Forest, City Council, District 3|1|Scott Voigts|ANIL D. PATEL;TOM GRABLE
+5138|Nonpartisan CITY OF LAKE FOREST Member, City Council District 4|City of Lake Forest, City Council, District 4|1|Mark Tettemer|AMY STEVENS;SHARI M RHODES
+5142|Nonpartisan CITY OF LA PALMA Member, City Council District 2|City of La Palma, City Council, District 2|1||ANDREW KIM;NITESH P. PATEL
+5144|Nonpartisan CITY OF LA PALMA Member, City Council District 4|City of La Palma, City Council, District 4|1||MARY PANINGSORO;JONATHAN DINWIDDIE
+5154|Nonpartisan CITY OF LOS ALAMITOS Member, City Council District 4|City of Los Alamitos, City Council, District 4|1|Shelley Hasselbrink|SHELLEY HASSELBRINK;JOE HASTIE
+5155|Nonpartisan CITY OF LOS ALAMITOS Member, City Council District 5|City of Los Alamitos, City Council, District 5|1|Emily Hibard|EMILY HIBARD;JOHN M. DELAVIGNE
+5161|Nonpartisan CITY OF MISSION VIEJO Member, City Council District 1|City of Mission Viejo, Member, City Council, District 1|1|Bob Ruesch|KRISTEN WILCOX;ROBERT "BOB" RUESCH
+5162|Nonpartisan CITY OF MISSION VIEJO Member, City Council District 2, Short Term|City of Mission Viejo, Member, City Council, District 2, Short Term|1|Brian Goodell|SAGA CONROY;PETER MOLINARI
+5163|Nonpartisan CITY OF MISSION VIEJO Member, City Council District 3|City of Mission Viejo, Member, City Council, District 3|1|Cynthia Vasquez|BRYAN ZAHN;CYNTHIA VASQUEZ
+5164|Nonpartisan CITY OF MISSION VIEJO Member, City Council District 4, Short Term|City of Mission Viejo, Member, City Council, District 4, Short Term|1|Trish Kelley|LAURA LACKO;JAMES MORRISON
+5165|Nonpartisan CITY OF MISSION VIEJO Member, City Council District 5|City of Mission Viejo, Member, City Council, District 5|1|Wendy Bucknum|STEVEN THORNTON
+5171|Nonpartisan CITY OF NEWPORT BEACH Member, City Council District 1|City of Newport Beach, City Council, District 1|1||JOE STAPLETON;TINA BABAJANIANS
+5173|Nonpartisan CITY OF NEWPORT BEACH Member, City Council District 3|City of Newport Beach, City Council, District 3|1|Erik Weigand|ERIK WEIGAND;TIM STOAKS;WALTER STAHR
+5174|Nonpartisan CITY OF NEWPORT BEACH Member, City Council District 4|City of Newport Beach, City Council, District 4|1|Robyn Grant|ROBYN GRANT
+5176|Nonpartisan CITY OF NEWPORT BEACH Member, City Council District 6|City of Newport Beach, City Council, District 6|1||LAUREN KLEIMAN;ANDREW P. GERKEN
+5181|Nonpartisan CITY OF ORANGE Mayor|City of Orange, Mayor|1|Dan Slater|DAN SLATER;ARIANNA BARRIOS
+5182|Nonpartisan CITY OF ORANGE Member, City Council District 1|City of Orange, City Council, District 1|1||JONATHAN ST CLAIR;BRANDY ROMERO;ALBERT "AJ" RICCI;ERNIE GLASGOW
+5185|Nonpartisan CITY OF ORANGE Member, City Council District 4|City of Orange, City Council, District 4|1|Denis Bilodeau|DENIS BILODEAU
+5187|Nonpartisan CITY OF ORANGE Member, City Council District 6|City of Orange, City Council, District 6|1|John Gyllenhammer|BRENDON MOELLER
+5191|Nonpartisan CITY OF PLACENTIA Member, City Council District 2|City of Placentia, City Council, District 2|1||MATT WAUGH;SANTOSH SABNIS;JULIE SUCHARD
+5193|Nonpartisan CITY OF PLACENTIA Member, City Council District 4|City of Placentia, City Council, District 4|1|Chad Wanke|CHAD WANKE;JAMES BURANDT
+5195|Nonpartisan CITY OF PLACENTIA City Clerk|City of Placentia, City Clerk|1|Robert McKinnell|ROBERT S. "BOB" MCKINNELL
+5200|Nonpartisan CITY OF SAN CLEMENTE Mayor|City of San Clemente, Mayor|1||SHANE HIRSCHMAN;KATHY WARD;VICTOR CABRAL
+5201|Nonpartisan CITY OF SAN CLEMENTE Member, City Council District 1|City of San Clemente, City Council, District 1|1||AARON WASHINGTON;STEVE CAMP;DONNA VIDRINE
+5202|Nonpartisan CITY OF SAN CLEMENTE Member, City Council District 2|City of San Clemente, City Council, District 2|1||STEVE KNOBLOCK;MARK ENMEIER
+5214|Nonpartisan CITY OF SAN JUAN CAPISTRANO Member, City Council District 2|City of San Juan Capistrano, City Council, District 2|1|Troy Bourne|ERIN BEYER;JEFF MOORE
+5221|Nonpartisan CITY OF SANTA ANA Mayor|City of Santa Ana, Mayor|1|Valerie Amezcua|VALERIE AMEZCUA;DWAYNE SHIPP;DAN SHIMELL
+5223|Nonpartisan CITY OF SANTA ANA Member, City Council Ward 2|City of Santa Ana, City Council, Ward 2|1||SELICA DIAZ;BENJAMIN VAZQUEZ
+5225|Nonpartisan CITY OF SANTA ANA Member, City Council Ward 4|City of Santa Ana, City Council, Ward 4|1|Phil Bacerra|SANDRA DE ANDA;PHIL BACERRA
+5227|Nonpartisan CITY OF SANTA ANA Member, City Council Ward 6|City of Santa Ana, City Council, Ward 6|1||GIOVANNI CHAVEZ;ISURI S. RAMOS
+5231|Nonpartisan CITY OF SEAL BEACH Member, City Council District 1|City of Seal Beach, City Council, District 1|1||SCOTT DAVIS;MATT SMITH;PERLA MENDOZA;MATTHEW TERRY
+5241|Nonpartisan CITY OF STANTON Member, City Council District 1|City of Stanton, City Council, District 1|1|Donald Torres|THOMAS M. FRAZIER;DONALD TORRES
+5243|Nonpartisan CITY OF STANTON Member, City Council District 3|City of Stanton, City Council, District 3|1|Gary Taylor|DEBORA DONATHAN;DEWAYNE A. NORMAND;MARLON-RAY VELASCO
+5250|Nonpartisan CITY OF TUSTIN Mayor|City of Tustin, Mayor|1|Austin Lumbard|LETITIA CLARK;AUSTIN LUMBARD
+5253|Nonpartisan CITY OF TUSTIN Member, City Council District 3|City of Tustin, City Council, District 3|1|Ray Schnell|RAY SCHNELL;THOMAS JAMES "TJ" REED
+5271|Nonpartisan CITY OF WESTMINSTER Mayor|City of Westminster, Mayor|1|Chi Charlie Nguyen|KIMBERLY HO;NGUYEN PHUONG HUNG;CHI CHARLIE NGUYEN;CHARLES S. SHIPP;CARLOS MANZO
+5272|Nonpartisan CITY OF WESTMINSTER Member, City Council District 1|City of Westminster, City Council, District 1|1|Amy Phan West|AMY PHAN WEST;DAVID JOHNSON;MIKE FENTON
+5279|Nonpartisan CITY OF WESTMINSTER Member, City Council District 4|City of Westminster, City Council, District 4|1||KHAI DAO;KELLY DANIELS;LOAN NGUYEN;NAMQUAN NGUYEN
+5282|Nonpartisan CITY OF YORBA LINDA Member, City Council|City of Yorba Linda, Member, City Council|2|Carlos Rodriguez|SEAN PHAYAKAPONG;RAYMOND POTTER;ROBERT R. PEASE II;JANICE LIM;CARLOS RODRIGUEZ
+5294|Nonpartisan CITY OF RANCHO SANTA MARGARITA Member, City Council District 1|City of Rancho Santa Margarita, City Council, District 1|||JOSH BASTIAN;NICHOLAS REESE
+5295|Nonpartisan CITY OF RANCHO SANTA MARGARITA Member, City Council District 2|City of Rancho Santa Margarita, City Council, District 2|1||ROD GANJIFARD;NATALIE GUSE;ANNE FIGUEROA
+5297|Nonpartisan CITY OF RANCHO SANTA MARGARITA Member, City Council District 4|City of Rancho Santa Margarita, City Council, District 4|||BRAD MCGIRR
+6021|Nonpartisan ROSSMOOR COMMUNITY SERVICES DISTRICT Director|Rossmoor Community Services District|2|Michael Maynard|JO SHADE;JODY L. ROUBANIS;KONYA VIVANTI
+6064|Nonpartisan SERRANO WATER DISTRICT Director|Serrano Water District, Division 4|||PATRICK O'HARA;FREDERICK FASCENELLI
+6081|Nonpartisan SILVERADO-MODJESKA RECREATION AND PARK DIST. Director|Silverado-Modjeska Recreation and Park District, Short Term|1||MARK LEVY;KIRSTEN RIESER
+6131|Nonpartisan MIDWAY CITY SANITARY DISTRICT Director|Midway City Sanitary District|3|Andrew Nguyen|SERGIO CONTRERAS;DONALD J. LANK;MICHAEL LIU;ANH "ANDY" NGUYEN;ANDREW NGUYEN;MARK NGUYEN
+6161|Nonpartisan EL TORO WATER DISTRICT Director|El Toro Water District, Full Term|2|Kathryn Freshley|ALFREDO CARDENAS;MIKE GASKINS;KATHRYN FRESHLEY
+6168|Nonpartisan IRVINE RANCH WATER DISTRICT Director|Irvine Ranch Water District, Division 5|1||JEFFREY HARLAN;PEER A. SWAN
+6177|Nonpartisan MOULTON NIGUEL WATER DISTRICT Director|Moulton Niguel Water District, Full Term|3||PATRICIA "TRISH" KELLEY;MICHAEL CRUIKSHANK;BRIAN PARKER;KURT LIND;LEENA RAY;JENNIFER ENGLE;WILLIAM "BILL" MOORHEAD
+6178|Nonpartisan MOULTON NIGUEL WATER DISTRICT Director|Moulton Niguel Water District, Short Term|1|Richard S Fiore|DAVID PETTY;PATRICIA C. "PAT" BATES;JOEL BISHOP
+6225|Nonpartisan MESA WATER DISTRICT Director|Mesa Water District, Division 5|1||SHAWN DEWANE;MIKELLE FISH
+6261|Nonpartisan TRABUCO CANYON WATER DISTRICT Director|Trabuco Canyon Water District|3|Michael Safranski|BRAD WEISKITTEL;JILL COSS;JOHN CASARIETTI;GLENN ACOSTA;MIKE SAFRANSKI;CHAD BROWN;EDWARD MANDICH
+6292|Nonpartisan MUNICIPAL WATER DISTRICT Director|Municipal Water District of Orange County, Division 2|1|Larry D Dick|ARMANDO "MANDO" PEREZ-SERRATO;BOBBY LAPOINTE;LARRY D. DICK;MIKE MARKUS
+6332|Nonpartisan BUENA PARK LIBRARY DISTRICT Trustee|Buena Park Library District, Division 2|1|Brenda Estrada|BRIAN CARVER;BRENDA ESTRADA

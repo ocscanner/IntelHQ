@@ -5,6 +5,14 @@ and 36 governor races on one screen, with a map, the balance of power for each c
 a calls log, and desk tools for entering calls yourself. Vote counts refresh from state
 election offices about every 10 minutes.
 
+It also has:
+
+- **County maps.** On the Senate and Governors tabs, select a state to see its counties, colored by
+  who's ahead (stronger color = wider lead). "← All states" goes back.
+- **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,
+  77 city races in 31 cities, 47 school and college board races, 12 water and special districts,
+  14 state legislative races (OC votes only), and local measures once the Registrar posts them.
+
 It shows up in three places:
 
 - **IntelHQ → Politics & Elections**, under "Live Results Board" (full desk tools)
@@ -18,8 +26,13 @@ elections/
   public.html             read-only page for the public site
   data/races-2026.json    every race: seat holder and named candidates
   data/us-states.json     state shapes for the map
+  data/counties/XX.json   county shapes, one small file per state (loaded when you open a state)
+  data/oc-local-2026.json Orange County local contests and candidates
+  data/src/oc-local.txt   the OC list it's built from (Registrar's candidate list, Aug 28)
   data/src/*.txt          the race lists the JSON is built from
-  tools/build-data.mjs    rebuilds the two data files
+  tools/build-data.mjs    rebuilds the race list and state shapes
+  tools/build-counties.mjs  rebuilds the county shapes and county-name lookup
+  tools/build-local.mjs   rebuilds the Orange County list
   worker/                 the "oc-election-wire" Cloudflare Worker that collects results
 ```
 
@@ -63,6 +76,42 @@ States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jers
 Mississippi and others) fill in only from your desk entries or AP. The full state-by-state
 research is in the "Free election results feeds, state by state" doc.
 
+## County maps
+
+County counts come from the same state offices, from their county-by-county files:
+
+| State | County file |
+|---|---|
+| CA | Secretary of State "maps" file (one download, every county) |
+| FL | Same statewide file, which is already by county |
+| NC | `precinct_0.txt`: every statewide contest by county |
+| MN | `allracesbycounty.txt` |
+| CO, IA | Clarity `detailxml.zip` |
+| GA, VA, AZ, ID, UT | Enhanced Voting "results by county" for each Senate or governor race |
+
+Texas, Nebraska and South Dakota don't publish a free county file, and states with no feed at all
+have none either. Their county maps say so (AP would fill them in if you license it).
+
+**County downloads are off until you switch on Workers Paid.** The county files are large (Georgia's
+is about 2.5 MB per race), more than the free plan's 10 ms of computing time per run can read. When
+you upgrade, set `COUNTY_FEEDS = "on"` along with `SUBREQUEST_BUDGET = "500"` in `wrangler.toml`.
+Rehearsal data shows practice county maps for every state either way.
+
+## Orange County tab
+
+Results come from the OC Registrar of Voters' own results file (Live Voter Turnout, the system behind
+ocvote.gov's results page). The Worker checks it on the same 10-minute timer as the states. The file is
+numbered by election (#18 was Nov 2024, #23 the June 2026 primary); the Worker starts looking at #24
+and remembers the number once November's file appears. If a special election takes #24, it keeps looking.
+
+- Before results, the tab lists every contest and candidate from the Registrar's Aug 28 candidate list.
+- Local measures aren't on the candidate list; they appear when the Registrar posts its first count.
+- **Calling a local race:** select it, tick the winner(s), pick who made the call, **Call this race**,
+  then **Publish call**. Races that elect more than one person (vote for 2, 3 or 4) take that many ticks.
+  Withdraw and undo work as on the national board, and calls show in the calls log.
+- State Legislature races show **Orange County votes only**; most of those districts cross county lines.
+- After election night the Registrar updates weekdays at 5 p.m. until it certifies.
+
 ## Free plan or Workers Paid
 
 Cloudflare's free plan allows 100,000 requests a day **per account** (shared with the radar proxy),
@@ -72,8 +121,10 @@ Cloudflare's free plan allows 100,000 requests a day **per account** (shared wit
   still refreshes within about 15 minutes. But big files (North Carolina, Texas, Florida, Georgia)
   may take more than 10 ms to read, and those states will show "failing".
 - **Workers Paid ($5/month):** 30 seconds per run and 10 million requests a month, covering both Workers.
-  Set `SUBREQUEST_BUDGET = "500"` in `wrangler.toml` and redeploy so every state refreshes every run.
-  Recommended for November, especially if the public page gets shared; cancel afterward.
+  Set `SUBREQUEST_BUDGET = "500"` and `COUNTY_FEEDS = "on"` in `wrangler.toml` and push, so every state
+  refreshes every run and the county maps fill in.
+  Plan: stay on the free plan until early November, switch on before election night and before the
+  public link gets shared; cancel afterward.
 
 ## How it's deployed
 
@@ -118,10 +169,12 @@ curl -H "Authorization: Bearer YOUR_DESK_TOKEN" "https://oc-election-wire.ocscan
 ```
 
 It downloads that state right now (even before Nov 3), and shows which races it found and the
-top candidates, without saving anything. "not posted" means the state hasn't put up its Nov 3 file
+top candidates, without saving anything. `state=OC` checks the Orange County Registrar's file. "not posted" means the state hasn't put up its Nov 3 file
 yet. Numbers you see before election night are the state's test data.
 
 ## Before election night
+
+0. Early November: turn on Workers Paid, then set `SUBREQUEST_BUDGET = "500"` and `COUNTY_FEEDS = "on"`.
 
 1. Open the board and turn on **Rehearsal data**. It plays a fake election night on a
    90-minute loop so you can practice. Everything in rehearsal is labeled, copied posts start
@@ -143,16 +196,16 @@ yet. Numbers you see before election night are the state's test data.
 - **Close** shows uncalled races within 5 points. **Flips** shows seats that changed hands
   or where the other party leads.
 
-## Putting it on the public site (ocscanner.news)
+## The public site
 
-`public.html` is the same board with no desk sign-in, rehearsal switch or Copy post for X. Your calls
-appear on it once you make them in IntelHQ. To publish it:
+The public Elections page (ocscanner.github.io/PublicSiteTest/elections.html, later ocscanner.news/elections)
+is the same board with no desk sign-in, rehearsal switch or Copy post for X, styled to match the site.
+Your IntelHQ calls, county maps and the Orange County tab all appear there within about a minute.
 
-1. Copy `board.js`, `board.css`, `public.html` and `data/us-states.json` into the public site repo,
-   for example as `elections/index.html` (rename `public.html`), `elections/board.js`, and so on.
-2. If the public site runs somewhere other than ocscanner.github.io or ocscanner.news, add that
-   address to `ALLOWED_ORIGINS` in `wrangler.toml`.
-3. Turn on Workers Paid first if you'll promote the link (see above).
+It uses copies of this folder's files, so **when `board.js`, `board.css` or anything in `data/` changes
+here, copy them to the PublicSiteTest repo's `elections/` folder too**: `board.js`, `board.css`,
+`data/us-states.json` and `data/counties/`. If the site moves somewhere other than ocscanner.github.io or
+ocscanner.news, add that address to `ALLOWED_ORIGINS` in `wrangler.toml`.
 
 ## Updating the race list
 
@@ -178,6 +231,8 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 | `STATE_FEEDS` | `all` | Which states to download, e.g. `"GA,NC,TX"`, or `"off"` |
 | `MIN_REFRESH_MINUTES` | `9` | How often each state is downloaded, at most |
 | `SUBREQUEST_BUDGET` | `45` | Downloads per 5-minute run; `500` on Workers Paid |
+| `COUNTY_FEEDS` | `off` | County-by-county downloads; `on` with Workers Paid |
+| `OC_ELECTION_FROM` | `24` | Orange County results file number to start looking from |
 | `SIMULATE` | `false` | Serve rehearsal data by default |
 
 ## Worker endpoints
@@ -186,6 +241,8 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 |---|---|
 | `GET /v1/board` | Every race and the seat summaries. Add `?sim=1` for rehearsal data |
 | `GET /v1/feed` | Latest calls and withdrawals |
+| `GET /v1/counties?race=GA-SEN` | County results for a Senate or governor race |
+| `GET /v1/local?area=OC` | Orange County local contests, results and desk calls |
 | `GET /v1/health` | Switches, state feed list, when feeds start |
 | `GET /v1/desk/preview?state=XX` | Download and parse one state now, without saving (desk token) |
 | `POST /v1/desk/call` · `retract` · `clear` · `result` | Desk actions (desk token) |

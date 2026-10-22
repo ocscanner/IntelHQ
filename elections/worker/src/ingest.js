@@ -48,10 +48,11 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
     if (conditional && etags) etags[url] = { etag: resp.headers.get('etag'), lm: resp.headers.get('last-modified') };
     return { resp };
   }
+  const countiesOn = /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
   const ctxFor = meta => {
     meta.etags ||= {};
     return {
-      meta, ids, races,
+      meta, ids, races, env, now, countiesOn,
       async text(url, o = {}) {
         const r = await get(url, { ...o, etags: meta.etags });
         if (r.notModified) return null;
@@ -82,6 +83,8 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
 
   const report = [];
   const results = [];             // { raceId, payload }
+  const counties = [];            // { raceId, payload }  per-county results for statewide races
+  const locals = [];              // { area, payload }    local contests (Orange County)
   for (const u of due) {
     const left = budget - used;
     if (left <= 0) break;
@@ -93,10 +96,16 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
       const out = await u.run(ctxFor(meta));
       if (out.notPosted) { row.status = 'not posted'; row.races = 0; }
       else if (out.unchanged) row.status = 'unchanged';
-      else {
+      else if (out.local) {
+        meta.haveData = true;
+        row.races = out.count ?? out.local.contests?.length ?? 0;
+        locals.push({ area: out.local.area, payload: out.local });
+      } else {
         meta.haveData = true;
         row.races = out.results.size;
-        for (const [raceId, r] of out.results) results.push({ raceId, payload: { ...r, source: u.label, st: u.st, updated: new Date(now).toISOString() } });
+        const stamp = new Date(now).toISOString();
+        for (const [raceId, r] of out.results) results.push({ raceId, payload: { ...r, source: u.label, st: u.st, updated: stamp } });
+        for (const [raceId, r] of out.counties || []) counties.push({ raceId, payload: { ...r, source: u.label, st: u.st, updated: stamp } });
       }
     } catch (e) {
       if (e.budget) break;                                           // out of downloads mid-unit: retry next run, record nothing
@@ -111,11 +120,25 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
   if (!dryRun) {
     await store.saveUnits(report);
     await store.saveResults('STATE', results);
+    if (counties.length) await store.saveCounties('STATE', counties);
+    for (const l of locals) await store.saveLocal(l.area, l.payload);
   }
-  return { used, budget, units: report, results };
+  return { used, budget, units: report, results, counties, locals };
 }
 
 /* ── Storage ── */
+// Tables added after launch are created on first use, so a deploy never needs a manual database step.
+const EXTRA_TABLES = [
+  'CREATE TABLE IF NOT EXISTS county_result (race_id TEXT NOT NULL, source TEXT NOT NULL, payload TEXT NOT NULL, updated_at INTEGER, PRIMARY KEY (race_id, source))',
+  'CREATE TABLE IF NOT EXISTS local_result (area TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER)',
+];
+const ready = new WeakSet();
+async function ensureTables(db) {
+  if (ready.has(db)) return;
+  await db.batch(EXTRA_TABLES.map(q => db.prepare(q)));
+  ready.add(db);
+}
+
 export function d1Store(db) {
   return {
     async loadUnits() {
@@ -146,12 +169,37 @@ export function d1Store(db) {
       const { results } = await db.prepare('SELECT race_id, source, payload FROM feed_result').all();
       return results.map(r => ({ raceId: r.race_id, source: r.source, payload: safeJSON(r.payload) })).filter(r => r.payload);
     },
+    async saveCounties(source, rows) {
+      await ensureTables(db);
+      const stmts = rows.map(r => db.prepare('INSERT OR REPLACE INTO county_result (race_id, source, payload, updated_at) VALUES (?,?,?,?)')
+        .bind(r.raceId, source, JSON.stringify(r.payload), Date.parse(r.payload.updated) || Date.now()));
+      for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+    },
+    async loadCounties(raceId) {
+      await ensureTables(db);
+      const { results } = await db.prepare('SELECT source, payload FROM county_result WHERE race_id = ?').bind(raceId).all();
+      const by = Object.fromEntries(results.map(r => [r.source, safeJSON(r.payload)]));
+      return by.AP || by.STATE || null;
+    },
+    async saveLocal(area, payload) {
+      await ensureTables(db);
+      await db.prepare('INSERT OR REPLACE INTO local_result (area, payload, updated_at) VALUES (?,?,?)').bind(area, JSON.stringify(payload), Date.now()).run();
+    },
+    async loadLocal(area) {
+      await ensureTables(db);
+      const row = await db.prepare('SELECT payload FROM local_result WHERE area = ?').bind(area).first();
+      return row ? safeJSON(row.payload) : null;
+    },
   };
 }
 export function memoryStore() {
-  const units = new Map(), res = new Map();
+  const units = new Map(), res = new Map(), cty = new Map(), local = new Map();
   return {
-    units, res,
+    units, res, cty, local,
+    async saveCounties(source, rows) { for (const r of rows) cty.set(`${source}|${r.raceId}`, r.payload); },
+    async loadCounties(raceId) { return cty.get(`AP|${raceId}`) || cty.get(`STATE|${raceId}`) || null; },
+    async saveLocal(area, payload) { local.set(area, payload); },
+    async loadLocal(area) { return local.get(area) || null; },
     async loadUnits() { return new Map(units); },
     async saveUnits(rows) { for (const r of rows) units.set(r.unit, JSON.parse(JSON.stringify(r))); },
     async saveResults(source, rows) { for (const r of rows) res.set(`${source}|${r.raceId}`, { raceId: r.raceId, source, payload: r.payload }); return rows.length; },
