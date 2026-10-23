@@ -146,6 +146,11 @@ Cloudflare's free plan allows 100,000 requests a day **per account** (shared wit
   Workers & Pages → oc-election-wire → Settings → Builds, root directory `/elections/worker`, deploy
   command `npx wrangler deploy -c wrangler.toml`. The `-c` matters: without it Cloudflare picks up the
   IntelHQ site's own settings file instead.
+- **Preview builds are turned off** for `oc-election-wire` (Settings → Builds → Previews Base → "Builds for
+  Preview branches"). Cloudflare turned them on for every Worker in Oct 2026; a preview of this Worker has no
+  database or feeds, and its default command (`npx wrangler preview`, no `-c`) read the wrong settings file,
+  so it failed on every push. If you ever turn previews back on, set the Preview command to
+  `npx wrangler preview -c wrangler.toml`.
 - Its database (`oc-election-wire`) and the `DESK_TOKEN` secret are already set up in Cloudflare.
 
 ## One-time setup (about 15 minutes)

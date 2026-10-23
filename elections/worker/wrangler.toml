@@ -2,9 +2,9 @@ name = "oc-election-wire"
 main = "src/index.js"
 compatibility_date = "2026-05-30"
 workers_dev = true
-# Cloudflare also builds a "Preview" of every push (the second "Workers Builds" check on GitHub).
-# Previews get none of the settings below: no database, no feed schedule, no secrets, so they can't
-# touch election-night data. This empty block is all `wrangler preview` needs to stop failing.
+# Cloudflare "Previews" are turned off for this Worker (see README, "How it's deployed"). If they're
+# turned back on, `wrangler preview -c wrangler.toml` needs this block. Previews get none of the settings
+# below (no database, feed schedule or secrets), so they can't touch election-night data.
 previews = {}
 
 [observability]
