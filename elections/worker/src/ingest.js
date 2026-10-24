@@ -67,6 +67,14 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
         if (r.missing) return undefined;
         return JSON.parse(await r.resp.text());
       },
+      // A form post (Missouri's results page). Counts against the download budget like any other request.
+      async post(url, body, contentType = 'application/x-www-form-urlencoded') {
+        if (used >= budget) throw new BudgetError();
+        used++;
+        const resp = await fetchImpl(rewrite(url), { method: 'POST', headers: { 'User-Agent': USER_AGENT, Accept: '*/*', 'Content-Type': contentType }, body, cf: { cacheTtl: 0 } });
+        if (!resp.ok) throw new HttpError(resp.status, url);
+        return resp.text();
+      },
       async bytes(url, o = {}) {
         const r = await get(url, { ...o, etags: meta.etags });
         return new Uint8Array(await r.resp.arrayBuffer());

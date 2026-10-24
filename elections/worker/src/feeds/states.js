@@ -434,7 +434,8 @@ add({
    <div class="chart-container" data-race="…" data-candidates="[{name, party, votes}]"> followed by
    "N of 95 Counties Completed". Layout checked against the Nov 2024 general (archived); the site is dark until
    results start, so the office pages are found from the home page's menu. */
-const unescapeHtml = s => String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+const unescapeHtml = s => String(s).replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCharCode(parseInt(h, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCharCode(+d))
+  .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 export function parseTN(html) {
   const rows = [];
   const parts = String(html).split(/(?=<div[^>]*class="chart-container")/i);
@@ -464,6 +465,58 @@ add({
       for (const sl of slugs) rows.push(...parseTN(await c.text(`${base}/categories/${sl}/offices`, { allow404: true }) || ''));
       if (!rows.length) return { notPosted: true };
       return { results: collect('TN', c, rows, { pctLabel: 'counties' }) };
+    },
+  }],
+});
+
+/* Missouri: enr.sos.mo.gov is an ASP.NET form (pick the election, press Submit). The feed does the same: read the
+   form, post it back, and read the results table. Checked Oct 24 against the Aug 4, 2026 primary, without cookies.
+   Only runs once the selected election is the November general. */
+const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]*)"`, 'i'))?.[1] ?? null;
+export function missouriForm(html) {
+  const form = String(html).match(/<form[\s\S]*?<\/form>/i)?.[0] || '';
+  const body = new URLSearchParams();
+  for (const m of form.matchAll(/<input\b[^>]*>/gi)) {
+    const type = (attr(m[0], 'type') || 'text').toLowerCase(), name = attr(m[0], 'name');
+    if (!name || type === 'button' || type === 'text') continue;
+    if (type === 'submit' && !/btnElectionType/i.test(name)) continue;
+    body.set(name, unescapeHtml(attr(m[0], 'value') || ''));
+  }
+  const sel = form.match(/<select\b[^>]*name="([^"]*cboElectionNames[^"]*)"[^>]*>([\s\S]*?)<\/select>/i);
+  if (!sel) return null;
+  const opts = [...sel[2].matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)].map(o => ({ value: attr(o[1], 'value'), text: o[2].replace(/\s+/g, ' ').trim(), selected: /selected/i.test(o[1]) }));
+  const pick = opts.find(o => /general/i.test(o.text) && /november/i.test(o.text) && /2026/.test(o.text)) || null;
+  if (!pick) return null;
+  body.set(sel[1], pick.value);
+  return { body, election: pick.text };
+}
+export function parseMO(html) {
+  const rows = [];
+  let contest = null, rep = null, tot = null;
+  for (const tr of String(html).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => stripTags(x[1]));
+    if (cells.length < 3) continue;
+    const pr = cells.join(' ').match(/([\d,]+) of ([\d,]+) Precincts Reported/i);
+    if (pr && /<strong>/i.test(tr[1])) { contest = cells[0]; rep = toNum(pr[1]); tot = toNum(pr[2]); continue; }
+    if (!contest || !cells[0] || /total/i.test(cells[1] || '')) continue;
+    const votes = toNum(cells[2]);
+    if (votes == null) continue;
+    rows.push({ contest, name: cells[0], party: cells[1], votes, rep, tot });
+  }
+  return rows;
+}
+add({
+  st: 'MO', label: 'Missouri Secretary of State', confidence: 'unverified', format: 'Results page (ASP.NET form)',
+  units: [{
+    id: 'MO', requests: 2,
+    async run(c) {
+      const url = 'https://enr.sos.mo.gov/';
+      const form = missouriForm(await c.text(url, { allow404: true }) || '');
+      if (!form) return { notPosted: true };                         // November's election isn't on the site yet
+      const html = await c.post(url, form.body.toString());
+      const rows = parseMO(html);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('MO', c, rows) };
     },
   }],
 });

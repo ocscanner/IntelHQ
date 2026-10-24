@@ -424,3 +424,37 @@ test('Tennessee: office pages found from the home page; race data embedded in th
   assert.equal(res(out, 'TN-SEN').pctLabel, 'counties');
   assert.equal((await run('TN', { [`${base}/home`]: '<p>Official election results for past elections can be found here</p>' })).units[0].status, 'not posted');
 });
+
+test('Missouri: reads the form, posts it back for the November general, parses the results table', async () => {
+  // Form and table laid out like enr.sos.mo.gov (checked Oct 24 against the Aug 4, 2026 primary); November numbers made up
+  const form = (opts) => `<form method="post" action="./" id="ctl01"><input type="hidden" name="__EVENTTARGET" value="" />
+    <input type="hidden" name="__VIEWSTATE" value="abc&#43;123" /><input type="hidden" name="__VIEWSTATEGENERATOR" value="CA0B0334" />
+    <input name="q" type="text" /><input type="button" value="Search" />
+    <select name="ctl00$MainContent$cboElectionNames">${opts}</select>
+    <input type="submit" name="ctl00$MainContent$btnElectionType" value="Submit" /><input type="hidden" name="__ncforminfo" value="xyz" /></form>`;
+  const row = cells => `<tr> ${cells.map(c => `<td>${c}</td>`).join('')} </tr>`;
+  const table = `<table>${[
+    row(['<strong>U.S. REPRESENTATIVE - DISTRICT 2</strong>', '&nbsp;', '&nbsp;', '<strong>322 of 644 Precincts Reported</strong>']),
+    row(['Ann Wagner', 'Republican', '120,000', '55.000%']),
+    row(['Fred Wellman', 'Democratic', '98,000', '45.000%']),
+    row(['&nbsp;', '<i><b>Total Votes:</b></i>', '<i><b>218,000</b></i>', '&nbsp;']),
+    row(['<strong>STATE AUDITOR</strong>', '&nbsp;', '&nbsp;', '<strong>1 of 3000 Precincts Reported</strong>']),
+    row(['Someone Else', 'Republican', '5', '100%']),
+  ].join('')}</table>`;
+  let posted = null;
+  const url = 'https://enr.sos.mo.gov/';
+  const out = await run('MO', { [url]: init => init.method === 'POST'
+    ? (posted = new URLSearchParams(init.body), table)
+    : form('<option value="750006905">State of Missouri - Primary Election, August 04, 2026</option><option selected="selected" value="750007001">State of Missouri - General Election, November 03, 2026</option>') });
+  assert.equal(posted.get('ctl00$MainContent$cboElectionNames'), '750007001');
+  assert.equal(posted.get('__VIEWSTATE'), 'abc+123');
+  assert.equal(posted.get('ctl00$MainContent$btnElectionType'), 'Submit');
+  assert.equal(posted.has('q'), false);
+  const mo2 = res(out, 'MO-02');
+  assert.ok(mo2, 'MO-02 parsed');
+  assert.deepEqual(mo2.candidates.map(c => [c.party, c.votes]), [['R', 120000], ['D', 98000]]);
+  assert.equal(mo2.pctIn, 50);
+  // Before November's election is on the site: nothing is posted
+  const before = await run('MO', { [url]: form('<option value="750006905">State of Missouri - Primary Election, August 04, 2026</option>') });
+  assert.equal(before.units[0].status, 'not posted');
+});
