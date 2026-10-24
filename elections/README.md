@@ -295,10 +295,28 @@ reads the same data as the public board.
 - It rotates every 22 seconds through Senate map, closest races, House map, governors map, flips, and
   Orange County. Flips and Orange County only appear once there's something to show.
 - The right side always shows the balance of power for all three chambers and the latest calls.
-- When you publish a call, a full-width "RACE CALL" banner appears on the stream for about 9 seconds
-  (within about 30 seconds of the call).
+- Calls reach the stream within about 30 seconds of publishing (see the auto-director below).
 - The bottom ticker crawls called races and the closest uncalled Senate and governor races. Before
   results, it shows poll-closing times, and the closest-races screen pages through every race to watch.
+
+**Auto-director** (on by default). Between rotation screens, it cuts to what just happened:
+
+| What happens | What it shows | Tag on screen |
+|---|---|---|
+| A party reaches a majority from called seats (Senate: 51, or 50 for Republicans with the VP) | That chamber's map with the headline | MAJORITY |
+| A Senate or governor race is called, or any seat flips | A full screen for that race: candidates, votes, who called it | JUST CALLED / FLIP |
+| The leader changes in a Senate or governor race with at least 20% counted | That race | LEAD CHANGE |
+| A Senate or governor race tightens under 1 point with at least half counted | That race | NECK AND NECK |
+
+It only uses vote counts and calls already on the board, and never calls a race itself. Independents
+aren't counted toward either party for the majority headline. Calls cut in after a few seconds; at most
+three play back to back before a regular screen gets its full turn. Lead changes and tight races wait
+for the current screen to finish. Anything that stops being true before its turn (a lead that flips
+back, a call that's withdrawn) is skipped. Press **A** to turn it off or on, or add `?director=0`.
+
+With the auto-director on, banners are kept for Orange County calls, withdrawn calls, and California
+House seats; Senate, governor and flip calls get their full screen instead. Other House calls appear in
+the latest calls list and the ticker.
 
 **OBS setup:** Sources → + → **Browser** → URL `https://ocscanner.github.io/IntelHQ/elections/broadcast.html`,
 width 1920, height 1080. In Settings → Video set both resolutions to 1920×1080. Paste the RTMP URL and
@@ -311,9 +329,10 @@ stream key from X Live Studio (x.com/i/live-studio) into Settings → Stream.
 | `?sim=1` | Rehearsal data; every screen is labeled REHEARSAL (use it for a private test stream) |
 | `?secs=30` | Seconds per screen (default 22) |
 | `?scenes=senate,close,house` | Which screens, in order: `senate`, `house`, `governor`, `close`, `flips`, `oc` |
+| `?director=0` | Turn the auto-director off (plain rotation) |
 
 **Steering it live:** in OBS, right-click the source → **Interact**. → and ← change screens, Space pauses
-on the current screen, and 1–6 jump to a screen.
+on the current screen, 1–6 jump to a screen, and A turns the auto-director on or off.
 
 If you host the page anywhere other than ocscanner.github.io or ocscanner.news, add that address to
 `ALLOWED_ORIGINS` in `worker/wrangler.toml`.

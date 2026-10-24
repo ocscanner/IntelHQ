@@ -13,7 +13,12 @@
     ?sim=1                      rehearsal data (every screen is labeled REHEARSAL)
     ?secs=25                    seconds per scene (default 22)
     ?scenes=senate,close,house  which scenes, in order (senate, house, governor, close, flips, oc)
-  Keys (OBS: right-click the source → Interact): → / ← next or previous scene, Space pause, 1–6 jump to a scene.
+    ?director=0                 turn the auto-director off (plain rotation only)
+  Keys (OBS: right-click the source → Interact): → / ← next or previous scene, Space pause, 1–6 jump to a scene,
+       A turn the auto-director on or off.
+  Auto-director: between rotation screens it cuts to what just happened — a Senate or governor call, any flip,
+  a lead change, a race that tightens under 1 point, or a party reaching a majority. It only uses numbers and
+  calls already on the board, and never makes a call itself.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -105,10 +110,10 @@
 
   /* bottom: scene dots + ticker */
   .dots{position:absolute;left:40px;top:950px;display:flex;gap:10px}
-  .dots span{font-family:var(--fh);font-weight:600;font-size:20px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:3px 12px;border-radius:5px;border:1px solid var(--line)}
+  .dots span{font-family:var(--fh);font-weight:600;font-size:18px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:3px 10px;border-radius:5px;border:1px solid var(--line)}
   .dots span.on{color:var(--text);border-color:var(--accent);background:rgba(0,180,255,.12)}
   .dots .paused{color:var(--warn);border-color:var(--warn)}
-  .src{position:absolute;right:40px;top:953px;font-size:20px;color:var(--muted)}
+  .src{position:absolute;right:40px;top:953px;font-size:18px;color:var(--muted)}
   .ticker{position:absolute;left:0;right:0;bottom:0;height:80px;display:flex;align-items:center;background:#0a1520;border-top:2px solid var(--accent)}
   .ticker .lbl{flex:none;height:100%;display:flex;align-items:center;padding:0 26px;background:var(--accent);color:#001421;font-family:var(--fh);font-weight:700;font-size:28px;letter-spacing:.1em;z-index:1}
   .tk{flex:1;overflow:hidden;height:100%;position:relative}
@@ -123,6 +128,25 @@
   .alert .k{font-family:var(--fh);font-weight:700;font-size:34px;letter-spacing:.18em;opacity:.9}
   .alert .h{font-family:var(--fh);font-weight:700;font-size:96px;line-height:1;margin:10px 0}
   .alert .s{font-size:36px;opacity:.95}
+  /* auto-director spotlight */
+  .tag{display:inline-block;font-family:var(--fh);font-weight:700;font-size:30px;letter-spacing:.14em;padding:6px 16px 3px;border-radius:6px;background:var(--accent);color:#001421;margin-bottom:14px}
+  .spot{display:grid;grid-template-columns:1fr 380px;gap:40px;align-items:start}
+  .spot h2{font-family:var(--fh);font-size:84px;line-height:.95;margin:0}
+  .spot .meta{font-size:30px;color:var(--text2);margin:12px 0 22px}
+  .spot .callline{font-family:var(--fh);font-weight:700;font-size:40px;color:#fff;padding:12px 22px 8px;border-radius:10px;margin-bottom:22px}
+  .spot .callline small{display:block;font-family:var(--fu);font-weight:500;font-size:24px;opacity:.9}
+  .scand{display:grid;grid-template-columns:1fr 150px;align-items:end;margin-bottom:18px}
+  .scand .n{font-size:40px;line-height:1.05}
+  .scand .n em{font-style:normal;color:var(--muted);font-size:26px;margin-left:10px}
+  .scand .v{text-align:right;font-family:var(--fm);font-size:44px;line-height:1}
+  .scand .v small{display:block;font-size:22px;color:var(--muted);margin-top:4px}
+  .scand .bar{grid-column:1/-1;height:16px;border-radius:8px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:8px}
+  .scand .bar i{display:block;height:100%}
+  .spot .shape svg{width:380px;height:380px;display:block;margin-top:70px}
+  .spot .shape path{stroke:rgba(255,255,255,.5);stroke-width:1.2;vector-effect:non-scaling-stroke}
+  .ctl{font-family:var(--fh);font-weight:700;font-size:96px;line-height:1;margin:6px 0 10px}
+  .dots .auto{color:var(--accent);border-color:var(--accent)}
+  .dots .auto.off{color:var(--muted);border-color:var(--line)}
   .simtag{position:absolute;right:40px;top:110px;font-family:var(--fh);font-weight:700;font-size:22px;color:var(--warn);letter-spacing:.1em}
 </style>
 </head>
@@ -154,7 +178,7 @@
   const SECS = Math.max(8, +qs.get('secs') || 22);
   const ALL_SCENES = ['senate', 'close', 'house', 'governor', 'flips', 'oc'];
   const WANT = (qs.get('scenes') || ALL_SCENES.join(',')).split(',').map(s => s.trim()).filter(s => ALL_SCENES.includes(s));
-  const REFRESH = 30;
+  const REFRESH = Math.max(10, +qs.get('refresh') || 30);   // seconds between data checks
   const PNAME = { D: 'Dem', R: 'Rep', I: 'Ind', O: 'Other' };
   const PFULL = { D: 'Democrats', R: 'Republicans', I: 'independents', O: 'other parties' };
   const CH = { house: 'House', senate: 'Senate', governor: 'Governors' };
@@ -177,7 +201,10 @@
   const shortName = r => r.chamber === 'house' ? r.id.replace('-AL', ' at-large').replace(/-0?/, '-') : r.name;
 
   const S = { data: null, byId: new Map(), feed: [], local: null, shapes: null, lastOk: 0, error: null,
-    scenes: [], idx: 0, paused: false, sceneAt: Date.now(), seen: null, queue: [], alerting: false, tickerKey: '' };
+    scenes: [], idx: 0, paused: false, sceneAt: Date.now(), seen: null, queue: [], alerting: false, tickerKey: '',
+    auto: qs.get('director') !== '0', spot: null, moments: [], prev: null, ctlPrev: null, shown: new Map() };
+
+  if (qs.get('debug') === '1') window.__broadcast = S;   // for testing in the browser console
 
   /* ── scaling: the stage is always 1920×1080, scaled to fit the window ── */
   function fit() {
@@ -200,6 +227,7 @@
         WANT.includes('oc') ? fetch(`${API}/v1/local?sim=${sim}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null) : null,
       ]);
       S.data = b; S.byId = new Map(b.races.map(r => [r.id, r])); S.local = l || S.local;
+      detect(b);
       noteCalls(f.items || []); S.feed = f.items || [];
       S.lastOk = Date.now(); S.error = null;
     } catch (e) { S.error = 'Reconnecting to the results service…'; }
@@ -214,8 +242,18 @@
   const keyOf = x => `${x.race_id}|${x.kind}|${x.at}`;
   function noteCalls(items) {
     if (S.seen) {
-      const fresh = items.filter(x => !S.seen.has(keyOf(x))).sort((a, b) => a.at - b.at);
-      S.queue.push(...fresh.slice(-4));   // never stack up more than a few alerts
+      // Banners for the calls viewers care about most: Senate, governor, any flip, California's House seats and
+      // Orange County. Other House calls still go to the latest-calls list and the ticker, so a burst of
+      // poll-closing calls doesn't tie up the screen with back-to-back banners.
+      // With the auto-director on, Senate, governor and flip calls get their own full screen instead (see detect).
+      const big = x => {
+        if (x.race_id.startsWith('OC-') || x.kind === 'retract') return true;
+        const r = S.byId.get(x.race_id);
+        if (S.auto && r && (r.chamber !== 'house' || x.flip)) return false;
+        return x.flip || !r || r.chamber !== 'house' || r.state === 'CA';
+      };
+      const fresh = items.filter(x => !S.seen.has(keyOf(x)) && big(x)).sort((a, b) => a.at - b.at);
+      S.queue = [...S.queue, ...fresh].slice(-3);   // never stack up more than a few
       if (!S.alerting) nextAlert();
     }
     S.seen = new Set(items.map(keyOf));
@@ -260,16 +298,101 @@
     S.idx = i >= 0 ? i : Math.min(S.idx, S.scenes.length - 1);
   }
   function go(i) {
+    S.rest = !!S.spot;        // coming off a spotlight run: give the next screen a full beat before cutting again
+    S.spot = null; S.chain = 0;
     if (S.scenes[S.idx] === 'close') S.watchPage = (S.watchPage ?? 0) + 1;
     S.idx = (i + S.scenes.length) % S.scenes.length; S.sceneAt = Date.now();
     const sc = $('scene'); sc.classList.add('fade');
     setTimeout(() => { renderScene(true); renderSide(); sc.classList.remove('fade'); }, 450);
   }
-  setInterval(() => { if (!S.paused && S.scenes.length > 1 && Date.now() - S.sceneAt >= SECS * 1000) go(S.idx + 1); }, 500);
+
+  /* ── auto-director ──
+     Watches each refresh for something worth cutting to, and queues a "moment" for it.
+     It only reads what's already on the board (vote counts and published calls); it never calls a race. */
+  const SPOT_SECS = 15, MIN_DWELL = 10, MOMENT_TTL = 6 * 60e3, RECHECK = 10 * 60e3;
+  function control(b) {
+    const out = {};
+    for (const ch of ['senate', 'house']) {
+      const s = b.summary?.[ch]; if (!s) continue;
+      const tie = ch === 'senate' ? b.config?.senateTieBreak : null;
+      // Independents aren't counted toward either party: control is only announced on a party's own seats
+      for (const p of ['D', 'R']) if (s.seats[p] >= s.majority || (p === tie && s.seats[p] * 2 >= s.total)) out[ch] = p;
+    }
+    return out;
+  }
+  function detect(b) {
+    const prev = S.prev, now = Date.now();
+    S.prev = new Map(b.races.map(r => [r.id, { leader: r.leader, call: r.call?.party || null, margin: r.margin }]));
+    const ctl = control(b), ctlPrev = S.ctlPrev; S.ctlPrev = ctl;
+    if (!prev || b.simulation !== SIM) return;          // first load sets the baseline; nothing to react to yet
+    const add = (m, cooldown = 0) => {
+      const seen = S.shown.get(m.key);
+      if (seen && (!cooldown || now - seen < cooldown)) return;
+      S.shown.set(m.key, now);
+      S.moments = S.moments.filter(x => x.key !== m.key);
+      S.moments.push({ ...m, at: now });
+    };
+    for (const ch of Object.keys(ctl)) if (ctl[ch] !== ctlPrev?.[ch])
+      add({ key: `control|${ch}|${ctl[ch]}`, kind: 'control', chamber: ch, party: ctl[ch], pri: 100, secs: 20, label: 'MAJORITY' });
+    for (const r of b.races) {
+      const p = prev.get(r.id); if (!p) continue;
+      const big = r.chamber !== 'house';
+      if (r.call && p.call !== r.call.party) {
+        if (big || r.flip) add({ key: `call|${r.id}|${r.call.party}`, kind: 'race', id: r.id, party: r.call.party, pri: big ? (r.flip ? 95 : 85) : 80, secs: 12, label: r.flip ? 'FLIP' : 'JUST CALLED' });
+      } else if (big && !r.call && r.total && r.leader && p.leader && p.leader !== r.leader && (r.pctIn ?? 0) >= 20) {
+        add({ key: `lead|${r.id}`, kind: 'race', id: r.id, pri: 70, label: 'LEAD CHANGE' }, RECHECK);
+      } else if (big && !r.call && r.total && r.margin != null && r.margin < 1 && (r.pctIn ?? 0) >= 50 && !(p.margin != null && p.margin < 1)) {
+        add({ key: `tight|${r.id}`, kind: 'race', id: r.id, pri: 60, label: 'NECK AND NECK' }, RECHECK);
+      }
+    }
+    // keep the queue short: newest, most important first
+    S.moments = S.moments.filter(m => now - m.at < MOMENT_TTL).sort((a, b) => b.pri - a.pri || b.at - a.at).slice(0, 8);
+  }
+  function nextMoment() {
+    const now = Date.now();
+    S.moments = S.moments.filter(m => now - m.at < MOMENT_TTL);
+    while (S.moments.length) {
+      const m = S.moments.shift();
+      if (m.kind === 'control') return m;
+      const r = S.byId.get(m.id);
+      // skip it if the moment no longer holds (a lead that flipped back, a tight race that was called since)
+      if (!r) continue;
+      if (m.party && r.call?.party !== m.party) continue;          // the call was withdrawn or changed since
+      if (m.label === 'LEAD CHANGE' && (r.call || r.leader == null)) continue;
+      if (m.label === 'NECK AND NECK' && (r.call || !(r.margin < 1))) continue;
+      return m;
+    }
+    return null;
+  }
+  setInterval(() => {
+    if (S.paused || !S.data) return;
+    const now = Date.now();
+    if (S.spot) {
+      if (now < S.spot.until || S.alerting) return;
+      const m = S.auto && S.chain < 3 && S.moments[0]?.pri >= 80 ? nextMoment() : null;   // up to 3 calls chain straight on
+      if (m) showSpot(m); else go(S.idx + 1);
+      return;
+    }
+    // Calls and majorities cut in after a short beat; lead changes and tight races wait for the current screen to breathe
+    const dwell = (S.moments[0]?.pri >= 80 && !S.rest ? 4 : MIN_DWELL) * 1000;
+    if (S.auto && S.moments.length && !S.alerting && now - S.sceneAt >= dwell) {
+      const m = nextMoment();
+      if (m) { showSpot(m); return; }
+    }
+    if (S.scenes.length > 1 && now - S.sceneAt >= SECS * 1000) go(S.idx + 1);
+  }, 500);
+  function showSpot(m) {
+    S.spot = { ...m, until: Date.now() + (m.secs || SPOT_SECS) * 1000 };
+    S.chain = (S.chain || 0) + 1;
+    S.sceneAt = Date.now();
+    const sc = $('scene'); sc.classList.add('fade');
+    setTimeout(() => { renderScene(true); renderSide(); sc.classList.remove('fade'); }, 450);
+  }
 
   function renderScene(rebuild) {
     const name = S.scenes[S.idx] || 'senate', box = $('scene');
     if (!S.data) { box.innerHTML = `<div class="empty">${esc(S.error || 'Loading results…')}</div>`; renderDots(); return; }
+    if (S.spot) { renderSpot(box, rebuild); renderDots(); return; }
     if (CH[name]) renderMapScene(box, name, rebuild);
     else if (name === 'close') renderClose(box);
     else if (name === 'flips') renderFlips(box);
@@ -372,14 +495,53 @@
         ${c.call ? '<div class="badge L">Called</div>' : `<div class="badge">${c.pctIn != null ? `${Math.round(c.pctIn)}%` : '–'}<small>counted</small></div>`}
       </div>`).join('')}</div>`;
   }
+  function renderSpot(box, rebuild) {
+    const m = S.spot;
+    const tag = `<div class="tag"${m.label === 'FLIP' ? ' style="background:#fff"' : ''}>${SIM ? 'REHEARSAL · ' : ''}${m.label}</div>`;
+    if (m.kind === 'control') {
+      const s = S.data.summary[m.chamber], who = PFULL[m.party];
+      const how = m.chamber === 'senate' && s.seats[m.party] < s.majority ? `${s.seats[m.party]} seats, with the vice president breaking ties` : `${s.seats[m.party]} seats of ${s.majority} needed`;
+      if (rebuild || box.dataset.mode !== `ctl-${m.chamber}`) {
+        renderMapScene(box, m.chamber, true);
+        box.dataset.mode = `ctl-${m.chamber}`;
+        box.querySelector('.stitle').outerHTML = `<div>${tag}<div class="ctl" style="color:var(--${m.party})">${who.toUpperCase()} WIN THE ${CH[m.chamber].toUpperCase()}</div><div class="stitle"><span>${esc(how)} · based on race calls so far</span></div></div>`;
+        box.querySelector('.map svg').style.height = '440px';
+      } else renderMapScene(box, m.chamber, false);
+      return;
+    }
+    const r = S.byId.get(m.id);
+    if (!r) { S.spot.until = 0; return; }
+    const cs = (r.candidates.length ? r.candidates : r.preCandidates).slice(0, r.chamber === 'house' ? 2 : 3);
+    const meta = [r.holder?.party ? `Held by ${PFULL[r.holder.party]}${r.holder.open ? ', open seat' : ''}` : '', r.total ? (r.pctIn != null ? `${Math.round(r.pctIn)}% of the expected vote counted` : 'Counting') : 'No votes counted yet'].filter(Boolean).join(' · ');
+    const p = r.call ? pc(r.call.party) : null;
+    const callLine = r.call
+      ? `<div class="callline" style="background:var(--${p})">${esc(r.call.candidate || PFULL[p])} wins${r.flip && r.holder?.party ? `, flipping the seat from ${PFULL[r.holder.party]}` : ''}<small>Called by ${esc(r.call.source || 'OC Scanner')}${r.call.at ? ` at ${fmtT(r.call.at)} PT` : ''}</small></div>`
+      : r.margin != null ? `<div class="callline" style="background:#26333f">Not called · ${esc(last(r.candidates[0]?.name))} ${r.margin < 0.1 ? 'leads by less than 0.1 point' : `leads by ${r.margin} ${r.margin === 1 ? 'point' : 'points'}`}</div>` : '';
+    const cand = cs.map(c => {
+      const q = pc(c.party), won = r.call && c.name === r.call.candidate;
+      return `<div class="scand"><span class="n">${esc(c.name)}<em>${PNAME[q]}${c.incumbent ? ', incumbent' : ''}</em>${won ? '<span class="win">✓</span>' : ''}</span>
+        <span class="v">${c.pct != null ? `${c.pct}%` : ''}<small>${c.votes != null ? Number(c.votes).toLocaleString() : ''}</small></span>
+        <span class="bar"><i style="width:${c.pct || 0}%;background:var(--${q}${r.call ? '' : 't'})"></i></span></div>`;
+    }).join('');
+    const title = r.chamber === 'house' ? `${r.stateName} ${r.district ? `District ${r.district}` : 'at-large'}` : r.name;
+    const shape = S.shapes?.shapes?.[r.state];
+    box.dataset.mode = `spot-${r.id}`;
+    box.innerHTML = `<div class="spot"><div>${tag}<h2>${esc(title)}</h2><div class="meta">${esc(meta)}</div>${callLine}${cand}</div>
+      <div class="shape">${shape ? `<svg><path d="${shape.d}" style="fill:var(--${r.call ? p : r.leader ? pc(r.leader) + 't' : 'wait'})"/></svg>` : ''}</div></div>`;
+    const svg = box.querySelector('.shape svg');
+    if (svg) { const bb = svg.querySelector('path').getBBox(), pad = Math.max(bb.width, bb.height) * .06; svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`); }
+  }
   function renderDots() {
     const lbl = { senate: 'Senate', house: 'House', governor: 'Governors', close: anyResults() ? 'Closest' : 'To watch', flips: 'Flips', oc: 'Orange County' };
-    $('dots').innerHTML = S.scenes.map((s, i) => `<span class="${i === S.idx ? 'on' : ''}">${lbl[s]}</span>`).join('') + (S.paused ? '<span class="paused">Paused</span>' : '');
+    $('dots').innerHTML = S.scenes.map((s, i) => `<span class="${i === S.idx && !S.spot ? 'on' : ''}">${lbl[s]}</span>`).join('')
+      + (S.spot ? `<span class="on">${esc(S.spot.label)}</span>` : '')
+      + (S.paused ? '<span class="paused">Paused</span>' : '')
+      + `<span class="auto${S.auto ? '' : ' off'}">Auto ${S.auto ? 'on' : 'off'}</span>`;
   }
 
   /* ── side column: balance of power + latest calls ── */
   function renderSide() {
-    const cur = S.scenes[S.idx];
+    const cur = S.spot ? S.spot.chamber || S.byId.get(S.spot.id)?.chamber : S.scenes[S.idx];
     $('bals').innerHTML = ['senate', 'house', 'governor'].map(ch => {
       const s = S.data?.summary?.[ch];
       if (!s) return `<div class="bal" style="margin-bottom:12px"><h3>${CH[ch]}</h3><div class="nums"><span class="big">–</span></div></div>`;
@@ -446,6 +608,7 @@
     else if (e.key === 'ArrowLeft') go(S.idx - 1);
     else if (e.key === ' ') { e.preventDefault(); S.paused = !S.paused; S.sceneAt = Date.now(); renderDots(); }
     else if (/^[1-9]$/.test(e.key) && +e.key <= S.scenes.length) go(+e.key - 1);
+    else if (e.key === 'a' || e.key === 'A') { S.auto = !S.auto; if (!S.auto) S.moments = []; renderDots(); }
   });
 
   buildScenes(); renderScene(); loadShapes(); load();
