@@ -63,7 +63,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 24 states, below | Free |
+| **State election offices** | 26 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -86,14 +86,17 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | SC | Clarity on enr-scvotes.org; files match Colorado's. Nov 3 not listed yet: the feed watches Clarity's list and the scvotes.gov results page for the "General Election" link |
 | MD | Unverified. HTML results pages; the June primary's layout was checked. The feed finds November's folder on the 2026 election page (governor, 8 House) |
 | OR, MT | Unverified. Same software as NM and Nebraska, but both sites are switched off until Election Day |
+| IN | **Nov 3 files already posted** (checked Oct 24): all 9 House seats, results-app JSON |
+| TN | Unverified. tnelectionresults.com is dark until results start; layout checked against Nov 2024. Senate, governor, 9 House |
 | AK | Unverified, **Workers Paid only** (one ~5 MB file). Senate, governor, House. Ranked-choice: first-round counts; no "% in" in Alaska's file |
 
 Check again with the preview tool on Nov 2 or the morning of Nov 3.
 
 States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, New York, Michigan,
 Nevada, New Hampshire, Maine and others) fill in only from your desk entries or AP; Decision Desk HQ calls
-still reach the call queue. Indiana, Missouri, Tennessee, Oklahoma and West Virginia do publish results
-but couldn't be checked from Claude's browser (blocked sites); see the "state feeds survey" project doc. The full state-by-state
+still reach the call queue. Oklahoma's results data needs a login token from its own app, West Virginia's
+November election isn't linked anywhere until results start, and Missouri's site couldn't be opened from
+Claude's browser; see the "state feeds survey" project doc. The full state-by-state
 research is in the "Free election results feeds, state by state" doc.
 
 ## County maps

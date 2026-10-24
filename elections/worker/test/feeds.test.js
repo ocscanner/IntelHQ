@@ -382,3 +382,45 @@ test('South Carolina (Clarity on enr-scvotes.org): finds the general election fr
   assert.equal(res(out, 'SC-01').candidates[0].votes, 1000);
   assert.equal((await run('SC', { [`${base}/elections.json`]: '[]', 'https://scvotes.gov/elections-statistics/election-results/': '<a href="https://www.enr-scvotes.org/SC/127179/">U.S. Senate Special Republican Runoff</a>' })).units[0].status, 'not posted');
 });
+
+test('Indiana: office-category JSON, House district from "(n)", write-ins skipped', async () => {
+  // Laid out like Indiana's Nov 3, 2026 files (checked live Oct 24); votes made up
+  const base = 'https://enr.indianavoters.in.gov/site/data';
+  const elections = { Root: { WriteTime: '2026-11-04T01:00:00', JurisdictionsReporting: { TOTAL_ALLPRECINCTS: '5067', PRECINCTSREPORTING: '2533' },
+    List: [{ Heading: 'Federal', Items: { Item: [{ OFFICECATEGORYID: '1005', OFFICE_CATEGORY_NAME: 'US Representative' }] } }] } };
+  const offcat = { Root: { StatewideSummary: { Race: [
+    { OFFICEID: '4919', SubSortOrder: 'United States Representative, (1) District', OFFICE_TITLE: 'United States Representative, First District',
+      Candidates: { Candidate: [
+        { NAME_ON_BALLOT: 'Frank J. Mrvan', PARTY: 'D', TOTAL: 52000 },
+        { NAME_ON_BALLOT: 'Barb Regnitz', PARTY: 'R', TOTAL: 48000 },
+        { NAME_ON_BALLOT: 'Alexander R (Alex) Degman (W/I)', PARTY: 'I', TOTAL: 12 }] } },
+    { OFFICEID: '4923', SubSortOrder: 'United States Representative, (5) District', OFFICE_TITLE: 'United States Representative, Fifth District',
+      Candidates: { Candidate: [{ NAME_ON_BALLOT: 'Victoria Spartz', PARTY: 'R', TOTAL: 70000 }, { NAME_ON_BALLOT: 'J. D. Ford', PARTY: 'D', TOTAL: 65000 }] } },
+  ] } } };
+  const out = await run('IN', { [`${base}/statewideElectionsC_A.json`]: JSON.stringify(elections), [`${base}/OffCatC_1005_A.json`]: JSON.stringify(offcat) });
+  assert.deepEqual(res(out, 'IN-01').candidates.map(c => [c.name, c.party, c.votes]), [['Frank Mrvan', 'D', 52000], ['Barb Regnitz', 'R', 48000]]);
+  assert.equal(res(out, 'IN-01').pctIn, 50);
+  assert.equal(res(out, 'IN-05').candidates[0].name, 'Victoria Spartz');
+});
+
+test('Tennessee: office pages found from the home page; race data embedded in the HTML', async () => {
+  const base = 'https://www.tnelectionresults.com';
+  const chart = (race, title, cands, rep) => `<div class="chart-container" data-race="${race}" id="chart-${race}" data-candidates="${
+    JSON.stringify(cands).replace(/"/g, '&quot;')}"> <div class="bar-head"> <h3 class="chart-title">${title}</h3> </div>
+    <div class="px-lg-4 px-md-2 county-reporting-header-text"> ${rep} of 95 Counties Completed </div> </div>`;
+  // Laid out like the Nov 2024 pages (archived); 2026 titles and numbers made up
+  const out = await run('TN', {
+    [`${base}/home`]: '<a href="/categories/us-senate/offices">US Senate</a><a href="/categories/us-house/offices">US House</a><a href="/categories/governor/offices">Governor</a><a href="/categories/general-assembly/offices">General Assembly</a>',
+    [`${base}/categories/us-senate/offices`]: chart('United_States_Senate', 'United States Senate', [{ name: 'Bill Hagerty', party: 'Republican', votes: 900000 }, { name: 'Marquita Bradshaw', party: 'Democratic', votes: 500000 }], 50),
+    [`${base}/categories/governor/offices`]: chart('Governor', 'Governor', [{ name: 'Marsha Blackburn', party: 'Republican', votes: 880000 }, { name: 'Jerri Green', party: 'Democratic', votes: 520000 }], 50),
+    [`${base}/categories/us-house/offices`]: chart('United_States_House_of_Representatives_District_5', 'United States House of Representatives District 5',
+      [{ name: 'Charlie Hatcher', party: 'Republican', votes: 100000 }, { name: 'Chaz Molder', party: 'Democratic', votes: 95000 }, { name: "Micheál O'Leary", party: 'Independent', votes: 2000 }], 7)
+      + chart('United_States_House_of_Representatives_District_9', 'United States House of Representatives District 9', [{ name: 'Justin Pearson', party: 'Democratic', votes: 120000 }, { name: 'Brent Taylor', party: 'Republican', votes: 40000 }], 1),
+  });
+  assert.deepEqual(res(out, 'TN-SEN').candidates.map(c => [c.party, c.votes]), [['R', 900000], ['D', 500000]]);
+  assert.equal(res(out, 'TN-GOV').candidates[0].name, 'Marsha Blackburn');
+  assert.equal(res(out, 'TN-05').candidates.length, 3);
+  assert.equal(res(out, 'TN-09').candidates[0].name, 'Justin Pearson');
+  assert.equal(res(out, 'TN-SEN').pctLabel, 'counties');
+  assert.equal((await run('TN', { [`${base}/home`]: '<p>Official election results for past elections can be found here</p>' })).units[0].status, 'not posted');
+});

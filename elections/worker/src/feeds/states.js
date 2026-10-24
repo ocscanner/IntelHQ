@@ -394,6 +394,80 @@ add({
   }],
 });
 
+/* Indiana: the Election Division's results app. statewideElectionsC_A.json lists office categories (US Representative
+   is one) and the statewide precinct count; OffCatC_<id>_A.json has every race in that category. Nov 3, 2026 files
+   were checked live on Oct 24 (9 House races, candidates loaded, 0 votes). Indiana has no Senate or governor race. */
+export function parseIN(elections, offcat) {
+  const jr = elections?.Root?.JurisdictionsReporting || {};
+  const tot = toNum(jr.TOTAL_ALLPRECINCTS);
+  const repKey = Object.keys(jr).find(k => /REPORT/i.test(k) && !/TOTAL_ALL/i.test(k));
+  const rep = repKey ? toNum(jr[repKey]) : null;
+  const races = [].concat(offcat?.Root?.StatewideSummary?.Race || []);
+  const rows = [];
+  for (const r of races) {
+    const d = String(r.SubSortOrder || '').match(/\((\d+)\)/)?.[1];
+    for (const c of [].concat(r.Candidates?.Candidate || [])) {
+      if (/\(W\/I\)/i.test(c.NAME_ON_BALLOT || '')) continue;                 // write-ins
+      rows.push({ contest: r.OFFICE_TITLE, district: d, name: c.NAME_ON_BALLOT, party: c.PARTY, votes: c.TOTAL, rep, tot });
+    }
+  }
+  return rows;
+}
+add({
+  st: 'IN', label: 'Indiana Election Division', confidence: 'verified', format: 'Results app JSON',
+  units: [{
+    id: 'IN', requests: 2,
+    async run(c) {
+      const base = 'https://enr.indianavoters.in.gov/site/data';
+      const elections = await c.json(`${base}/statewideElectionsC_A.json`, { allow404: true });
+      if (!elections?.Root) return { notPosted: true };
+      const items = (elections.Root.List || []).flatMap(h => [].concat(h.Items?.Item || []));
+      const cat = items.find(i => /^US Representative$/i.test(i.OFFICE_CATEGORY_NAME || ''))?.OFFICECATEGORYID || '1005';
+      const offcat = await c.json(`${base}/OffCatC_${cat}_A.json`, { allow404: true });
+      if (!offcat?.Root) return { notPosted: true };
+      return { results: collect('IN', c, parseIN(elections, offcat)) };
+    },
+  }],
+});
+
+/* Tennessee: tnelectionresults.com, one server-built page per office (/categories/<slug>/offices). Each race is a
+   <div class="chart-container" data-race="…" data-candidates="[{name, party, votes}]"> followed by
+   "N of 95 Counties Completed". Layout checked against the Nov 2024 general (archived); the site is dark until
+   results start, so the office pages are found from the home page's menu. */
+const unescapeHtml = s => String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+export function parseTN(html) {
+  const rows = [];
+  const parts = String(html).split(/(?=<div[^>]*class="chart-container")/i);
+  for (const part of parts) {
+    const head = part.match(/^<div([^>]*)>/i)?.[1] || '';
+    const race = head.match(/data-race="([^"]*)"/i)?.[1];
+    const cands = head.match(/data-candidates="([^"]*)"/i)?.[1];
+    if (!race || !cands) continue;
+    let list; try { list = JSON.parse(unescapeHtml(cands)); } catch { continue; }
+    const title = unescapeHtml(part.match(/<h3[^>]*class="chart-title"[^>]*>([\s\S]*?)<\/h3>/i)?.[1] || race.replace(/_/g, ' ')).replace(/<[^>]+>/g, '').trim();
+    const cnt = part.match(/(\d+)\s+of\s+(\d+)\s+Counties/i);
+    for (const x of list) rows.push({ contest: title, name: x.name, party: x.party, votes: x.votes, rep: cnt ? toNum(cnt[1]) : null, tot: cnt ? toNum(cnt[2]) : null });
+  }
+  return rows;
+}
+add({
+  st: 'TN', label: 'Tennessee Secretary of State', confidence: 'unverified', format: 'Results pages (HTML with embedded data)',
+  units: [{
+    id: 'TN', requests: 4,
+    async run(c) {
+      const base = 'https://www.tnelectionresults.com';
+      const home = await c.text(`${base}/home`, { allow404: true });
+      const slugs = [...new Set([...String(home || '').matchAll(/\/categories\/([a-z0-9-]+)\/offices/gi)].map(m => m[1]))]
+        .filter(sl => /^(us-house|us-senate|governor)$/i.test(sl));
+      if (!slugs.length) return { notPosted: true };
+      const rows = [];
+      for (const sl of slugs) rows.push(...parseTN(await c.text(`${base}/categories/${sl}/offices`, { allow404: true }) || ''));
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('TN', c, rows, { pctLabel: 'counties' }) };
+    },
+  }],
+});
+
 /* Louisiana: two JSON files (named .htm) for races on more than one parish's ballot: races + candidates, and votes */
 export function parseLA(racesJson, votesJson) {
   const votes = new Map();
