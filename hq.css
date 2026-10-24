@@ -66,6 +66,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   #navgroups{gap:5px;padding:7px 10px}
   .ngbtn{font-size:.82rem;padding:8px 12px;flex:1;justify-content:center;min-width:0}
   .ngmenu{min-width:min(240px,calc(100vw - 24px))}
+  /* Six buttons: two even rows of three; menus in the right-hand column open leftward */
+  #navgroups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ngroup .ngbtn{width:100%;padding:8px 6px}
+  .ngroup:nth-child(3n) .ngmenu{left:auto;right:0}
 }
 #nav::-webkit-scrollbar{display:none}
 .ntab{padding:10px 15px;font-family:var(--fu);font-size:.83rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;display:flex;align-items:center;gap:6px}

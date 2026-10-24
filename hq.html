@@ -27,9 +27,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Bump ?v= on these six links whenever hq/newsroom/board .js or .css change, so browsers don't run a stale cached copy -->
-<link rel="stylesheet" href="hq.css?v=20261024a">
-<link rel="stylesheet" href="newsroom.css?v=20261024a">
-<link rel="stylesheet" href="elections/board.css?v=20261024a">
+<link rel="stylesheet" href="hq.css?v=20261024d">
+<link rel="stylesheet" href="newsroom.css?v=20261024d">
+<link rel="stylesheet" href="elections/board.css?v=20261024d">
 </head>
 <body>
 
@@ -84,6 +84,10 @@
       <button class="ngitem" data-p="newsroom" data-view="distribution">⇗ Distribution Studio</button>
     </div>
   </div>
+  <!-- Elections has its own button for the 2026 midterms; it can go back under News later -->
+  <div class="ngroup" data-g="elections">
+    <button class="ngbtn" onclick="openTopTab('elections')">🗳 Elections</button>
+  </div>
   <div class="ngroup" data-g="ops">
     <button class="ngbtn" onclick="toggleGroup('ops')">📡 Live Ops <span class="ngcaret">▾</span></button>
     <div class="ngmenu" id="ngmenu-ops">
@@ -107,7 +111,6 @@
     <button class="ngbtn" onclick="toggleGroup('news')">📰 News <span class="ngcaret">▾</span></button>
     <div class="ngmenu" id="ngmenu-news">
       <button class="ngitem" data-p="news">📰 Live News</button>
-      <button class="ngitem" data-p="elections">🗳 Politics &amp; Elections</button>
       <button class="ngitem" data-p="weather">⛈ Weather</button>
     </div>
   </div>
@@ -1160,6 +1163,12 @@
     </div>
   </div>
 
+  <!-- Live results board (elections/board.js, data from the oc-election-wire Worker) -->
+  <div style="margin-bottom:22px">
+    <div class="sh"><h2>🗳 Live Results Board</h2><a class="rbtn" href="elections/index.html" target="_blank" rel="noopener" style="text-decoration:none">Open full screen</a></div>
+    <div id="election-board"></div>
+  </div>
+
   <!-- Election News Feed (top priority) -->
   <div class="sh"><h2>📰 Election News Feed</h2><span class="ltag">LIVE</span><button class="rbtn" onclick="loadElectionNews()">↺ Refresh</button></div>
   <div id="election-news-feed" class="nfeed" style="max-height:520px;margin-bottom:20px"><div class="loader">Loading election news…</div></div>
@@ -1213,11 +1222,6 @@
     <a class="ol" href="https://www.followthemoney.org/" target="_blank" rel="noopener"><span class="oi">💵</span><div><span>Follow the Money</span><span class="od">State-level campaign finance</span></div></a>
   </div>
 
-  <!-- Live results board (elections/board.js, data from the oc-election-wire Worker) -->
-  <div style="margin-top:20px">
-    <div class="sh"><h2>🗳 Live Results Board</h2><a class="rbtn" href="elections/index.html" target="_blank" rel="noopener" style="text-decoration:none">Open full screen</a></div>
-    <div id="election-board"></div>
-  </div>
 
 </div>
 
@@ -1403,9 +1407,9 @@
   </div>
 </div>
 
-<script src="newsroom.js?v=20261024a"></script>
-<script src="hq.js?v=20261024a"></script>
-<script src="elections/board.js?v=20261024a"></script>
+<script src="newsroom.js?v=20261024d"></script>
+<script src="hq.js?v=20261024d"></script>
+<script src="elections/board.js?v=20261024d"></script>
 <script>
   // Results board: refreshes every 60s, but only while the Politics & Elections tab is open
   (function(){

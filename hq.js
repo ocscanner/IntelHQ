@@ -1117,7 +1117,8 @@ function setNextElection(){
   const now=new Date();
   const elections=[
     {label:'CA Primary — June 2026',   d:new Date('2026-06-02')},
-    {label:'Midterms — Nov 4 2026',     d:new Date('2026-11-04')},
+    // Counts down to California's polls closing (8 p.m. Pacific) on Election Day, Tuesday Nov 3
+    {label:'Midterms — Nov 3 2026',     d:new Date('2026-11-03T20:00:00-08:00')},
     {label:'Presidential Primary 2028', d:new Date('2028-03-07')},
     {label:'Presidential Election 2028',d:new Date('2028-11-07')},
   ];
@@ -2788,7 +2789,8 @@ const TAB_GROUP = {
   newsroom:'desk',
   streams:'ops', traffic:'ops', radar:'ops', firecams:'ops', storm:'ops',
   space:'intel', military:'intel', osint:'intel', intel:'intel',
-  news:'news', elections:'news', weather:'news',
+  news:'news', weather:'news',
+  elections:'elections',
   status:'system',
 };
 function toggleGroup(g){
@@ -2809,6 +2811,12 @@ document.querySelectorAll('.ngitem').forEach(it=>{
     document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
   });
 });
+// A top-level button that opens one tab directly (no dropdown), e.g. Elections
+function openTopTab(pid){
+  activateTab(pid);
+  history.replaceState(null, '', '#'+pid);
+  document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
+}
 // Close dropdowns when clicking outside
 document.addEventListener('click',(e)=>{
   if (!e.target.closest('#navgroups')) document.querySelectorAll('.ngroup').forEach(x=>x.classList.remove('open'));
