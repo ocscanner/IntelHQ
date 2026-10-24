@@ -262,3 +262,123 @@ test('scheduler: stays inside the download budget, oldest jobs first, and fills 
   assert.equal(ca45.call, null, 'state numbers never make a call');
   assert.equal(b.summary.house.leading.R, 52);
 });
+
+test('New Mexico: same CSV as Nebraska, House district in AreaNum, governor ticket', async () => {
+  const head = 'RaceID,RaceName,PartyCode,AreaNum,CandidateID,CandidateName,VoteFor,CandidateVotes,CandidatePercentage,PrecinctsReporting,CandidateAbsenteeVotes,CandidateElectionDayVotes,CandidateEarlyVotes';
+  // Laid out exactly like New Mexico's Nov 3, 2026 file (checked Oct 24); vote numbers made up
+  const out = await run('NM', {
+    'https://electionresults.sos.nm.gov/resultsCSV.aspx?text=All&type=FED&map=CTY': [head,
+      '11185,"United States Senator","REP","",19608,"LARRY E MARKER",1,410,0,1102/2204,,,,',
+      '11185,"United States Senator","DEM","",19607,"BEN R LUJAN",1,590,0,1102/2204,,,,',
+      '11186,"United States Representative","REP","DISTRICT 1",19609,"NDIDIAMAKA EKWUA CHARLENE OKPAREKE",1,300,0,389/778,,,,',
+      '11186,"United States Representative","DEM","DISTRICT 1",19610,"MELANIE ANN STANSBURY",1,500,0,389/778,,,,',
+      '11188,"United States Representative","DEM","DISTRICT 3",19614,"TERESA LEGER FERNANDEZ",1,100,0,0/763,,,,'].join('\r\n'),
+    'https://electionresults.sos.nm.gov/resultsCSV.aspx?text=All&type=SW&map=CTY': [head,
+      '11530,"Governor and Lieutenant Governor","REP","",20141,"GREGGORY D HULL AND DAVID M GALLEGOS",1,45,0,1102/2204,,,,',
+      '11530,"Governor and Lieutenant Governor","DEM","",20140,"DEB HAALAND AND STEPHANIE GARCIA RICHARD",1,55,0,1102/2204,,,,',
+      '11531,"Secretary of State","DEM","",20150,"SOMEONE ELSE",1,9,0,1102/2204,,,,'].join('\r\n'),
+  });
+  assert.deepEqual(res(out, 'NM-SEN').candidates.map(c => [c.party, c.votes]), [['D', 590], ['R', 410]]);
+  assert.equal(res(out, 'NM-SEN').pctIn, 50);
+  assert.deepEqual(res(out, 'NM-01').candidates.map(c => c.votes), [500, 300]);
+  assert.equal(res(out, 'NM-01').candidates[0].name, 'Melanie Stansbury');
+  assert.equal(res(out, 'NM-03').candidates[0].votes, 100);
+  assert.equal(res(out, 'NM-GOV').candidates[0].name, 'Deb Haaland');
+});
+
+test('Oregon/Montana: a redirect to the home page counts as "not posted", not as results', async () => {
+  const html = '<!DOCTYPE html><html><head><title>Oregon Secretary of State</title></head><body>Welcome</body></html>';
+  const out = await run('OR', {
+    'https://results.oregonvotes.gov/resultsCSV.aspx?text=All&type=FED&map=CTY': html,
+    'https://results.oregonvotes.gov/resultsCSV.aspx?text=All&type=SW&map=CTY': html,
+  });
+  assert.equal(out.units[0].status, 'not posted');
+  assert.equal(out.results.length, 0);
+});
+
+test('Louisiana: races file + votes file, joined by candidate ID', async () => {
+  // Laid out like voterportal.sos.la.gov's Nov 3, 2026 files (checked Oct 24); votes made up
+  const races = { Races: { Race: [
+    { ID: '67997', SpecificTitle: 'U. S. Senator', Choice: [{ ID: '124654', Desc: '"Jamie" Davis (DEM)' }, { ID: '124655', Desc: 'Julia Letlow (REP)' }] },
+    { ID: '70195', SpecificTitle: 'U. S. Representative -- 1st Congressional District', Choice: [
+      { ID: '124838', Desc: 'Randall Arrington (REP)' }, { ID: '128364', Desc: 'E. "Liddy" Glass (NOPTY)' },
+      { ID: '124814', Desc: 'Lauren Jewett (DEM)' }, { ID: '128488', Desc: 'Steve Scalise (REP)' }] },
+    { ID: '1', SpecificTitle: 'Justice of the Peace', Choice: [{ ID: '9', Desc: 'Someone (DEM)' }] },
+  ] } };
+  const votes = { Races: { Race: [
+    { ID: '67997', PrecinctsReporting: '1861', PrecinctsExpected: '3722', Choice: [{ ID: '124654', VoteTotal: '300000' }, { ID: '124655', VoteTotal: '500000' }] },
+    { ID: '70195', PrecinctsReporting: '522', PrecinctsExpected: '522', Choice: [{ ID: '124838', VoteTotal: '1000' }, { ID: '128364', VoteTotal: '500' }, { ID: '124814', VoteTotal: '40000' }, { ID: '128488', VoteTotal: '160000' }] },
+  ] } };
+  const base = 'https://voterportal.sos.la.gov/ElectionResults/ElectionResults/Data?blob=20261103';
+  const out = await run('LA', { [`${base}/RacesCandidates_Multiparish.htm`]: JSON.stringify(races), [`${base}/Votes_Multiparish.htm`]: JSON.stringify(votes) });
+  assert.deepEqual(res(out, 'LA-SEN').candidates.map(c => [c.name, c.party, c.votes]), [['Julia Letlow', 'R', 500000], ['Jamie Davis', 'D', 300000]]);
+  assert.equal(res(out, 'LA-SEN').pctIn, 50);
+  const la1 = res(out, 'LA-01');
+  assert.equal(la1.candidates[0].name, 'Steve Scalise');
+  assert.equal(la1.candidates.length, 4);
+  assert.equal(la1.pctIn, 100);
+});
+
+test('Alaska: precinct CSV summed per candidate; the primary\'s file is ignored; paid plan only', async () => {
+  const head = 'Precinct_name,Reporting_flag,Pct_Id,Pct_seq_nbr,Reg_voters,Aggregation_ID,Contest_Id,Contest_seq_nbr,Contest_title,Contest_party_name,Selectable_Options,Candidate_State_ID,candidate_id,candidate_name,Candidate_Type,cand_seq_nbr,Party_Code,total_ballots,total_votes';
+  const row = (pct, contest, name, party, votes, type = 'C') => `"${pct}",0,"${pct}",1,100,"",6,5,"${contest}","",1,"",1,"${name}",${type},1,"${party}",100,${votes}`;
+  const general = [head,
+    row('01-600 Ketchikan No. 1', 'U.S. Senator', 'Sullivan, Dan', 'REP', 300), row('01-600 Ketchikan No. 1', 'U.S. Senator', 'Peltola, Mary', 'DEM', 200),
+    row('District 1 - Absentee', 'U.S. Senator', 'Sullivan, Dan', 'REP', 50), row('District 1 - Absentee', 'U.S. Senator', 'Peltola, Mary', 'DEM', 80),
+    row('01-600 Ketchikan No. 1', 'U.S. Senator', 'Write-in 1', 'NP', 4, 'W'),
+    row('01-600 Ketchikan No. 1', 'Governor / Lieutenant Governor', 'Kreiss-Tomkins, Jonathan/Someone, Pat', 'DEM', 210),
+    row('01-600 Ketchikan No. 1', 'U.S. Representative', 'Begich III, Nick', 'REP', 260),
+    row('01-600 Ketchikan No. 1', 'House District 1', 'Local, Candidate', 'REP', 99),
+  ].join('\n');
+  const url = 'https://www.elections.alaska.gov/enr26/results/GA_ENR_Precinct_State_of_Alaska.csv';
+  assert.equal((await run('AK', { [url]: general })).units.length, 0, 'off on the free plan');
+  const out = await run('AK', { [url]: general }, { env: { COUNTY_FEEDS: 'on' } });
+  assert.deepEqual(res(out, 'AK-SEN').candidates.map(c => [c.name, c.votes]), [['Dan Sullivan', 350], ['Mary Peltola', 280]]);
+  assert.equal(res(out, 'AK-SEN').pctIn, null);
+  assert.equal(res(out, 'AK-GOV').candidates[0].name, 'Jonathan Kreiss-Tomkins');
+  assert.equal(res(out, 'AK-AL').candidates[0].votes, 260);
+  const primary = [head, ...['A, A', 'B, B', 'C, C', 'D, D', 'E, E', 'F, F', 'G, G'].map(n => row('01-600 Ketchikan No. 1', 'U.S. Senator', n, 'REP', 1))].join('\n');
+  const p = await run('AK', { [url]: primary }, { env: { COUNTY_FEEDS: 'on' } });
+  assert.equal(p.units[0].status, 'not posted');
+});
+
+test('Maryland: finds November\'s folder, reads the governor and Congress pages', async () => {
+  const table = rows => `<div class="tableWrapper"> <table class="table-banded"> <thead> <tr> <th scope="col">Name</th> <th scope="col">Party</th> <th scope="col">Early Voting</th><th scope="col">Election Day</th><th scope="col">Mail-In Ballot</th><th scope="col">Provisional</th> <th scope="col">Total</th> <th scope="col">Percentage</th> </tr></thead><tbody>${
+    rows.map(([n, p, v]) => `<tr> <td> <div>${n}</div> </td> <td>${p}</td> <td class="VotesCol"> 1</td><td class="VotesCol"> 2</td><td class="VotesCol"> 3</td><td class="VotesCol"> 4</td> <td> ${v}</td> <td> 50.00%</td> </tr>`).join('')}</tbody></table></div>`;
+  // Laid out like the June 2026 primary pages (checked Oct 24); November folder and numbers made up
+  const site = 'https://elections.maryland.gov/elections/2026/';
+  const out = await run('MD', {
+    [`${site}index.html`]: '<a href="general_results/index.html">Unofficial General Election Results</a>',
+    [`${site}general_results/`]: '<a href="gen_results_2026_1.html">Governor / Lt. Governor</a><a href="gen_results_2026_4.html">Representative in Congress</a><a href="gen_results_2026_4_1.html">1</a>',
+    [`${site}general_results/gen_results_2026_1.html`]: `<h2>Governor / Lt. Governor</h2> <h4>Vote for 1</h4> (1,000 of 2,000 election day precincts reported) ${table([['Wes Moore and Aruna Miller<img alt="Winner Selected" src="/img/check.gif">', 'Democratic', '1,200,000'], ['Dan Cox and Someone Else', 'Republican', '800,000']])}`,
+    [`${site}general_results/gen_results_2026_4.html`]: `<h2>Representative in Congress</h2> <h3>District 1</h3> <h4>Vote for 1</h4> (100 of 309 election day precincts reported) ${table([['Andy Harris', 'Republican', '150,000'], ['Dan Schwartz', 'Democratic', '90,000']])} <h3>District 6</h3> <h4>Vote for 1</h4> (50 of 200 election day precincts reported) ${table([['April McClain Delaney', 'Democratic', '120,000'], ['Robin Ficker', 'Republican', '118,000']])}`,
+  });
+  assert.deepEqual(res(out, 'MD-GOV').candidates.map(c => [c.name, c.party, c.votes]), [['Wes Moore', 'D', 1200000], ['Dan Cox', 'R', 800000]]);
+  assert.equal(res(out, 'MD-GOV').pctIn, 50);
+  assert.deepEqual(res(out, 'MD-01').candidates.map(c => [c.party, c.votes]), [['R', 150000], ['D', 90000]]);
+  assert.equal(res(out, 'MD-06').candidates[0].name, 'April McClain Delaney');
+  assert.equal(res(out, 'MD-06').pctIn, 25);
+  assert.equal((await run('MD', { [`${site}index.html`]: '<a href="primary_results/index.html">Official Primary Results</a>' })).units[0].status, 'not posted');
+});
+
+test('South Carolina (Clarity on enr-scvotes.org): finds the general election from scvotes.gov when the list is empty', async () => {
+  const base = 'https://www.enr-scvotes.org/SC';
+  const csv = [
+    'contest name,choice name,party name,total votes,percent of votes,registered voters,ballots cast,num Precinct total,num Precinct rptg,over votes,under votes',
+    '"US House of Representatives District 1","Nancy Mace","REP",1000,55,0,0,200,100,0,0',
+    '"US House of Representatives District 1","Somebody Else","DEM",800,45,0,0,200,100,0,0',
+  ].join('\n');
+  const routes = {
+    [`${base}/elections.json`]: '[]',
+    'https://scvotes.gov/elections-statistics/election-results/': [
+      '<a href="https://www.enr-scvotes.org/SC/127179/">U.S. Senate Special Republican Runoff</a>',
+      '<a href="https://www.enr-scvotes.org/SC/127500/">2026 Statewide General Election</a>',
+    ].join(''),
+    [`${base}/127500/current_ver.txt`]: '380001',
+    [`${base}/127500/380001/reports/summary.zip`]: zip('summary.csv', csv),
+  };
+  const out = await run('SC', routes);
+  assert.equal(res(out, 'SC-01').pctIn, 50);
+  assert.equal(res(out, 'SC-01').candidates[0].votes, 1000);
+  assert.equal((await run('SC', { [`${base}/elections.json`]: '[]', 'https://scvotes.gov/elections-statistics/election-results/': '<a href="https://www.enr-scvotes.org/SC/127179/">U.S. Senate Special Republican Runoff</a>' })).units[0].status, 'not posted');
+});

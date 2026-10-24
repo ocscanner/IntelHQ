@@ -63,7 +63,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 17 states, below | Free |
+| **State election offices** | 24 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -81,11 +81,19 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | PA | Nov 3 feed already posted in test mode (governor, all 17 House seats, by county) |
 | OH | Nov 3 contest API already serving practice numbers (governor, Senate special, all 15 House seats) |
 | TX | **Not found.** Texas's results system has nothing after 2024, and its 2026 primaries weren't posted there. Shows "not posted" until Texas publishes; enter key Texas races at the desk |
+| NM | **Nov 3 file already posted** (checked Oct 24): Senate, governor, 3 House. Same CSV as Nebraska |
+| LA | **Nov 3 files already posted** (checked Oct 24): Senate and 6 House seats, Voter Portal JSON |
+| SC | Clarity on enr-scvotes.org; files match Colorado's. Nov 3 not listed yet: the feed watches Clarity's list and the scvotes.gov results page for the "General Election" link |
+| MD | Unverified. HTML results pages; the June primary's layout was checked. The feed finds November's folder on the 2026 election page (governor, 8 House) |
+| OR, MT | Unverified. Same software as NM and Nebraska, but both sites are switched off until Election Day |
+| AK | Unverified, **Workers Paid only** (one ~5 MB file). Senate, governor, House. Ranked-choice: first-round counts; no "% in" in Alaska's file |
 
 Check again with the preview tool on Nov 2 or the morning of Nov 3.
 
-States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, Wyoming,
-Mississippi and others) fill in only from your desk entries or AP. The full state-by-state
+States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, New York, Michigan,
+Nevada, New Hampshire, Maine and others) fill in only from your desk entries or AP; Decision Desk HQ calls
+still reach the call queue. Indiana, Missouri, Tennessee, Oklahoma and West Virginia do publish results
+but couldn't be checked from Claude's browser (blocked sites); see the "state feeds survey" project doc. The full state-by-state
 research is in the "Free election results feeds, state by state" doc.
 
 ## County maps

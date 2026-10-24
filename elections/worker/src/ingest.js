@@ -11,7 +11,9 @@ export function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++)
 
 /** Every unit from the enabled adapters, with its state and label attached. */
 export function allUnits(env) {
-  return enabledAdapters(env).flatMap(a => a.units.map((u, i) => ({ ...u, order: u.order ?? i, st: a.st, label: a.label, confidence: a.confidence })));
+  // Units marked paidOnly read very large files; they run only with Workers Paid (COUNTY_FEEDS = "on")
+  const paid = /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
+  return enabledAdapters(env).flatMap(a => a.units.filter(u => !u.paidOnly || paid).map((u, i) => ({ ...u, order: u.order ?? i, st: a.st, label: a.label, confidence: a.confidence })));
 }
 
 /**

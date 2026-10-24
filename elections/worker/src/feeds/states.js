@@ -147,7 +147,7 @@ export function parseClarityDetail(xml, st, ids) {
 }
 
 /* ── Clarity ENR (elections.json → current_ver.txt → reports/summary.zip) ── */
-function clarity(st, label, indexUrl, fileBase, confidence) {
+function clarity(st, label, indexUrl, fileBase, confidence, findEid = null) {
   return {
     st, label, confidence, format: 'Clarity summary CSV',
     units: [{
@@ -155,11 +155,12 @@ function clarity(st, label, indexUrl, fileBase, confidence) {
       async run(c) {
         let eid = c.meta.eid;
         if (!eid) {
-          const list = await c.json(indexUrl);
-          const el = (Array.isArray(list) ? list : list.elections || []).find(e =>
+          const list = await c.json(indexUrl, { allow404: true });
+          const el = (Array.isArray(list) ? list : list?.elections || []).find(e =>
             isGeneralName(e.ElectionName) && (isElectionDay(e.Date) || (!e.Date && /2026/.test(e.ElectionName))));
-          if (!el) return { notPosted: true };
-          eid = c.meta.eid = el.EID;
+          eid = el?.EID || (findEid ? await findEid(c) : null);
+          if (!eid) return { notPosted: true };
+          c.meta.eid = eid;
         }
         const ver = (await c.text(`${fileBase}/${eid}/current_ver.txt`)).trim();
         if (ver === c.meta.ver && c.meta.haveData) return { unchanged: true };
@@ -196,6 +197,8 @@ function aspxCsv(st, label, urls, confidence) {
         for (const url of urls) {
           const text = await c.text(url, { allow404: true });
           if (text == null) continue;
+          // Between elections some states redirect this address to their home page; only a real results CSV counts
+          if (!/RaceName/i.test(text.slice(0, 300))) continue;
           found = true;
           const { head, rows: objs } = csvObjects(text);
           const k = {
@@ -206,7 +209,11 @@ function aspxCsv(st, label, urls, confidence) {
             const area = String(r[k.area] || '').toUpperCase();
             if (area && area !== 'SW' && area !== 'CG') continue;       // county rows are a breakdown, not a total
             const [rep, tot] = String(r[k.prec] || '').replace(/[="]/g, '').split('/');
-            rows.push({ contest: r[k.contest], district: area === 'CG' ? r[k.areaNum] : undefined, name: r[k.name], party: r[k.party], votes: r[k.votes], rep: toNum(rep), tot: toNum(tot) });
+            // Nebraska marks House rows with AreaType "CG"; New Mexico and Oregon have no AreaType and put "DISTRICT 1" in AreaNum
+            const areaNum = String(r[k.areaNum] || '');
+            const district = area === 'CG' || (!area && /district/i.test(areaNum)) ? areaNum : undefined;
+            if (!area && areaNum && !district) continue;                 // a county row in a file without AreaType
+            rows.push({ contest: r[k.contest], district, name: r[k.name], party: r[k.party], votes: r[k.votes], rep: toNum(rep), tot: toNum(tot) });
           }
         }
         if (!found) return { notPosted: true };
@@ -257,12 +264,167 @@ add(enhanced('UT', 'Utah elections office', 'https://electionresults.utah.gov/re
 add(enhanced('VA', 'Virginia Department of Elections', 'https://enr.elections.virginia.gov/results/public/api', 'Virginia', 'verified'));
 add(enhanced('ID', 'Idaho Secretary of State', 'https://results.voteidaho.gov/results/public/api', 'id', 'unverified'));
 add(clarity('CO', 'Colorado Secretary of State', 'https://results.enr.clarityelections.com/CO/elections.json', 'https://results.enr.clarityelections.com/CO', 'verified'));
+// South Carolina runs Clarity on its own domain. Its election list (elections.json) is often empty, so the feed also
+// looks for the Nov 3 link on scvotes.gov's results page. Files checked Oct 24 against the Sept 2026 Senate runoff.
+add(clarity('SC', 'South Carolina Election Commission', 'https://www.enr-scvotes.org/SC/elections.json', 'https://www.enr-scvotes.org/SC', 'verified',
+  async c => {
+    const html = await c.text('https://scvotes.gov/elections-statistics/election-results/', { allow404: true });
+    for (const m of String(html || '').matchAll(/<a[^>]+href="https?:\/\/www\.enr-scvotes\.org\/SC\/(\d+)\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const text = m[2].replace(/<[^>]+>/g, ' ');
+      if (/general/i.test(text) && !/primar|runoff|special|municipal|city|town|county/i.test(text)) return m[1];
+    }
+    return null;
+  }));
 add(clarity('IA', 'Iowa Secretary of State', 'https://electionresults.iowa.gov/IA/elections.json', 'https://electionresults.iowa.gov/IA', 'verified'));
 add(aspxCsv('NE', 'Nebraska Secretary of State', [
   'https://electionresults.nebraska.gov/resultsCSV.aspx?text=All&type=SW&map=CTY',
   'https://electionresults.nebraska.gov/resultsCSV.aspx?text=All&type=CG&map=DIST',
 ], 'verified'));
 add(aspxCsv('SD', 'South Dakota Secretary of State', ['https://electionresults.sd.gov/resultsCSV.aspx?text=All&type=SWR&map=CTY'], 'verified'));
+// Same results software as Nebraska and South Dakota. New Mexico's Nov 3 file was checked live (Oct 24, candidates
+// loaded). Oregon and Montana run the same software but only switch their results sites on near Election Day.
+add(aspxCsv('NM', 'New Mexico Secretary of State', [
+  'https://electionresults.sos.nm.gov/resultsCSV.aspx?text=All&type=FED&map=CTY',
+  'https://electionresults.sos.nm.gov/resultsCSV.aspx?text=All&type=SW&map=CTY',
+], 'verified'));
+add(aspxCsv('OR', 'Oregon Secretary of State', [
+  'https://results.oregonvotes.gov/resultsCSV.aspx?text=All&type=FED&map=CTY',
+  'https://results.oregonvotes.gov/resultsCSV.aspx?text=All&type=SW&map=CTY',
+], 'unverified'));
+add(aspxCsv('MT', 'Montana Secretary of State', [
+  'https://electionresults.mt.gov/resultsCSV.aspx?text=All&type=FED&map=CTY',
+], 'unverified'));
+
+/* Alaska: one precinct-level CSV for every contest (about 5 MB), summed here. Paid plan only.
+   The primary used /enr26/results/GA_ENR_Precinct_State_of_Alaska.csv; November is expected at the same address,
+   so the primary's file is told apart by its crowded U.S. Senate field (the general has at most four finalists). */
+export function parseAK(text) {
+  const lines = text.split(/\r?\n/);
+  const keep = [lines[0], ...lines.slice(1).filter(l => /"(U\.S\. Senator|U\.S\. Representative|Governor[^"]*)"/.test(l))];
+  const { head, rows: objs } = csvObjects(keep.join('\n'));
+  const k = {
+    contest: findCol(head, /^Contest_title$/i), name: findCol(head, /^candidate_name$/i), party: findCol(head, /^Party_Code$/i),
+    votes: findCol(head, /^total_votes$/i), type: findCol(head, /^Candidate_Type$/i),
+  };
+  // Reporting_flag is 0 on every row (even certified files), so there's no "% in"; the board shows "Counting"
+  const byKey = new Map();
+  for (const r of objs) {
+    const contest = r[k.contest];
+    if (!contest || /write-?in/i.test(r[k.name]) || (k.type && r[k.type] === 'W')) continue;
+    // "Sullivan, Dan" → "Dan Sullivan"; tickets "Dunleavy, Mike/Dahlstrom, Nancy" → the first name on the ticket
+    const first = String(r[k.name] || '').split('/')[0];
+    const name = first.includes(',') ? `${first.split(',').slice(1).join(',').trim()} ${first.split(',')[0].trim()}` : first.trim();
+    const key = `${contest}|${name}`;
+    const prev = byKey.get(key);
+    if (prev) prev.votes += toNum(r[k.votes]) || 0;
+    else byKey.set(key, { contest, name, party: r[k.party], votes: toNum(r[k.votes]) || 0 });
+  }
+  return [...byKey.values()];
+}
+add({
+  st: 'AK', label: 'Alaska Division of Elections', confidence: 'unverified', format: 'Precinct results CSV (large)',
+  units: [{
+    id: 'AK', requests: 1, paidOnly: true,
+    async run(c) {
+      const text = await c.text('https://www.elections.alaska.gov/enr26/results/GA_ENR_Precinct_State_of_Alaska.csv', { conditional: true, allow404: true });
+      if (text === undefined) return { notPosted: true };
+      if (text === null) return { unchanged: true };
+      if (!/Contest_title/i.test(text.slice(0, 600))) return { notPosted: true };
+      const rows = parseAK(text);
+      const senate = new Set(rows.filter(r => /U\.S\. Senator/.test(r.contest)).map(r => r.name));
+      if (senate.size > 5) return { notPosted: true };                  // still the August primary's file
+      return { results: collect('AK', c, rows) };
+    },
+  }],
+});
+
+/* Maryland: plain HTML results pages, one per office (the House page has all 8 districts).
+   June 2026 primary: /elections/2026/primary_results/gen_results_2026_1.html (governor), _4.html (Congress).
+   November's folder isn't posted yet; the feed finds it from the 2026 election page, then the two pages by name. */
+const stripTags = s => String(s).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+export function parseMD(html) {
+  const rows = [];
+  let contest = '', district;
+  let rep = null, tot = null;
+  // Walk headings, "N of M ... precincts reported" notes and tables in page order
+  const re = /<h2[^>]*>([\s\S]*?)<\/h2>|<h3[^>]*>([\s\S]*?)<\/h3>|\((\d[\d,]*) of (\d[\d,]*)[^)]*precincts reported\)|<table[\s\S]*?<\/table>/gi;
+  for (const m of html.matchAll(re)) {
+    if (m[1] != null) { contest = stripTags(m[1]); district = undefined; continue; }
+    if (m[2] != null) { const d = stripTags(m[2]).match(/District\s+(\d+)/i); if (d) district = d[1]; continue; }
+    if (m[3] != null) { rep = toNum(m[3]); tot = toNum(m[4]); continue; }
+    const table = m[0];
+    const head = [...table.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)].map(x => stripTags(x[1]).toLowerCase());
+    const iName = head.indexOf('name'), iParty = head.indexOf('party'), iTotal = head.indexOf('total');
+    if (iName < 0 || iTotal < 0) continue;
+    for (const tr of table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cells = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => stripTags(x[1]));
+      if (cells.length <= iTotal) continue;
+      rows.push({ contest, district, name: cells[iName], party: iParty >= 0 ? cells[iParty] : null, votes: cells[iTotal], rep, tot });
+    }
+  }
+  return rows;
+}
+add({
+  st: 'MD', label: 'Maryland State Board of Elections', confidence: 'unverified', format: 'Results web pages (HTML)',
+  units: [{
+    id: 'MD', requests: 4,
+    async run(c) {
+      const site = 'https://elections.maryland.gov/elections/2026/';
+      let folder = c.meta.folder;
+      if (!folder) {
+        const home = await c.text(`${site}index.html`, { allow404: true });
+        const link = home && [...home.matchAll(/href="([^"]*general[^"]*results[^"]*)"/gi)].map(m => m[1])[0];
+        if (!link) return { notPosted: true };
+        folder = new URL(link.replace(/index\.html?$/i, ''), site).href.replace(/\/?$/, '/');
+        const index = await c.text(folder, { allow404: true });
+        if (!index) return { notPosted: true };
+        const pageFor = re => [...index.matchAll(/<a[^>]+href="([^"]+\.html)"[^>]*>([\s\S]*?)<\/a>/gi)].find(m => re.test(stripTags(m[2])))?.[1];
+        const gov = pageFor(/^governor/i), house = pageFor(/^representative in congress$/i);
+        if (!gov && !house) return { notPosted: true };
+        c.meta.folder = folder; c.meta.pages = [gov, house].filter(Boolean);
+      }
+      const rows = [];
+      for (const page of c.meta.pages || []) {
+        const html = await c.text(new URL(page, folder).href, { allow404: true });
+        if (html) rows.push(...parseMD(html));
+      }
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('MD', c, rows) };
+    },
+  }],
+});
+
+/* Louisiana: two JSON files (named .htm) for races on more than one parish's ballot: races + candidates, and votes */
+export function parseLA(racesJson, votesJson) {
+  const votes = new Map();
+  const prec = new Map();
+  for (const r of votesJson?.Races?.Race || []) {
+    prec.set(String(r.ID), [toNum(r.PrecinctsReporting), toNum(r.PrecinctsExpected)]);
+    for (const ch of r.Choice || []) votes.set(String(ch.ID), toNum(ch.VoteTotal) || 0);
+  }
+  const rows = [];
+  for (const r of racesJson?.Races?.Race || []) {
+    const [rep, tot] = prec.get(String(r.ID)) || [];
+    for (const ch of r.Choice || []) {
+      const m = String(ch.Desc || '').match(/^(.*?)\s*\(([A-Z]+)\)\s*$/);
+      rows.push({ contest: r.SpecificTitle || r.GeneralTitle, name: (m ? m[1] : ch.Desc).replace(/"/g, ''), party: m ? m[2] : null, votes: votes.get(String(ch.ID)) ?? 0, rep, tot });
+    }
+  }
+  return rows;
+}
+add({
+  st: 'LA', label: 'Louisiana Secretary of State', confidence: 'verified', format: 'Voter Portal JSON',
+  units: [{
+    id: 'LA', requests: 2,
+    async run(c) {
+      const base = 'https://voterportal.sos.la.gov/ElectionResults/ElectionResults/Data?blob=20261103';
+      const races = await c.json(`${base}/RacesCandidates_Multiparish.htm`, { allow404: true });
+      if (!races?.Races?.Race?.length) return { notPosted: true };
+      const votes = await c.json(`${base}/Votes_Multiparish.htm`);
+      return { results: collect('LA', c, parseLA(races, votes)) };
+    },
+  }],
+});
 
 /* North Carolina: one JSON file of statewide contest totals */
 add({
