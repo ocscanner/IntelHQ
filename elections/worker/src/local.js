@@ -15,17 +15,24 @@ export function measureParts(raw) {
   return comma > 0 ? { letter: m[1], place: rest.slice(0, comma).trim(), title: rest.slice(comma + 1).trim() } : { letter: m[1], place: null, title: rest.trim() };
 }
 
+function ocCount(v) {
+  if (!v) return null;
+  const total = (v.yes || 0) + (v.no || 0);
+  return { yes: v.yes, no: v.no, total, yesPct: total ? Math.round(v.yes / total * 1000) / 10 : null, noPct: total ? Math.round(v.no / total * 1000) / 10 : null };
+}
+
 /**
- * @param {object} list        data/oc-local-2026.json
+ * @param {object} list        data/oc-local-2026.json or data/ca-props-2026.json
  * @param {object|null} res   stored results payload (see feeds/oc-local.js localPayload) or rehearsal data
  * @param {Map<string,object>} calls  desk calls keyed by board id ("OC-5031")
+ * @param {string} prefix    board id prefix: "OC-" for Orange County, "CA-P" for propositions
  */
-export function buildLocal(list, res, calls = new Map(), now = Date.now()) {
+export function buildLocal(list, res, calls = new Map(), now = Date.now(), prefix = 'OC-') {
   const byId = new Map((res?.contests || []).map(c => [c.id, c]));
   const out = [];
   const seen = new Set();
   const make = (base, r) => {
-    const id = `OC-${base.id}`;
+    const id = `${prefix}${base.id}`;
     const inc = letters(base.incumbent);
     const cands = (r?.candidates?.length ? r.candidates : base.candidates.map(c => ({ ...c, votes: null })))
       .map(c => ({ name: c.name, party: c.party || null, votes: c.votes ?? null, incumbent: !!inc && sameName(letters(c.name), inc) }));
@@ -49,6 +56,9 @@ export function buildLocal(list, res, calls = new Map(), now = Date.now()) {
       pctIn: r?.pctIn ?? null,
       status: call ? 'called' : total ? 'counting' : 'waiting',
       call, deskOverride: dc ? (dc.retracted_at ? 'withdrawn' : 'called') : null,
+      // Statewide propositions: official title, measure type and Orange County's own count
+      ...(base.title ? { title: base.title, type: base.type } : {}),
+      ...(res?.oc ? { oc: ocCount(res.oc.props?.[base.id]) } : {}),
     };
   };
   for (const c of list.contests) { out.push(make(c, byId.get(c.id))); seen.add(c.id); }
@@ -67,7 +77,9 @@ export function buildLocal(list, res, calls = new Map(), now = Date.now()) {
   return {
     area: list.area, name: list.name, source: list.source, election: list.election,
     groups: list.groups,
+    note: list.note || null,
     generated: res?.generated || null, updated: res?.updated || null,
+    ocReporting: res?.oc ? { pctIn: res.oc.pctIn ?? null, updated: res.oc.updated || null } : null,
     ballotsCast: res?.ballotsCast ?? null, registered: res?.registered ?? null,
     simulation: res?.source === 'SIM',
     contests: out,

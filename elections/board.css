@@ -123,6 +123,24 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-groups button[aria-pressed="true"] span{color:inherit;opacity:.7}
 .eb-lnote{margin:10px 2px 0;font-size:.85rem;color:var(--eb-muted)}
 .eb-badge.L{background:var(--eb-lead);color:#fff}
+.eb-badge.yes{background:var(--eb-yes);color:#fff}.eb-badge.no{background:var(--eb-no);color:#fff}
+/* California propositions scoreboard */
+.eb-props{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.eb-prop{display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;background:var(--eb-bg2);border:1px solid var(--eb-line2);border-left:4px solid var(--eb-line2);border-radius:8px;padding:8px 10px;color:var(--eb-text);min-height:96px}
+.eb-prop:hover{border-color:var(--eb-text2)}
+.eb-prop.sel{outline:2px solid var(--eb-sel);outline-offset:1px}
+.eb-prop .pn{font-family:var(--eb-fh);font-weight:700;font-size:1.05rem}
+.eb-prop .pt{font-size:.8rem;color:var(--eb-text2);line-height:1.25;flex:1}
+.eb-prop .ps{font-size:.8rem;color:var(--eb-muted)}
+.eb-prop .ps b{color:var(--eb-text2);margin-right:4px}
+.eb-prop.yes{border-left-color:color-mix(in srgb,var(--eb-yes) 55%,transparent)}
+.eb-prop.no{border-left-color:color-mix(in srgb,var(--eb-no) 55%,transparent)}
+.eb-prop.called.yes{border-left-color:var(--eb-yes)}.eb-prop.called.no{border-left-color:var(--eb-no)}
+.eb-prop.called.yes .ps b{color:var(--eb-yes)}.eb-prop.called.no .ps b{color:var(--eb-no)}
+.eb-ynbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--eb-wait)}
+.eb-ynbar i.y{background:var(--eb-yes)}.eb-ynbar i.n{flex:1;background:var(--eb-no)}
+.eb-ocv{display:grid;gap:4px;margin:10px 0 0;padding:8px 10px;border:1px solid var(--eb-line2);border-radius:8px;font-size:.88rem}
+.eb-ocv span{color:var(--eb-text2)}
 .eb-pick{border:1px solid var(--eb-line2);border-radius:7px;margin:4px 0 0;padding:6px 10px}
 .eb-pick legend{font-size:.82rem;color:var(--eb-muted);padding:0 4px}
 .eb-desk .eb-pick label{display:flex;align-items:center;gap:8px;margin:4px 0;color:var(--eb-text);font-size:.92rem}
@@ -224,3 +242,6 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
   .eb-back{padding:3px 9px;font-size:.85rem}
 }
 @media (prefers-reduced-motion:reduce){.eb *{animation:none!important;transition:none!important}}
+
+/* Five tabs: drop the race counts before the labels get squeezed */
+@media (max-width:1180px){.eb-chambers button span{display:none}}

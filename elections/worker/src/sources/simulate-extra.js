@@ -34,18 +34,18 @@ export function simulateCounties(race, now) {
 }
 
 /** Fake local results for every contest on the list (and two made-up measures). */
-export function simulateLocal(list, now, cycleMinutes = 90) {
+export function simulateLocal(list, now, cycleMinutes = 90, { extras = true } = {}) {
   const t = ((now / 60000) % cycleMinutes) / cycleMinutes;
   const progress = Math.max(0, Math.min(1, (t - 0.2) / 0.55));    // OC posts after 8 p.m. Pacific
   const contests = [];
-  const all = [...list.contests,
+  const all = [...list.contests, ...!extras ? [] : [
     { id: '9901', measure: true, rawName: 'Z - City of Example, Rehearsal Sales Tax Measure', candidates: [{ name: 'Yes' }, { name: 'No' }], voteFor: 1 },
-    { id: '9902', measure: true, rawName: 'Y - Example School District, Rehearsal Bond Measure', candidates: [{ name: 'Yes' }, { name: 'No' }], voteFor: 1 }];
+    { id: '9902', measure: true, rawName: 'Y - Example School District, Rehearsal Bond Measure', candidates: [{ name: 'Yes' }, { name: 'No' }], voteFor: 1 }]];
   if (progress > 0) {
     for (const c of all) {
       const h = hash(c.id);
       const pctIn = Math.round(progress * (85 + h * 14) * 10) / 10;
-      const size = (c.group === 'legislature' ? 120000 : c.group === 'county' ? 180000 : 6000 + h * 70000) * pctIn / 100 * c.voteFor;
+      const size = (c.group === 'prop' ? 9500000 : c.group === 'legislature' ? 120000 : c.group === 'county' ? 180000 : 6000 + h * 70000) * pctIn / 100 * c.voteFor;
       const raw = c.candidates.map((x, i) => 0.3 + hash(c.id + x.name + i) * (i === 0 ? 1.4 : 1));
       const sum = raw.reduce((a, b) => a + b, 0);
       contests.push({
@@ -56,4 +56,19 @@ export function simulateLocal(list, now, cycleMinutes = 90) {
     }
   }
   return { area: list.area, source: 'SIM', generated: new Date(now).toISOString(), updated: new Date(now).toISOString(), contests };
+}
+
+/** Fake statewide proposition results, plus a made-up Orange County count that leans a little differently. */
+export function simulateProps(list, now, cycleMinutes = 90) {
+  const res = simulateLocal(list, now, cycleMinutes, { extras: false });
+  if (!res.contests.length) return { ...res, oc: null };
+  const props = {};
+  for (const c of res.contests) {
+    const [y, n] = c.candidates.map(x => x.votes);
+    const total = y + n;
+    const share = Math.max(0.05, Math.min(0.95, y / Math.max(1, total) + (hash(c.id + 'oc') - 0.5) * 0.2));
+    const ocTotal = Math.round(total * 0.085);
+    props[c.id] = { yes: Math.round(ocTotal * share), no: Math.round(ocTotal * (1 - share)) };
+  }
+  return { ...res, oc: { pctIn: res.contests[0].pctIn, updated: res.updated, props } };
 }

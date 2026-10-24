@@ -9,11 +9,13 @@
  *  GET  /v1/feed             latest calls and retractions, newest first
  *  GET  /v1/counties?race=GA-SEN   county-by-county results for a Senate or governor race
  *  GET  /v1/local?area=OC    Orange County local contests (cities, schools, districts, measures)
+ *  GET  /v1/local?area=CAP   California's statewide propositions (statewide Yes/No plus Orange County's count)
  *  GET  /v1/health           switches, feed status, when state feeds start
  *  GET  /v1/desk/check       200 if the desk token is valid
  *  GET  /v1/desk/preview?state=GA   download and parse one state now, without saving (desk token)
  *  POST /v1/desk/call        {raceId, party, candidate?, source, note?}       (desk token)
  *                            local races: {raceId: "OC-5031", winners: ["Name", ...], source}
+ *                            propositions: {raceId: "CA-P1", winners: ["Yes"] or ["No"], source}
  *  POST /v1/desk/retract     {raceId}                                         (desk token)
  *  POST /v1/desk/clear       {raceId}  remove a desk call/retraction so the feed shows again
  *  POST /v1/desk/result      {raceId, pctIn, candidates:[{name,party,votes}]} (desk token)
@@ -26,12 +28,19 @@ import { normParty } from './parties.js';
 import { runIngest, d1Store, allUnits } from './ingest.js';
 import { ADAPTERS } from './feeds/states.js';
 import { OC_LOCAL } from './feeds/oc-local.js';
+import { CA_PROPS } from './feeds/ca-props.js';
 import { buildLocal } from './local.js';
-import { simulateCounties, simulateLocal } from './sources/simulate-extra.js';
+import { simulateCounties, simulateLocal, simulateProps } from './sources/simulate-extra.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
 const LOCAL_IDS = new Set(OC_LOCAL.contests.map(c => `OC-${c.id}`));
-const isLocalId = id => LOCAL_IDS.has(id) || /^OC-\d{4}$/.test(id);       // measures appear only on election night
+const PROP_IDS = new Set(CA_PROPS.contests.map(c => `CA-P${c.id}`));
+const isLocalId = id => LOCAL_IDS.has(id) || /^OC-\d{4}$/.test(id) || PROP_IDS.has(id);   // OC measures appear only on election night
+// Areas on the board's local-style tabs: board id prefix, contest list, rehearsal data
+const AREAS = {
+  OC: { prefix: 'OC-', list: OC_LOCAL, sim: (now, cyc) => simulateLocal(OC_LOCAL, now, cyc) },
+  CAP: { prefix: 'CA-P', list: CA_PROPS, sim: (now, cyc) => simulateProps(CA_PROPS, now, cyc) },
+};
 // States whose free files include county-by-county counts (see feeds/states.js)
 const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'PA', 'UT', 'VA']);
 const countiesOn = env => /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
@@ -48,7 +57,7 @@ export default {
       if (request.method === 'GET' && p === '/v1/board') return await board(request, env, ctx, url, cors);
       if (request.method === 'GET' && p === '/v1/feed') return json(await feed(env, url), cors, 30);
       if (request.method === 'GET' && p === '/v1/counties') return await cached(`counties?race=${url.searchParams.get('race')}&sim=${isSim(env, url) ? 1 : 0}`, () => counties(env, url), cors, ctx, url);
-      if (request.method === 'GET' && p === '/v1/local') return await cached(`local?sim=${isSim(env, url) ? 1 : 0}`, () => local(env, url), cors, ctx, url);
+      if (request.method === 'GET' && p === '/v1/local') { const area = areaKey(url); return await cached(`local?area=${area}&sim=${isSim(env, url) ? 1 : 0}`, () => local(env, url, area), cors, ctx, url); }
       if (request.method === 'GET' && p === '/v1/health') return json(await health(env), cors, 0);
       if (p.startsWith('/v1/desk/')) {
         if (!authorized(request, env)) return json({ error: 'Desk token missing or wrong' }, cors, 0, 401);
@@ -61,7 +70,7 @@ export default {
           return json(res, cors, 0, res.error ? 400 : 200);
         }
       }
-      return json({ error: 'Not found', routes: ['/v1/board', '/v1/feed', '/v1/counties', '/v1/local', '/v1/health'] }, cors, 0, 404);
+      return json({ error: 'Not found', routes: ['/v1/board', '/v1/feed', '/v1/counties', '/v1/local?area=OC', '/v1/local?area=CAP', '/v1/health'] }, cors, 0, 404);
     } catch (e) {
       return json({ error: e.message }, cors, 0, 500);
     }
@@ -242,19 +251,21 @@ async function counties(env, url) {
   return { ...base, available: true, ...(row || { cands: [], counties: {} }) };
 }
 
-/* ── Orange County local contests ── */
-async function local(env, url) {
+/* ── Local-style tabs: Orange County contests and California propositions ── */
+const areaKey = url => { const a = String(url.searchParams.get('area') || 'OC').toUpperCase(); return AREAS[a] ? a : 'OC'; };
+async function local(env, url, area = 'OC') {
+  const A = AREAS[area];
   const sim = isSim(env, url);
   const ns = sim ? 'sim' : 'live';
   const calls = new Map();
   let res = null;
-  if (sim) res = simulateLocal(OC_LOCAL, Date.now(), +(env.SIM_CYCLE_MINUTES || 90));
-  else if (env.DB && Date.now() >= startOf(env)) res = await d1Store(env.DB).loadLocal('OC');
+  if (sim) res = A.sim(Date.now(), +(env.SIM_CYCLE_MINUTES || 90));
+  else if (env.DB && Date.now() >= startOf(env)) res = await d1Store(env.DB).loadLocal(area);
   if (env.DB) {
-    const { results } = await env.DB.prepare("SELECT * FROM desk_call WHERE ns = ? AND race_id LIKE 'OC-%'").bind(ns).all();
+    const { results } = await env.DB.prepare('SELECT * FROM desk_call WHERE ns = ? AND race_id LIKE ?').bind(ns, `${A.prefix}%`).all();
     for (const r of results) calls.set(r.race_id, r);
   }
-  const out = buildLocal(OC_LOCAL, res, calls);
+  const out = buildLocal(A.list, res, calls, Date.now(), A.prefix);
   out.resultsStart = new Date(startOf(env)).toISOString();
   return out;
 }
@@ -272,6 +283,10 @@ async function feed(env, url) {
       if (!r && x.race_id.startsWith('OC-')) {
         const c = OC_LOCAL.contests.find(c => `OC-${c.id}` === x.race_id);
         return { ...x, name: c?.name || `Orange County contest ${x.race_id.slice(3)}`, chamber: 'local', flip: false };
+      }
+      if (!r && PROP_IDS.has(x.race_id)) {
+        const c = CA_PROPS.contests.find(c => `CA-P${c.id}` === x.race_id);
+        return { ...x, name: c.name, chamber: 'props', flip: false };
       }
       return { ...x, name: r?.name, chamber: r?.chamber, flip: !!(x.kind === 'call' && r?.holder.party && r.holder.party !== x.party) };
     }),
@@ -315,6 +330,7 @@ async function desk(env, action, b) {
   if (action === 'call' && isLocal) {
     const winners = (Array.isArray(b.winners) ? b.winners : [b.candidate]).map(w => String(w || '').trim().slice(0, 80)).filter(Boolean).slice(0, 12);
     if (!winners.length) return { error: 'winners required' };
+    if (PROP_IDS.has(id) && (winners.length !== 1 || !/^(Yes|No)$/.test(winners[0]))) return { error: 'A proposition call is "Yes" (passes) or "No" (fails)' };
     const source = String(b.source || 'OC Scanner desk').slice(0, 40);
     const cand = winners.join(' | ');
     await env.DB.batch([
@@ -370,7 +386,7 @@ async function health(env) {
     ap: !!env.AP_API_KEY,
     stateFeeds: Object.values(ADAPTERS).map(a => ({ state: a.st, source: a.label, format: a.format, confidence: a.confidence })),
     countyFeeds: countiesOn(env) ? 'on' : 'off', countyStates: [...COUNTY_STATES],
-    localContests: { OC: OC_LOCAL.contests.length },
+    localContests: { OC: OC_LOCAL.contests.length, CAP: CA_PROPS.contests.length },
     downloadBudgetPerRun: +(env.SUBREQUEST_BUDGET || 45),
     desk: !!env.DESK_TOKEN, database: !!env.DB,
     races: universe.races.length,
@@ -388,7 +404,7 @@ function authorized(request, env) {
 }
 async function purge() {
   const cache = caches.default;
-  await Promise.all(['board?sim=0', 'board?sim=1', 'local?sim=0', 'local?sim=1'].map(k => cache.delete(new Request(`https://cache.local/${k}`))));
+  await Promise.all(['board?sim=0', 'board?sim=1', ...Object.keys(AREAS).flatMap(a => [`local?area=${a}&sim=0`, `local?area=${a}&sim=1`])].map(k => cache.delete(new Request(`https://cache.local/${k}`))));
 }
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';

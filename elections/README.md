@@ -13,6 +13,8 @@ It also has:
   (won, leading, striped for a flip) and numbered. Select a district for its race; selecting a House race
   in the list also zooms to its district. Switching tabs keeps you on the same state; select a neighboring
   state to jump there; "← US map" (or Esc) zooms back out. On phones, tap a county or district for its numbers.
+- **A CA Props tab** with California's 14 statewide propositions (Props 1–5 and 37–45): a scoreboard of
+  all 14, Yes/No for each, how Orange County voted on it, and desk calls (passes / fails).
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,
   77 city races in 31 cities, 47 school and college board races, 12 water and special districts,
   14 state legislative races (OC votes only), and local measures once the Registrar posts them.
@@ -124,6 +126,25 @@ and remembers the number once November's file appears. If a special election tak
 - State Legislature races show **Orange County votes only**; most of those districts cross county lines.
 - After election night the Registrar updates weekdays at 5 p.m. until it certifies.
 
+## CA Props tab
+
+California's 14 statewide propositions on the Nov 3 ballot: Props 1–5 and 37–45 (the list and official
+titles are in `data/ca-props-2026.json`, from the Secretary of State's qualified-measures page). Other
+states' ballot measures aren't tracked.
+
+- **Results** come from the Secretary of State's election-night API, the same source as California's races:
+  `api.sos.ca.gov/returns/ballot-measures` (all 14, statewide) and `.../ballot-measures/county/orange`
+  (Orange County's count of the same 14). Two downloads every 10 minutes, so it fits the free plan.
+  The SoS already serves practice numbers in that file; the board ignores them until polls close.
+- **The scoreboard** shows all 14 at a glance: Yes/No bar, "Yes leads" / "No leads", or **Passes** /
+  **Fails** once called. The list below adds the Orange County split; select one for its official title,
+  measure type, statewide and Orange County counts.
+- **Calling a proposition:** select it, choose **Yes (passes)** or **No (fails)**, pick who made the call,
+  **Call this measure**, then **Publish call**. Withdraw and undo work as for races, and calls show in the
+  calls log as "Prop 39 fails". **Copy post for X** writes the call or the current count.
+- Statewide propositions pass with a simple majority. California counts mail ballots for weeks, so close
+  ones can take days to call; the percentage shown is precincts reporting, not ballots counted.
+
 ## Free plan or Workers Paid
 
 Cloudflare's free plan allows 100,000 requests a day **per account** (shared with the radar proxy),
@@ -217,7 +238,7 @@ yet. Numbers you see before election night are the state's test data.
 
 The public Elections page (ocscanner.github.io/PublicSiteTest/elections.html, later ocscanner.news/elections)
 is the same board with no desk sign-in, rehearsal switch or Copy post for X, styled to match the site.
-Your IntelHQ calls, county maps and the Orange County tab all appear there within about a minute.
+Your IntelHQ calls, county maps, the CA Props tab and the Orange County tab all appear there within about a minute.
 
 It uses copies of this folder's files, so **when `board.js`, `board.css` or anything in `data/` changes
 here, copy them to the PublicSiteTest repo's `elections/` folder too**: `board.js`, `board.css`,
@@ -297,6 +318,7 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 | `GET /v1/feed` | Latest calls and withdrawals |
 | `GET /v1/counties?race=GA-SEN` | County results for a Senate or governor race |
 | `GET /v1/local?area=OC` | Orange County local contests, results and desk calls |
+| `GET /v1/local?area=CAP` | California's propositions: statewide Yes/No, Orange County's count, desk calls |
 | `GET /v1/health` | Switches, state feed list, when feeds start |
 | `GET /v1/desk/preview?state=XX` | Download and parse one state now, without saving (desk token) |
 | `POST /v1/desk/call` · `retract` · `clear` · `result` | Desk actions (desk token) |

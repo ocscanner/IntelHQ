@@ -1,0 +1,297 @@
+{
+ "area": "CAP",
+ "name": "California propositions",
+ "election": "2026-11-03",
+ "source": "California Secretary of State",
+ "sourceUrl": "https://www.sos.ca.gov/elections/ballot-measures/qualified-ballot-measures",
+ "resultsBase": "https://api.sos.ca.gov/returns",
+ "note": "Statewide propositions pass with a simple majority of votes cast.",
+ "groups": [
+  {
+   "key": "prop",
+   "label": "Propositions"
+  }
+ ],
+ "contests": [
+  {
+   "id": "1",
+   "group": "prop",
+   "place": "Prop 1",
+   "office": "Housing bond",
+   "name": "Prop 1: Housing bond",
+   "title": "Authorizes Bonds for Housing Affordability Programs",
+   "type": "Legislative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "2",
+   "group": "prop",
+   "place": "Prop 2",
+   "office": "Rainy day fund",
+   "name": "Prop 2: Rainy day fund",
+   "title": "Increases State's Rainy Day Fund",
+   "type": "Legislative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "3",
+   "group": "prop",
+   "place": "Prop 3",
+   "office": "Extends high-income tax for schools, health care",
+   "name": "Prop 3: Extends high-income tax for schools, health care",
+   "title": "Provides Permanent Funding for Schools and Health Care by Extending Existing Tax on High Incomes",
+   "type": "Initiative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "4",
+   "group": "prop",
+   "place": "Prop 4",
+   "office": "Public funding of campaigns",
+   "name": "Prop 4: Public funding of campaigns",
+   "title": "Repeals Prohibition Against Public Funding of Election Campaigns",
+   "type": "Legislative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "5",
+   "group": "prop",
+   "place": "Prop 5",
+   "office": "Recall election process",
+   "name": "Prop 5: Recall election process",
+   "title": "Changes Recall Election Process for Statewide Officers",
+   "type": "Legislative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "37",
+   "group": "prop",
+   "place": "Prop 37",
+   "office": "Loans for middle-income home buyers",
+   "name": "Prop 37: Loans for middle-income home buyers",
+   "title": "Creates Loan Program for Middle-Income Buyers of Qualified New Homes",
+   "type": "Initiative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "38",
+   "group": "prop",
+   "place": "Prop 38",
+   "office": "Immunology research bond",
+   "name": "Prop 38: Immunology research bond",
+   "title": "Authorizes Bonds for Immunology Medical Research",
+   "type": "Initiative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "39",
+   "group": "prop",
+   "place": "Prop 39",
+   "office": "Voter ID",
+   "name": "Prop 39: Voter ID",
+   "title": "Prohibits Citizens from Voting Unless They Present Government-Issued Identification",
+   "type": "Initiative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "40",
+   "group": "prop",
+   "place": "Prop 40",
+   "office": "One-time tax on certain taxpayers",
+   "name": "Prop 40: One-time tax on certain taxpayers",
+   "title": "Imposes One-Time Tax on Certain Taxpayers",
+   "type": "Initiative constitutional amendment and statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "41",
+   "group": "prop",
+   "place": "Prop 41",
+   "office": "State tax limits and audits",
+   "name": "Prop 41: State tax limits and audits",
+   "title": "Prohibits New State Taxes That Exclude Revenues from State Spending Limit. Requires Audits for New State Special Taxes",
+   "type": "Initiative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "42",
+   "group": "prop",
+   "place": "Prop 42",
+   "office": "Personal property and retroactive taxes",
+   "name": "Prop 42: Personal property and retroactive taxes",
+   "title": "Prohibits New State Personal Property Taxes and Certain Retroactive State Taxes",
+   "type": "Initiative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "43",
+   "group": "prop",
+   "place": "Prop 43",
+   "office": "Local revenue measures",
+   "name": "Prop 43: Local revenue measures",
+   "title": "Limits Voters' Ability to Raise Revenues for Local Government Services",
+   "type": "Legislative constitutional amendment",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "44",
+   "group": "prop",
+   "place": "Prop 44",
+   "office": "Community clinic spending",
+   "name": "Prop 44: Community clinic spending",
+   "title": "Requires Community Health Clinics Spend 90% of Revenue on Program Services",
+   "type": "Initiative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  },
+  {
+   "id": "45",
+   "group": "prop",
+   "place": "Prop 45",
+   "office": "Environmental review",
+   "name": "Prop 45: Environmental review",
+   "title": "Modifies Environmental Review for Certain Projects",
+   "type": "Initiative statute",
+   "voteFor": 1,
+   "measure": true,
+   "incumbent": null,
+   "candidates": [
+    {
+     "name": "Yes"
+    },
+    {
+     "name": "No"
+    }
+   ]
+  }
+ ]
+}

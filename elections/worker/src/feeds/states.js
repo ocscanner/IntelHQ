@@ -13,6 +13,7 @@ import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isE
 import { countyFips, mnCountyFips } from './county-names.js';
 import { parseCASOS } from '../sources/ca-sos.js';
 import { toNum } from '../parties.js';
+import { caPropsAdapter } from './ca-props.js';
 import { ocLocalAdapter } from './oc-local.js';
 
 const textOf = v => Array.isArray(v) ? (v.find(x => /^en/i.test(x.languageId || 'en')) || v[0] || {}).text || '' : String(v || '');
@@ -467,6 +468,9 @@ add({
 
 /* Orange County Registrar: local contests (city councils, schools, districts, measures) */
 add(ocLocalAdapter);
+
+/* California Secretary of State: the 14 statewide propositions (statewide and Orange County counts) */
+add(caPropsAdapter);
 
 export const ADAPTERS = A;
 /** Adapters switched on by STATE_FEEDS (comma list, default all). */

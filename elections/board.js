@@ -9,9 +9,16 @@
   const PFULL = { D: 'Democrats', R: 'Republicans', I: 'independents', O: 'other parties' };
   const PADJ = { D: 'Democratic', R: 'Republican', I: 'independent', O: 'third-party' };
   const CHAMBERS = [['house', 'House'], ['senate', 'Senate'], ['governor', 'Governors']];
-  const TABS = [...CHAMBERS, ['local', 'Orange County']];
-  const TAB_SHORT = { house: 'House', senate: 'Senate', governor: 'Gov.', local: 'OC' };
-  const GROUP_ORDER = ['county', 'city', 'school', 'district', 'measure', 'legislature'];
+  const TABS = [...CHAMBERS, ['props', 'CA Props'], ['local', 'Orange County']];
+  const TAB_SHORT = { house: 'House', senate: 'Senate', governor: 'Gov.', props: 'Props', local: 'OC' };
+  // Tabs that list contests instead of drawing the US map: Orange County races and California's propositions
+  const AREA_OF = { local: 'OC', props: 'CAP' };
+  const PREFIX = { OC: 'OC-', CAP: 'CA-P' };
+  const isArea = ch => ch in AREA_OF;
+  const areaOfId = id => Object.keys(PREFIX).find(a => String(id || '').startsWith(PREFIX[a])) || null;
+  const GROUP_ORDER = ['county', 'city', 'school', 'district', 'measure', 'legislature', 'prop'];
+  // A measure call is a single "Yes" or "No"
+  const measureWord = winners => winners?.length === 1 && /^yes$/i.test(winners[0]) ? 'passes' : winners?.length === 1 && /^no$/i.test(winners[0]) ? 'fails' : null;
   // Map colors for candidates who aren't D/R/I, or when the top two share a party (California top-two)
   const CAND_COLORS = ['#8b6fd6', '#d9902f', '#2ba198', '#d0508f', '#6f9a35', '#5f86c4'];
   const SOURCES = ['AP', 'Decision Desk HQ', 'NBC News', 'CNN', 'Fox News', 'NYT', 'ABC News', 'CBS News', 'State official', 'OC Scanner desk'];
@@ -63,8 +70,8 @@
       districtsUrl: opts.districtsUrl || (opts.shapesUrl || 'elections/data/us-states.json').replace(/us-states\.json$/, 'districts'),
       pub: !!opts.publicMode,
       sim: opts.publicMode ? false : qs.get('sim') === '1' ? true : store.get('sim', !!opts.sim),
-      chamber: /^OC-/i.test(qs.get('race') || '') ? 'local' : store.get('chamber', 'senate'),
-      group: 'all', local: null, localById: new Map(),
+      chamber: /^OC-/i.test(qs.get('race') || '') ? 'local' : /^CA-P/i.test(qs.get('race') || '') ? 'props' : store.get('chamber', 'senate'),
+      group: 'all', areas: {}, localById: new Map(),
       zoomSt: null, vb: null, countyData: null, cshapes: new Map(), dshapes: new Map(),
       filter: 'all', sort: 'close', stateFilter: null, q: '', limit: 60,
       selected: qs.get('race') || null,
@@ -113,9 +120,10 @@
         S.chamber = t.dataset.chamber; store.set('chamber', S.chamber); S.limit = 60; S.countyData = null;
         // Stay zoomed on the same state when switching between House, Senate and Governors
         S.stateFilter = S.chamber === 'house' ? S.zoomSt : null;
-        if (S.chamber === 'local' && !S.local) loadLocal();
+        if (isArea(S.chamber)) S.group = 'all';
+        if (isArea(S.chamber) && !AD()) loadLocal(AREA_OF[S.chamber]);
         renderAll();
-        if (S.zoomSt && S.chamber !== 'local') { const st = S.zoomSt; loadZoomShapes(st).then(() => { if (S.zoomSt === st) { renderMap(); animateTo(targetVB()); } return loadCounties(); }).then(() => renderMap()); }
+        if (S.zoomSt && !isArea(S.chamber)) { const st = S.zoomSt; loadZoomShapes(st).then(() => { if (S.zoomSt === st) { renderMap(); animateTo(targetVB()); } return loadCounties(); }).then(() => renderMap()); }
         return;
       }
       if (t.dataset.group) { S.group = t.dataset.group; S.limit = 60; renderMap(); renderList(); return; }
@@ -159,7 +167,7 @@
     }
     root.addEventListener('keydown', e => {
       if (e.key === 'Escape' && S.sheetOpen) { S.sheetOpen = false; renderDetail(); }
-      else if (e.key === 'Escape' && S.zoomSt && S.chamber !== 'local') unzoom();
+      else if (e.key === 'Escape' && S.zoomSt && !isArea(S.chamber)) unzoom();
       const row = e.target.closest?.('.eb-row');
       if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(row.dataset.race); }
     });
@@ -169,13 +177,14 @@
       if (S.loading) return; S.loading = true;
       const q = `${S.sim ? 'sim=1' : 'sim=0'}${fresh ? '&fresh=1' : ''}`;
       try {
-        const [b, f, l] = await Promise.all([
+        const areas = neededAreas();
+        const [b, f, ...ls] = await Promise.all([
           fetch(`${S.api}/v1/board?${q}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(`Results service answered ${r.status}`); return r.json(); }),
           fetch(`${S.api}/v1/feed?${S.sim ? 'sim=1' : 'sim=0'}&limit=60`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
-          needLocal() ? fetchLocal(fresh) : null,
+          ...areas.map(a => fetchLocal(a, fresh)),
         ]);
         S.data = b; S.byId = new Map(b.races.map(r => [r.id, r])); S.error = null; S.lastOk = Date.now();
-        if (l) setLocal(l);
+        ls.forEach((l, i) => { if (l) setLocal(areas[i], l); });
         noteNewCalls(f.items || []);
         S.feed = f.items || [];
         opts.onHealth?.(true);
@@ -185,19 +194,20 @@
       }
       S.loading = false;
       renderAll();
-      if (S.zoomSt && S.chamber !== 'house' && S.chamber !== 'local') { await loadCounties(); renderMap(); }
+      if (S.zoomSt && S.chamber !== 'house' && !isArea(S.chamber)) { await loadCounties(); renderMap(); }
     }
-    /* Orange County tab: only downloaded while it's open (or a local race is starred) */
-    const needLocal = () => S.chamber === 'local' || [...S.watch].some(id => id.startsWith('OC-'));
-    const fetchLocal = fresh => fetch(`${S.api}/v1/local?sim=${S.sim ? 1 : 0}${fresh ? '&fresh=1' : ''}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
-    function setLocal(l) { S.local = l; S.localById = new Map(l.contests.map(c => [c.id, c])); }
-    async function loadLocal() { const l = await fetchLocal(); if (l) { setLocal(l); renderAll(); } }
+    /* Orange County and propositions tabs: each downloaded only while open (or one of its races is starred) */
+    const AD = () => S.areas[AREA_OF[S.chamber]] || null;
+    const neededAreas = () => [...new Set([AREA_OF[S.chamber], ...[...S.watch].map(areaOfId)].filter(Boolean))];
+    const fetchLocal = (area, fresh) => fetch(`${S.api}/v1/local?area=${area}&sim=${S.sim ? 1 : 0}${fresh ? '&fresh=1' : ''}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    function setLocal(area, l) { S.areas[area] = l; S.localById = new Map(Object.values(S.areas).flatMap(a => a.contests.map(c => [c.id, c]))); }
+    async function loadLocal(area) { const l = await fetchLocal(area); if (l) { setLocal(area, l); renderAll(); } }
     const raceOf = id => S.byId?.get(id) || S.localById.get(id);
 
     /* Zoom: clicking a state animates the national map into that state and draws its counties */
     const FULL_VB = () => String(S.shapes?.viewBox || '0 0 960 600').split(/\s+/).map(Number);
     function zoomRace() {
-      if (!S.zoomSt || S.chamber === 'house' || S.chamber === 'local') return null;
+      if (!S.zoomSt || S.chamber === 'house' || isArea(S.chamber)) return null;
       const sel = S.byId?.get(S.selected);
       if (sel && sel.state === S.zoomSt && sel.chamber === S.chamber) return sel;
       return (S.data?.races || []).find(r => r.state === S.zoomSt && r.chamber === S.chamber) || null;
@@ -342,9 +352,12 @@
       let h = '';
       if (S.sim) h += `<div class="eb-sim">Rehearsal data. <span>These are made-up numbers for testing the board, not real results.</span> Copied posts are marked so they can’t be mistaken for real calls.</div>`;
       if (S.error) h += `<div class="eb-note">${esc(S.error)}</div>`;
-      else if (S.chamber === 'local') {
-        if (S.local && !S.sim && S.local.contests.every(c => c.status === 'waiting'))
-          h += `<div class="eb-note">No Orange County results yet. The Registrar of Voters posts its first count after polls close at 8 p.m. on Nov 3; this tab picks up each update within about 10 minutes.</div>`;
+      else if (isArea(S.chamber)) {
+        const L = AD();
+        if (L && !S.sim && L.contests.every(c => c.status === 'waiting'))
+          h += S.chamber === 'props'
+            ? `<div class="eb-note">No proposition results yet. The Secretary of State posts its first count after polls close at 8 p.m. on Nov 3; this tab picks up each update within about 10 minutes.</div>`
+            : `<div class="eb-note">No Orange County results yet. The Registrar of Voters posts its first count after polls close at 8 p.m. on Nov 3; this tab picks up each update within about 10 minutes.</div>`;
       } else if (d && !S.sim && d.races.every(r => r.status === 'waiting')) {
         const day = new Date(d.election + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric' });
         h += S.pub
@@ -380,12 +393,13 @@
     function renderTools() {
       root.querySelectorAll('.eb-chambers [data-chamber]').forEach(b => { b.setAttribute('aria-pressed', b.dataset.chamber === S.chamber); b.setAttribute('aria-selected', b.dataset.chamber === S.chamber); });
       for (const [ch] of CHAMBERS) { const n = S.data?.summary?.[ch]?.up; const el = $(`n-${ch}`); if (el) el.textContent = n ? `${n} races` : ''; }
-      $('n-local').textContent = S.local ? `${S.local.contests.length} races` : '';
-      const local = S.chamber === 'local';
+      $('n-local').textContent = S.areas.OC ? `${S.areas.OC.contests.length} races` : '';
+      $('n-props').textContent = S.areas.CAP ? `${S.areas.CAP.contests.length} on ballot` : '';
+      const local = isArea(S.chamber);
       if (local && S.filter === 'flips') S.filter = 'all';
       root.querySelectorAll('[data-filter]').forEach(b => { b.setAttribute('aria-pressed', b.dataset.filter === S.filter); b.hidden = local && b.dataset.filter === 'flips'; });
       root.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === S.sort));
-      root.querySelector('[data-sort="az"]').textContent = local ? 'By place' : 'By state';
+      root.querySelector('[data-sort="az"]').textContent = S.chamber === 'props' ? 'By number' : local ? 'By place' : 'By state';
       $('chip').innerHTML = S.stateFilter ? `<button type="button" class="eb-chip" data-clearstate aria-label="Show all states">${esc(stateName(S.stateFilter))}<span aria-hidden="true">×</span></button>` : '';
     }
     const stateName = st => S.data?.races.find(r => r.state === st)?.stateName || st;
@@ -416,6 +430,7 @@
       return `${rs[0].stateName}: ${rs.length} seats. Called D ${c.D}, R ${c.R}. Leading D ${l.D}, R ${l.R}`;
     }
     function renderMap(rebuild) {
+      if (S.chamber === 'props') return renderPropsPanel();
       if (S.chamber === 'local') return renderLocalPanel();
       const box = $('map');
       if (!S.shapes) { if (rebuild) { box.innerHTML = '<div class="eb-empty">The map didn’t load. Races are still listed below.</div>'; box.dataset.mode = ''; } return; }
@@ -574,13 +589,13 @@
     /* Orange County panel (in place of the map) */
     function localCounts() {
       const n = { all: 0 };
-      for (const c of S.local?.contests || []) { n.all++; n[c.group] = (n[c.group] || 0) + 1; }
+      for (const c of AD()?.contests || []) { n.all++; n[c.group] = (n[c.group] || 0) + 1; }
       return n;
     }
     function renderLocalPanel() {
       const box = $('map');
       box.dataset.mode = 'local';
-      const L = S.local;
+      const L = S.areas.OC;
       if (!L) { box.innerHTML = '<div class="eb-empty">Loading Orange County races…</div>'; $('key').innerHTML = ''; return; }
       const n = localCounts();
       const groups = [{ key: 'all', label: 'All' }, ...GROUP_ORDER.map(k => L.groups.find(g => g.key === k)).filter(Boolean)].filter(g => g.key === 'all' || n[g.key]);
@@ -595,6 +610,38 @@
       $('key').innerHTML = `<span>Unofficial results from the ${esc(L.source)}. After election night the Registrar updates weekdays at 5 p.m. until the count is certified.</span>${L.simulation ? '<span><b>Rehearsal data</b></span>' : ''}`;
     }
 
+    /* California propositions: a scoreboard of all 14 in place of the map */
+    function propState(c) {
+      const w = measureWord(c.call?.winners);
+      if (w) return { cls: w === 'passes' ? 'yes' : 'no', text: w === 'passes' ? 'Passes' : 'Fails', strong: true };
+      if (c.total) { const y = c.candidates.find(x => isYes(x.name)); const lead = (y?.pct ?? 0) >= 50; return { cls: lead ? 'yes' : 'no', text: `${lead ? 'Yes' : 'No'} leads`, strong: false }; }
+      return { cls: 'wait', text: 'No results', strong: false };
+    }
+    function renderPropsPanel() {
+      const box = $('map');
+      box.dataset.mode = 'local';
+      const L = S.areas.CAP;
+      if (!L) { box.innerHTML = '<div class="eb-empty">Loading propositions…</div>'; $('key').innerHTML = ''; return; }
+      const cs = L.contests;
+      const pass = cs.filter(c => measureWord(c.call?.winners) === 'passes').length, fail = cs.filter(c => measureWord(c.call?.winners) === 'fails').length;
+      const rep = cs.find(c => c.pctIn != null)?.pctIn;
+      const any = cs.some(c => c.total);
+      const sub = [any && rep != null ? `${rep}% of precincts reporting statewide` : '', any && L.generated ? `Secretary of State update ${fmtT(L.generated)}` : '', pass || fail ? `${pass} called passing, ${fail} failing` : '']
+        .filter(Boolean).join(' · ') || 'Nov 3 ballot: 14 statewide measures';
+      box.innerHTML = `<div class="eb-local">
+        <div class="eb-lhead"><h4>California propositions</h4><span>${esc(sub)}</span></div>
+        <div class="eb-props">${cs.map(c => {
+          const st = propState(c), y = c.candidates.find(x => isYes(x.name));
+          return `<button type="button" class="eb-prop ${st.cls}${st.strong ? ' called' : ''}${S.selected === c.id ? ' sel' : ''}" data-race="${c.id}" aria-label="${esc(c.name)}: ${esc(st.text)}">
+            <span class="pn">${esc(c.place)}</span><span class="pt">${esc(c.office)}</span>
+            <span class="eb-ynbar">${c.total ? `<i class="y" style="width:${y?.pct ?? 0}%"></i><i class="n"></i>` : ''}</span>
+            <span class="ps"><b>${esc(st.text)}</b>${c.total ? ` Yes ${y?.pct ?? '–'}%` : ''}</span>
+          </button>`;
+        }).join('')}</div>
+      </div>`;
+      $('key').innerHTML = `<span><i style="background:var(--eb-yes)"></i>Yes</span><span><i style="background:var(--eb-no)"></i>No</span><span>Unofficial results from the ${esc(L.source)}. ${esc(L.note || '')} California counts mail ballots for weeks, so close ones can take a while to call.</span>${L.simulation ? '<span><b>Rehearsal data</b></span>' : ''}`;
+    }
+
     function selectState(st) {
       if (S.chamber === 'house') { S.stateFilter = st; S.limit = 60; renderTools(); renderList(); zoomTo(st); return; }
       const r = (S.data?.races || []).find(x => x.state === st && x.chamber === S.chamber);
@@ -603,7 +650,7 @@
 
     /* list */
     function visibleLocal() {
-      let rs = S.local?.contests || [];
+      let rs = AD()?.contests || [];
       if (S.group !== 'all') rs = rs.filter(c => c.group === S.group);
       if (S.q) rs = rs.filter(c => `${c.name} ${c.place} ${c.office} ${c.candidates.map(x => x.name).join(' ')}`.toLowerCase().includes(S.q));
       const f = S.filter;
@@ -612,12 +659,12 @@
       if (f === 'uncalled') rs = rs.filter(c => !c.call);
       if (f === 'watch') rs = rs.filter(c => S.watch.has(c.id));
       const g = c => GROUP_ORDER.indexOf(c.group);
-      const byPlace = (a, b) => g(a) - g(b) || a.place.localeCompare(b.place) || a.office.localeCompare(b.office, undefined, { numeric: true });
+      const byPlace = (a, b) => g(a) - g(b) || a.place.localeCompare(b.place, undefined, { numeric: true }) || a.office.localeCompare(b.office, undefined, { numeric: true });
       const rank = c => c.status === 'counting' ? 0 : c.status === 'called' ? 1 : 2;
       return rs.slice().sort(S.sort === 'az' ? byPlace : (a, b) => rank(a) - rank(b) || (rank(a) === 0 ? (a.margin ?? 99) - (b.margin ?? 99) : 0) || byPlace(a, b));
     }
     function visibleRaces() {
-      if (S.chamber === 'local') return visibleLocal();
+      if (isArea(S.chamber)) return visibleLocal();
       let rs = (S.data?.races || []).filter(r => r.chamber === S.chamber);
       if (S.stateFilter) rs = rs.filter(r => r.state === S.stateFilter);
       if (S.q) rs = rs.filter(r => `${r.name} ${r.id} ${r.stateName} ${(r.candidates.length ? r.candidates : r.preCandidates).map(c => c.name).join(' ')} ${r.holder.name || ''}`.toLowerCase().includes(S.q));
@@ -655,29 +702,37 @@
     }
     /* local rows */
     const isYes = n => /^(yes|bonds? ?[–-] ?yes)/i.test(n), isNo = n => /^(no|bonds? ?[–-] ?no)/i.test(n);
+    // Measures always read Yes then No, whichever is ahead
+    const ordered = c => c.measure ? [...c.candidates].sort((a, b) => (isYes(b.name) - isYes(a.name)) || (isNo(a.name) - isNo(b.name))) : c.candidates;
     function localColor(c, x) {
       if (c.measure) return isYes(x.name) ? 'var(--eb-yes)' : isNo(x.name) ? 'var(--eb-no)' : 'var(--Ot)';
       if (c.call) return x.winner ? 'var(--eb-lead)' : 'var(--Ot)';
       return c.ahead.includes(x.name) ? 'var(--eb-leadt)' : 'var(--Ot)';
     }
     function localLead(c) {
+      const mw = c.measure && measureWord(c.call?.winners);
+      if (mw) return mw === 'passes' ? 'Passes' : 'Fails';
       if (c.call) return `${c.call.winners.join(', ')} ${c.call.winners.length > 1 ? 'win' : 'wins'}`;
+      if (!c.total && c.measure) return 'No results yet';
       if (!c.total) return c.unopposed ? `Unopposed: ${c.candidates.map(x => x.name).join(', ')}` : c.candidates.map(x => last(x.name)).slice(0, 4).join(' vs. ') + (c.candidates.length > 4 ? ` +${c.candidates.length - 4} more` : '');
       const inN = c.pctIn != null ? `, ${c.pctIn}% in` : '';
-      if (c.measure) { const y = c.candidates.find(x => isYes(x.name)); return `Yes ${y?.pct ?? '–'}%${inN}`; }
+      if (c.measure) { const y = c.candidates.find(x => isYes(x.name)); return `Yes ${y?.pct ?? '–'}%, No ${y ? Math.round((100 - y.pct) * 10) / 10 : '–'}%${inN}`; }
       if (c.voteFor > 1) return `Top ${c.voteFor}: ${c.ahead.map(last).join(', ')}${inN}`;
       return c.margin != null ? `${last(c.ahead[0])} leads by ${c.margin} pts${inN}` : `${c.ahead[0]} unopposed`;
     }
     function localBadge(c) {
+      const mw = c.measure && measureWord(c.call?.winners);
+      if (mw) return `<span class="eb-badge ${mw === 'passes' ? 'yes' : 'no'}">${mw === 'passes' ? 'Passes' : 'Fails'}</span>`;
       if (c.call) return '<span class="eb-badge L">Called</span>';
       if (c.total) return `<span class="eb-badge count">${c.pctIn != null ? `${Math.round(c.pctIn)}% in` : 'Counting'}</span>`;
       return '<span class="eb-badge wait">No results</span>';
     }
     function renderLocalList(rs) {
-      const glabel = S.group === 'all' ? 'Orange County races' : (S.local?.groups.find(g => g.key === S.group)?.label || 'Races');
+      const L = AD();
+      const glabel = S.chamber === 'props' ? 'California propositions' : S.group === 'all' ? 'Orange County races' : (L?.groups.find(g => g.key === S.group)?.label || 'Races');
       $('listtitle').textContent = glabel;
       $('listcount').textContent = `${rs.length} shown`;
-      if (!S.local) { $('list').innerHTML = '<div class="eb-empty">Loading races…</div>'; return; }
+      if (!L) { $('list').innerHTML = '<div class="eb-empty">Loading races…</div>'; return; }
       if (!rs.length) {
         const why = { close: 'No uncalled race is within 5 points right now.', called: 'Nothing has been called yet.', watch: 'Star a race to keep it here.', uncalled: 'Every race here has been called.' }[S.filter] || 'No race matches your search.';
         $('list').innerHTML = `<div class="eb-empty">${why}</div>`; return;
@@ -685,15 +740,15 @@
       $('list').innerHTML = rs.slice(0, S.limit).map(c => `<div class="eb-row${S.selected === c.id ? ' sel' : ''}" data-race="${c.id}" role="button" tabindex="0">
           <button type="button" class="eb-star" data-star="${c.id}" aria-pressed="${S.watch.has(c.id)}" aria-label="${S.watch.has(c.id) ? 'Stop watching' : 'Watch'} ${esc(c.name)}">${S.watch.has(c.id) ? '★' : '☆'}</button>
           <div class="nm">${esc(c.place)}<small>${esc(c.office)}</small></div>
-          <div class="barcell"><div class="eb-split">${c.total ? c.candidates.map(x => `<i style="width:${x.pct}%;background:${localColor(c, x)}" title="${esc(x.name)} ${x.pct}%"></i>`).join('') : ''}</div><div class="eb-lead">${esc(localLead(c))}</div></div>
-          <div class="pin">${c.voteFor > 1 ? `Top ${c.voteFor} win` : c.incumbentRunning ? 'Incumbent running' : c.incumbent && !c.measure ? 'Open seat' : ''}</div>
+          <div class="barcell"><div class="eb-split">${c.total ? ordered(c).map(x => `<i style="width:${x.pct}%;background:${localColor(c, x)}" title="${esc(x.name)} ${x.pct}%"></i>`).join('') : ''}</div><div class="eb-lead">${esc(localLead(c))}</div></div>
+          <div class="pin">${c.oc?.total ? `OC: Yes ${c.oc.yesPct}%` : c.voteFor > 1 ? `Top ${c.voteFor} win` : c.incumbentRunning ? 'Incumbent running' : c.incumbent && !c.measure ? 'Open seat' : ''}</div>
           <div style="text-align:right">${localBadge(c)}</div>
         </div>`).join('') + (rs.length > S.limit ? `<button type="button" class="eb-more" data-more>Show ${Math.min(100, rs.length - S.limit)} more</button>` : '');
     }
 
     function renderList() {
       const rs = visibleRaces();
-      if (S.chamber === 'local') return renderLocalList(rs);
+      if (isArea(S.chamber)) return renderLocalList(rs);
       const label = { house: 'House races', senate: 'Senate races', governor: 'Governor races' }[S.chamber];
       $('listtitle').textContent = S.stateFilter ? `${stateName(S.stateFilter)} ${label.toLowerCase()}` : label;
       $('listcount').textContent = `${rs.length} shown`;
@@ -717,18 +772,23 @@
 
     /* calls log */
     function renderLog() {
-      const items = S.feed.filter(x => !S.byId || S.byId.has(x.race_id) || x.race_id.startsWith('OC-'));
+      const items = S.feed.filter(x => !S.byId || S.byId.has(x.race_id) || areaOfId(x.race_id));
       $('logcount').textContent = items.length ? `${items.filter(x => x.kind === 'call').length} calls` : '';
       if (!items.length) { $('log').innerHTML = `<div class="eb-empty">Calls appear here the moment they’re made.</div>`; return; }
       $('log').innerHTML = items.map(x => {
         const r = S.byId?.get(x.race_id);
         const key = `${x.race_id}|${x.kind}|${x.at}`;
         const p = x.party in PNAME ? x.party : 'O';
-        if (x.race_id.startsWith('OC-')) {
+        const area = areaOfId(x.race_id);
+        if (area) {
           const w = String(x.candidate || '').split(' | ').filter(Boolean);
+          const mw = measureWord(w);
+          const where = area === 'CAP' ? 'California' : 'Orange County';
           const lb = x.kind === 'retract' ? `Call withdrawn: ${esc(x.name || x.race_id)}<small>${esc(x.source || '')}</small>`
-            : `${esc(w.map(last).join(', ') || 'Call')} ${w.length > 1 ? 'win' : 'wins'} ${esc(x.name || x.race_id)}<small>${esc(x.source || '')}, Orange County</small>`;
-          return `<button type="button" data-race="${x.race_id}" class="${x.kind === 'retract' ? 'x' : ''} ${S.newKeys?.has(key) ? 'new' : ''}" style="border-left-color:${x.kind === 'retract' ? 'var(--eb-muted)' : 'var(--eb-lead)'}"><span class="t">${fmtHM(x.at)}</span><span class="w">${lb}</span></button>`;
+            : mw ? `${esc(String(x.name || x.race_id).replace(/:.*/, ''))} ${mw}<small>${esc(x.source || '')}, ${where}</small>`
+            : `${esc(w.map(last).join(', ') || 'Call')} ${w.length > 1 ? 'win' : 'wins'} ${esc(x.name || x.race_id)}<small>${esc(x.source || '')}, ${where}</small>`;
+          const col = x.kind === 'retract' ? 'var(--eb-muted)' : mw ? `var(--eb-${mw === 'passes' ? 'yes' : 'no'})` : 'var(--eb-lead)';
+          return `<button type="button" data-race="${x.race_id}" class="${x.kind === 'retract' ? 'x' : ''} ${S.newKeys?.has(key) ? 'new' : ''}" style="border-left-color:${col}"><span class="t">${fmtHM(x.at)}</span><span class="w">${lb}</span></button>`;
         }
         const body = x.kind === 'retract'
           ? `Call withdrawn: ${esc(r ? shortName(r) : x.race_id)}<small>${esc(x.source || '')}</small>`
@@ -739,41 +799,55 @@
 
     /* detail */
     function renderLocalDetail(box, c) {
-      const L = S.local;
+      const isProp = c.id.startsWith('CA-P');
+      const L = S.areas[isProp ? 'CAP' : 'OC'];
+      const mw = c.measure && measureWord(c.call?.winners);
       const callLine = c.call
-        ? `<div class="eb-callline" style="background:var(--eb-lead)">${esc(c.call.winners.join(', '))} ${c.call.winners.length > 1 ? 'win' : 'wins'}<small>Called by ${esc(c.call.source)}${c.call.at ? ` at ${fmtT(c.call.at)}` : ''}${c.call.note ? `. ${esc(c.call.note)}` : ''}</small></div>`
+        ? `<div class="eb-callline" style="background:${mw ? `var(--eb-${mw === 'passes' ? 'yes' : 'no'})` : 'var(--eb-lead)'}">${mw ? `${esc(isProp ? c.place : 'The measure')} ${mw}` : `${esc(c.call.winners.join(', '))} ${c.call.winners.length > 1 ? 'win' : 'wins'}`}<small>Called by ${esc(c.call.source)}${c.call.at ? ` at ${fmtT(c.call.at)}` : ''}${c.call.note ? `. ${esc(c.call.note)}` : ''}</small></div>`
         : `<div class="eb-callline wait">${c.total ? `Not called.${c.pctIn != null ? ` ${c.pctIn}% of precincts reporting.` : ''}` : c.unopposed ? 'Unopposed.' : 'No results yet.'}</div>`;
       const sub = [c.voteFor > 1 ? `Vote for ${c.voteFor}: the top ${c.voteFor} win` : '', c.incumbent && !c.measure ? (c.incumbentRunning ? `Incumbent: ${esc(c.incumbent)}` : `Open seat (${esc(c.incumbent)} isn’t on the ballot)`) : '', c.group === 'legislature' ? 'Orange County votes only' : '']
         .filter(Boolean).join('. ');
-      const cand = c.candidates.map(x => `<div class="eb-cand"><span class="n">${esc(x.name)}${x.party ? ` <em>${PNAME[x.party] || x.party}</em>` : ''}${x.incumbent ? ' <em>incumbent</em>' : ''}${x.winner ? '<span class="win" aria-label="winner">✓</span>' : ''}</span>
+      const cand = ordered(c).map(x => `<div class="eb-cand"><span class="n">${esc(x.name)}${x.party ? ` <em>${PNAME[x.party] || x.party}</em>` : ''}${x.incumbent ? ' <em>incumbent</em>' : ''}${x.winner ? '<span class="win" aria-label="winner">✓</span>' : ''}</span>
           <span class="v">${x.pct != null ? `${x.pct}%` : ''}<small>${x.votes != null ? fmtN(x.votes) : ''}</small></span>
           <span class="b"><i style="width:${x.pct || 0}%;background:${localColor(c, x)}"></i></span></div>`).join('');
       box.innerHTML = `<div class="eb-detail">
         <button type="button" class="eb-sheetclose" data-act="closesheet" aria-label="Close">×</button>
-        <h5>${esc(c.measure ? c.office : `${c.place}: ${c.office}`)}</h5>
-        <div class="meta">${sub ? `${sub}. ` : ''}${L?.generated ? `Numbers from the OC Registrar of Voters, ${esc(fmtT(L.generated))}` : 'Results from the OC Registrar of Voters after polls close'}</div>
+        <h5>${esc(isProp ? `${c.place}: ${c.title}` : c.measure ? c.office : `${c.place}: ${c.office}`)}</h5>
+        <div class="meta">${isProp
+          ? `${esc(c.type)}. ${c.total && L?.generated ? `Numbers from the California Secretary of State, ${esc(fmtT(L.generated))}` : 'Results from the California Secretary of State after polls close'}`
+          : `${sub ? `${sub}. ` : ''}${L?.generated ? `Numbers from the OC Registrar of Voters, ${esc(fmtT(L.generated))}` : 'Results from the OC Registrar of Voters after polls close'}`}</div>
         ${callLine}${cand}
-        ${c.measure ? '<p class="eb-lnote">Most local measures pass with a simple majority; some taxes and bonds need 55% or two-thirds. Check the measure’s text.</p>' : ''}
+        ${isProp && c.oc ? ocHtml(c, L) : ''}
+        ${isProp ? `<p class="eb-lnote">${esc(L?.note || 'Statewide propositions pass with a simple majority.')}</p>`
+          : c.measure ? '<p class="eb-lnote">Most local measures pass with a simple majority; some taxes and bonds need 55% or two-thirds. Check the measure’s text.</p>' : ''}
         <div class="eb-actions">
-          <button type="button" class="eb-btn" data-act="watch">${S.watch.has(c.id) ? 'Stop watching' : 'Watch this race'}</button>
+          <button type="button" class="eb-btn" data-act="watch">${S.watch.has(c.id) ? 'Stop watching' : c.measure ? 'Watch this measure' : 'Watch this race'}</button>
           ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
           <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
         </div>
         ${S.token && !S.pub ? localDeskHtml(c) : ''}
       </div>`;
     }
+    // How Orange County voted on a statewide proposition (the Secretary of State's Orange County file)
+    function ocHtml(c, L) {
+      const o = c.oc;
+      if (!o?.total) return '<div class="eb-ocv"><b>Orange County</b><span>No Orange County count yet.</span></div>';
+      const pct = L?.ocReporting?.pctIn;
+      return `<div class="eb-ocv"><b>Orange County</b><span>Yes ${o.yesPct}% (${fmtN(o.yes)}) · No ${o.noPct}% (${fmtN(o.no)})${pct != null ? ` · ${pct}% of OC precincts in` : ''}</span>
+        <span class="eb-ynbar"><i class="y" style="width:${o.yesPct}%"></i><i class="n"></i></span></div>`;
+    }
     function localDeskHtml(c) {
       const p = S.pending && S.pending.raceId === c.id ? S.pending : null;
       const pre = c.call ? c.call.winners : c.total ? c.ahead : [];
       return `<div class="eb-desk"><h6>Desk</h6>
-        ${p ? `<div class="eb-confirm">Publish this call? <b>${esc(p.winners.join(', '))} ${p.winners.length > 1 ? 'win' : 'wins'} ${esc(c.name)}</b>, called by ${esc(p.source)}.
+        ${p ? `<div class="eb-confirm">Publish this call? <b>${c.measure && measureWord(p.winners) ? `${esc(c.measure && c.id.startsWith('CA-P') ? c.place : c.name)} ${measureWord(p.winners)}` : `${esc(p.winners.join(', '))} ${p.winners.length > 1 ? 'win' : 'wins'} ${esc(c.name)}`}</b>, called by ${esc(p.source)}.
             <div class="eb-actions"><button type="button" class="eb-btn" data-act="lconfirm">Publish call</button><button type="button" class="eb-btn" data-act="cancelcall">Cancel</button></div></div>`
         : `<fieldset class="eb-pick"><legend>${c.measure ? 'Result' : `Winner${c.voteFor > 1 ? `s (pick ${c.voteFor})` : ''}`}</legend>
-             ${c.candidates.map((x, i) => `<label><input type="${c.voteFor > 1 ? 'checkbox' : 'radio'}" name="eb-win" value="${i}"${pre.includes(x.name) ? ' checked' : ''}> ${esc(x.measure ? x.name : x.name)}</label>`).join('')}
+             ${ordered(c).map(x => [x, c.candidates.indexOf(x)]).map(([x, i]) => `<label><input type="${c.voteFor > 1 ? 'checkbox' : 'radio'}" name="eb-win" value="${i}"${pre.includes(x.name) ? ' checked' : ''}> ${esc(x.name)}${c.measure && isYes(x.name) ? ' (passes)' : c.measure && isNo(x.name) ? ' (fails)' : ''}</label>`).join('')}
            </fieldset>
            <label for="eb-src">Who made the call</label>
            <select id="eb-src" data-r="src">${SOURCES.map(s => `<option${s === S.deskSource ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select>
-           <div class="eb-actions"><button type="button" class="eb-btn" data-act="lcall">Call this race</button></div>`}
+           <div class="eb-actions"><button type="button" class="eb-btn" data-act="lcall">${c.measure ? 'Call this measure' : 'Call this race'}</button></div>`}
         <div class="eb-actions">
           ${c.call ? '<button type="button" class="eb-btn warn" data-act="retract">Withdraw call</button>' : ''}
           ${c.deskOverride ? `<button type="button" class="eb-btn" data-act="clear">${c.deskOverride === 'withdrawn' ? 'Undo withdrawal' : 'Remove desk call'}</button>` : ''}
@@ -787,7 +861,7 @@
       const r = S.selected && S.byId?.get(S.selected);
       box.classList.toggle('eb-sheet', !!((r || lc) && S.sheetOpen));
       if (lc) return renderLocalDetail(box, lc);
-      if (!r) { box.innerHTML = `<div class="eb-detail"><div class="eb-empty">${S.chamber === 'local' ? 'Select a race in the list.' : 'Select a race on the map or in the list.'}</div></div>`; return; }
+      if (!r) { box.innerHTML = `<div class="eb-detail"><div class="eb-empty">${S.chamber === 'props' ? 'Select a proposition.' : S.chamber === 'local' ? 'Select a race in the list.' : 'Select a race on the map or in the list.'}</div></div>`; return; }
       const cands = r.candidates.length ? r.candidates : r.preCandidates.map(c => ({ ...c, votes: null, pct: null }));
       const callLine = r.call
         ? `<div class="eb-callline" style="background:var(--${r.call.party in PNAME ? r.call.party : 'O'})">${esc(r.call.candidate || PFULL[r.call.party])} wins${r.flip ? `, flipping the seat from ${PFULL[r.holder.party] || 'its holder'}` : ''}<small>Called by ${esc(r.call.source)}${r.call.at ? ` at ${fmtT(r.call.at)}` : ''}${r.call.by === 'desk' ? ', entered by the desk' : ''}${r.call.note ? `. ${esc(r.call.note)}` : ''}</small></div>`
@@ -843,6 +917,7 @@
       // On narrow screens the race opens as a sheet; a tap on the map shows the county map first instead
       S.sheetOpen = sheet && window.matchMedia('(max-width:1100px)').matches;
       renderList(); renderDetail();
+      if (S.chamber === 'props') renderMap();
       // Senate and governor races zoom the map into their state's counties
       if (r && r.chamber === 'house' && S.chamber === 'house') { if (S.zoomSt !== r.state) zoomTo(r.state); else renderMap(); }
       if (r && r.chamber !== 'house' && r.chamber === S.chamber) {
@@ -865,7 +940,7 @@
         case 'closesheet': S.sheetOpen = false; return renderDetail();
         case 'opensheet': S.sheetOpen = true; return renderDetail();
         case 'watch': return toggleWatch(r.id);
-        case 'copypost': return copy(r.id.startsWith('OC-') ? localPost(r) : postText(r), 'Post copied');
+        case 'copypost': return copy(areaOfId(r.id) ? localPost(r) : postText(r), 'Post copied');
         case 'copylink': { const u = new URL(location.href); u.search = `?race=${r.id}`; if (!u.hash) u.hash = '#elections'; return copy(u.toString(), 'Link copied'); }
         case 'call': {
           const src = root.querySelector('[data-r="src"]')?.value || S.deskSource;
@@ -946,9 +1021,16 @@
     }
     function localPost(c) {
       const pre = S.sim ? '[REHEARSAL, NOT REAL RESULTS] ' : '';
-      const tag = ' #OCvotes';
-      const title = c.measure ? c.name : `${c.place} ${c.office}`.replace(/^Orange County Supervisor/, 'OC Supervisor');
-      const prog = c.pctIn != null ? ` with ${c.pctIn}% of precincts reporting` : '';
+      const isProp = c.id.startsWith('CA-P');
+      const tag = isProp ? ' #CAprops #Election2026' : ' #OCvotes';
+      const title = isProp ? `California ${c.place} (${c.office})` : c.measure ? c.name : `${c.place} ${c.office}`.replace(/^Orange County Supervisor/, 'OC Supervisor');
+      const prog = c.pctIn != null ? ` with ${c.pctIn}% of precincts reporting${isProp ? ' statewide' : ''}` : '';
+      const mw = c.measure && measureWord(c.call?.winners);
+      if (isProp && !c.call && c.total) {
+        const y = c.candidates.find(x => isYes(x.name)), n = c.candidates.find(x => isNo(x.name));
+        return `${pre}🗳️ ${title}: Yes ${y.pct}%, No ${n.pct}%${prog}.${c.oc?.total ? ` Orange County: Yes ${c.oc.yesPct}%.` : ''} No call yet.${tag}`;
+      }
+      if (c.call && mw) return `${pre}🗳️ CALL: ${title} ${mw.toUpperCase()}. Called by ${c.call.source}${prog}.${tag}`;
       if (c.call) return c.measure
         ? `${pre}🗳️ RACE CALL: ${title}: ${c.call.winners[0]}. Called by ${c.call.source}${prog}.${tag}`
         : `${pre}🗳️ RACE CALL: ${c.call.winners.join(' and ')} ${c.call.winners.length > 1 ? 'win' : 'wins'} ${title}. Called by ${c.call.source}${prog}.${tag}`;
