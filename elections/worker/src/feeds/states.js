@@ -9,7 +9,7 @@
 //   "not found for 2026" = Texas: its results system has nothing after 2024 yet
 // Field names come from each office's published formats. State files don't mark winners in a way
 // we use: race calls stay with the desk (or AP, if licensed).
-import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, findCol, unzipEntry } from './util.js';
+import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, parseCSV, findCol, unzipEntry } from './util.js';
 import { countyFips, mnCountyFips } from './county-names.js';
 import { parseCASOS } from '../sources/ca-sos.js';
 import { toNum } from '../parties.js';
@@ -549,6 +549,393 @@ add({
       if (!races?.Races?.Race?.length) return { notPosted: true };
       const votes = await c.json(`${base}/Votes_Multiparish.htm`);
       return { results: collect('LA', c, parseLA(races, votes)) };
+    },
+  }],
+});
+
+/* ── Oct 24 survey: Arkansas, Connecticut, Delaware, Hawaii, Kansas, Kentucky, North Dakota, Rhode Island, Vermont.
+   Mississippi and Wyoming publish no statewide count on election night (counties post their own), so DDHQ calls
+   cover them. ── */
+
+// Page text as lines (tags become line breaks), for pages laid out as a grid of <div>/<p> cells
+const htmlLines = html => unescapeHtml(String(html).replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, '\n').replace(/&nbsp;/g, ' '))
+  .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+// Candidates listed under more than one party line (Connecticut's cross-endorsements): put the D/R line first so
+// the merged candidate keeps the major-party label
+const majorFirst = rows => rows.slice().sort((a, b) => +!/^(D|R|DEM|REP|DEMOCRATIC|REPUBLICAN)/i.test(a.party || '') - +!/^(D|R|DEM|REP|DEMOCRATIC|REPUBLICAN)/i.test(b.party || ''));
+
+/* Arkansas: Tally ENR (arkansas.tally-enr.com), backed by a public JSON API. The Nov 3 election ("2026 General
+   Election - Judical Runoff") and its candidates were loaded when checked Oct 24. Names come from the contest
+   list (large, so read once and kept); votes from one results file per contest type, with county breakdowns. */
+const AR_API = 'https://enr-results-api.totalresults.com';
+export function arNames(list, ids) {
+  const out = { contests: {}, choices: {} };
+  for (const ct of Object.values(list?.response?.contests || {})) {
+    if (!raceIdFor(ct.contestName, 'AR', ids)) continue;
+    out.contests[ct.contestId] = ct.contestName;
+    for (const ch of Object.values(ct.choices || {})) out.choices[ch.id] = ch.name;
+  }
+  return out;
+}
+const AR_PARTY = /^(DEM|REP|LIB|GRN|IND|NP)\s+/;
+export function parseAR(names, results) {
+  const rows = [], county = [], missing = [];
+  for (const ct of Object.values(results?.response?.contests || {})) {
+    const contest = names.contests[ct.contestID];
+    if (!contest) continue;
+    const cand = id => {
+      const full = names.choices[id];
+      if (!full) { missing.push(id); return null; }
+      const m = full.match(AR_PARTY);
+      return { name: full.replace(AR_PARTY, ''), party: m ? m[1] : null };
+    };
+    for (const ch of ct.choices || []) {
+      const x = cand(ch.choiceID);
+      if (x) rows.push({ contest, ...x, votes: ch.totalVotes, rep: ct.precinctsReporting, tot: ct.totalPrecincts });
+    }
+    for (const [fips, loc] of Object.entries(ct.locations || {})) {
+      const pct = loc.totalPrecincts ? Math.round(loc.precinctsReporting / loc.totalPrecincts * 1000) / 10 : null;
+      for (const ch of loc.choices || []) {
+        const x = cand(ch.choiceID);
+        if (x) county.push({ contest, fips, ...x, votes: ch.totalVotes, pct });
+      }
+    }
+  }
+  return { rows, county, missing };
+}
+add({
+  st: 'AR', label: 'Arkansas Secretary of State', confidence: 'verified', format: 'Tally ENR JSON',
+  units: [{
+    id: 'AR', requests: 4,
+    async run(c) {
+      let eid = c.meta.eid;
+      if (!eid) {
+        const list = await c.json(`${AR_API}/Election/GetElectionList?cid=arkansas`, { allow404: true });
+        const el = (list || []).find(e => isElectionDay(e.electionDate) && /general/i.test(e.electionName || ''));
+        if (!el) return { notPosted: true };
+        eid = c.meta.eid = el.electionID;
+      }
+      if (!c.meta.names) c.meta.names = arNames(await c.json(`${AR_API}/Contest/GetContestSearchList?cid=arkansas&electionID=${eid}`), c.ids);
+      const rows = [], county = [];
+      for (const type of ['Federal', 'Statewide']) {
+        const r = parseAR(c.meta.names, await c.json(`${AR_API}/Contest/GetContestResults?cId=arkansas&electionID=${eid}&contestType=${type}`));
+        rows.push(...r.rows); county.push(...r.county);
+        if (r.missing.length) c.meta.names = null;                     // a candidate added since: re-read names next time
+      }
+      const out = { results: collect('AR', c, rows) };
+      if (c.countiesOn) out.counties = collectCounties(c, county.map(r => ({ ...r, raceId: raceIdFor(r.contest, 'AR', c.ids) })));
+      return out;
+    },
+  }],
+});
+
+/* Connecticut: the Secretary of the State's public reporting site (ctemspublic.tgstg.net) is built from static JSON:
+   Elections.json → election/<id>/Version.json → election/<id>/<version>/{Lookupdata, stateVotes_Electiondata,
+   officePrecincts_Electiondata}.json. Checked Oct 24 against the Nov 2024 general; the Nov 3, 2026 election (id 108)
+   is loaded with its candidates. Cross-endorsed candidates appear once per party line and are added together. */
+const CT_DATA = 'https://ctemspublic.tgstg.net/ng-app/data';
+export function ctLookup(L, stateVotes, ids) {
+  const offices = {}, cands = {};
+  for (const entry of L?.officeList || []) for (const o of Object.values(entry)) {
+    const house = /congress/i.test(o.NM);
+    if (!raceIdFor(o.NM, 'CT', ids, house ? { district: o.D } : {})) continue;
+    offices[o.ID] = { name: o.NM, d: house ? o.D : undefined };
+    for (const line of stateVotes?.[o.ID] || []) for (const id of Object.keys(line)) {
+      const x = L.candidateIds?.[id];
+      if (x) cands[id] = { n: x.NM, p: L.partyIds?.[x.P]?.NM || null };
+    }
+  }
+  return { offices, cands };
+}
+export function parseCT(lookup, stateVotes, officePrecincts) {
+  const rows = [];
+  for (const [id, o] of Object.entries(lookup.offices)) {
+    const pr = String(officePrecincts?.[id] || '').match(/([\d,]+)\s+of\s+([\d,]+)/);
+    const got = [];
+    for (const line of stateVotes?.[id] || []) for (const [cid, v] of Object.entries(line)) {
+      const cand = lookup.cands[cid];
+      if (cand && !/write.?in/i.test(cand.p || '')) got.push({ contest: o.name, district: o.d, name: cand.n, party: cand.p, votes: toNum(v.V), rep: pr ? toNum(pr[1]) : null, tot: pr ? toNum(pr[2]) : null });
+    }
+    rows.push(...majorFirst(got));
+  }
+  return rows;
+}
+add({
+  st: 'CT', label: 'Connecticut Secretary of the State', confidence: 'verified', format: 'Public reporting JSON',
+  units: [{
+    id: 'CT', requests: 5,
+    async run(c) {
+      let eid = c.meta.eid;
+      if (!eid) {
+        const list = await c.json(`${CT_DATA}/Elections.json`, { allow404: true });
+        const el = (list || []).find(e => isElectionDay(e.Name) && /state election|general/i.test(e.Name));
+        if (!el) return { notPosted: true };
+        eid = c.meta.eid = el.ID;
+      }
+      const ver = (await c.json(`${CT_DATA}/election/${eid}/Version.json`, { allow404: true }))?.Version;
+      if (!ver) return { notPosted: true };
+      if (String(ver) === String(c.meta.ver) && c.meta.haveData) return { unchanged: true };
+      const base = `${CT_DATA}/election/${eid}/${ver}`;
+      const votes = await c.json(`${base}/stateVotes_Electiondata.json`);
+      if (!c.meta.lookup) c.meta.lookup = ctLookup(await c.json(`${base}/Lookupdata.json`), votes, c.ids);
+      const prec = await c.json(`${base}/officePrecincts_Electiondata.json`, { allow404: true });
+      c.meta.ver = ver;
+      return { results: collect('CT', c, parseCT(c.meta.lookup, votes, prec)) };
+    },
+  }],
+});
+
+/* Delaware: one results page per election (/results/enr/PR2026.html was the Sept primary). The page is ~4 MB with
+   every county and district, but the statewide tables come first, so only the start is read. The general is
+   expected at GE2026.html; the 2024 general's report used the same table layout with a Party column. */
+export function parseDE(html) {
+  const s = String(html);
+  const start = s.search(/<div[^>]+id=["'](st|statewide)["']/i);
+  if (start < 0) return [];
+  const pr = stripTags(s.slice(0, start)).match(/([\d,]+)\s+of\s+([\d,]+)\s+election districts reporting/i);
+  // The statewide block ends where the next group starts (by district, election district, county: <div id="dist"> …)
+  const rest = s.slice(start + 8);
+  const next = rest.search(/<div[^>]+id=["'](dist|ed|cty|county|wilm|rd|sd)\w*["']/i);
+  const block = next >= 0 ? s.slice(start, start + 8 + next) : s.slice(start);
+  const rows = [], seen = new Set();
+  let h3 = '';
+  for (const m of block.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>|<table[\s\S]*?<\/table>/gi)) {
+    if (m[1] != null) { h3 = stripTags(m[1]); continue; }
+    const t = m[0];
+    const cap = t.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i)?.[1];
+    const parts = cap ? cap.split(/<br\s*\/?>/i).map(stripTags) : [h3];
+    if (parts.length > 2) continue;                                  // "U.S. Senator / Representative District 01 / …": a breakdown
+    const [title, capParty = null] = parts;
+    if (!title) continue;
+    const key = cap ? stripTags(cap) : title;                        // a primary has one table per party for the same office
+    if (seen.has(key)) break;                                       // the same table again: the county tables have started
+    seen.add(key);
+    const head = [...t.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)].map(x => stripTags(x[1]).toLowerCase());
+    const iName = head.findIndex(h => /^candidate/.test(h)), iParty = head.indexOf('party'), iTotal = head.indexOf('total votes');
+    if (iName < 0 || iTotal < 0) continue;
+    for (const tr of t.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cells = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => stripTags(x[1]));
+      if (cells.length <= iTotal) continue;
+      rows.push({ contest: title, name: cells[iName], party: iParty >= 0 ? cells[iParty] : capParty, votes: toNum(cells[iTotal]), rep: pr ? toNum(pr[1]) : null, tot: pr ? toNum(pr[2]) : null });
+    }
+  }
+  return rows;
+}
+add({
+  st: 'DE', label: 'Delaware Department of Elections', confidence: 'unverified', format: 'Results page (HTML, statewide part)',
+  units: [{
+    id: 'DE', requests: 1,
+    async run(c) {
+      const html = await c.textHead('https://elections.delaware.gov/results/enr/GE2026.html', 400000, { allow404: true });
+      if (!html) return { notPosted: true };
+      const rows = parseDE(html);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('DE', c, rows, { pctLabel: 'election districts' }) };
+    },
+  }],
+});
+
+/* Hawaii: the Office of Elections' "summary.txt" (one row per candidate, with precinct counts). The 2026 primary was
+   tab-separated under elections.hawaii.gov/wp-content/results/2026 Primary/; the 2024 general was comma-separated on
+   files.hawaii.gov. Same columns in both. House districts are written "Dist I", "Dist II". */
+const HI_URLS = [
+  'https://elections.hawaii.gov/wp-content/results/2026%20General/summary.txt',
+  'https://files.hawaii.gov/elections/files/results/2026/General/summary.txt',
+];
+const ROMAN = { I: 1, II: 2, III: 3, IV: 4 };
+export function parseHI(text) {
+  const lines = String(text).replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim() && !l.startsWith('#'));
+  const tab = lines.some(l => l.includes('\t'));
+  const rows = [];
+  for (const cells of tab ? lines.map(l => l.split('\t').map(x => x.replace(/^"|"$/g, '').trim())) : parseCSV(lines.join('\n'))) {
+    if (cells.length < 21) continue;
+    const contest = cells[1], raw = cells[15];
+    const m = String(raw).match(/^\(([A-Z]+)\)\s*(.*)$/);
+    const d = contest.match(/\bDist(?:rict)?\.?\s+([IVX]+|\d+)\b/i)?.[1];
+    rows.push({
+      contest, district: d ? String(ROMAN[d.toUpperCase()] || d) : undefined,
+      name: m ? m[2] : raw, party: m ? m[1] : cells[17] || null, votes: toNum(cells[20]), rep: toNum(cells[13]), tot: toNum(cells[12]),
+    });
+  }
+  return rows;
+}
+add({
+  st: 'HI', label: 'Hawaii Office of Elections', confidence: 'unverified', format: 'Summary text file',
+  units: [{
+    id: 'HI', requests: 2,
+    async run(c) {
+      for (const url of HI_URLS) {
+        const text = await c.text(url, { allow404: true });
+        if (!text || !/Representative|Governor/i.test(text)) continue;
+        const rows = parseHI(text);
+        if (rows.length) return { results: collect('HI', c, rows) };
+      }
+      return { notPosted: true };
+    },
+  }],
+});
+
+/* Kansas: ent.sos.ks.gov, static pages (national.html: Senate and House; statewide.html: governor). Each race is an
+   <h3> title, "Precincts Reporting: N of M", then name / votes / % cells; general-election names carry the party
+   ("D-Mark R. Holland"). Checked Oct 24 against the Aug 2026 primary and the archived Nov 2022 general. Between
+   elections the site still shows the primary, so pages updated before Nov 3 and "(D)"/"(R)" primary titles are ignored. */
+export function parseKS(html) {
+  const rows = [];
+  for (const part of String(html).split(/<h3[^>]*>/i).slice(1)) {
+    const end = part.search(/<\/h3>/i);
+    const contest = stripTags(part.slice(0, end));
+    if (/\((D|R|L|DEM|REP)\)\s*$/i.test(contest)) continue;
+    const lines = htmlLines(part.slice(end));
+    const stop = lines.findIndex(l => /^total votes$/i.test(l));
+    const body = stop >= 0 ? lines.slice(0, stop) : lines;
+    const pr = body.join(' ').match(/Precincts Reporting:\s*([\d,]+)\s+of\s+([\d,]+)/i);
+    const district = contest.match(/Representatives?\s+(\d+)\s*$/i)?.[1];
+    for (let i = 0; i + 2 < body.length; i++) {
+      if (!/^[\d,]+$/.test(body[i + 1]) || !/%$/.test(body[i + 2]) || /^[\d,%]+$|^(votes|%)$/i.test(body[i])) continue;
+      const m = body[i].match(/^([A-Z]{1,3})-(.+)$/);
+      rows.push({ contest, district, name: m ? m[2] : body[i], party: m ? m[1] : null, votes: toNum(body[i + 1]), rep: pr ? toNum(pr[1]) : null, tot: pr ? toNum(pr[2]) : null });
+      i += 2;
+    }
+  }
+  return rows;
+}
+const updatedOn = html => { const m = stripTags(html).match(/Last Update[d]?:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i); return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null; };
+add({
+  st: 'KS', label: 'Kansas Secretary of State', confidence: 'unverified', format: 'Results pages (HTML)',
+  units: [{
+    id: 'KS', requests: 2,
+    async run(c) {
+      const rows = [];
+      for (const page of ['national.html', 'statewide.html']) {
+        const html = await c.text(`https://ent.sos.ks.gov/${page}`, { allow404: true });
+        if (!html || (updatedOn(html) || '') < '2026-11-03') continue;    // still the August primary
+        rows.push(...parseKS(html));
+      }
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('KS', c, rows) };
+    },
+  }],
+});
+
+/* Kentucky: the State Board's Election Night Reporting site (vrsws.sos.ky.gov/liveresults/). One page carries every
+   statewide-ballot contest (U.S. Senate and all six House districts) as .results-tbl blocks, plus a statewide precinct
+   count. Layout checked against the archived May 19, 2026 primary; the site is "under maintenance" between elections.
+   Precinct counts are statewide only, so they're used for the Senate race and House races show no "% in". */
+export function parseKY(html) {
+  // The page is ~2.2 MB (styles and map first); the results are at the end, so jump there with indexOf (cheap)
+  const all = String(html);
+  const info = all.indexOf('STATEWIDE INFORMATION');
+  const s = info >= 0 ? all.slice(info) : all;
+  const pr = stripTags(s.slice(0, 4000)).match(/Precincts\s+Participating:\s*([\d,]+)\s+Reporting:\s*([\d,]+)/i);
+  // The live page is minified: single class names have no quotes (class=results-tbl-title), so quotes are optional
+  const rows = [], seen = new Set();
+  for (const part of s.split(/class=(?:"[^"]*|'[^']*|)\bresults-tbl-title\b[^>]*>/i).slice(1)) {
+    const contest = stripTags(part.slice(0, part.search(/<\/div>/i)));
+    if (seen.has(contest)) continue;
+    const body = part.split(/class=(?:"[^"]*|'[^']*|)\bresults-tbl-footer\b/i)[0];
+    const got = [];
+    for (const row of body.split(/class=(?:"[^"]*|'[^']*|)\bresults-tbl-row-data\b/i).slice(1)) {
+      const cell = k => stripTags(row.match(new RegExp(`results-tbl-row-candidate-${k}\\b[^>]*>([\\s\\S]*?)<\\/div>`, 'i'))?.[1] || '');
+      const name = cell('name').replace(/^Other\s+/i, ''), votes = toNum(cell('total'));
+      if (name && votes != null) got.push({ contest, name, party: cell('party'), votes });
+    }
+    if (!got.length) continue;
+    seen.add(contest);
+    const statewide = /SENATOR|GOVERNOR/i.test(contest) && pr;
+    rows.push(...got.map(g => ({ ...g, rep: statewide ? toNum(pr[2]) : null, tot: statewide ? toNum(pr[1]) : null })));
+  }
+  return rows;
+}
+add({
+  st: 'KY', label: 'Kentucky State Board of Elections', confidence: 'unverified', format: 'Election Night Reporting page (HTML)',
+  units: [{
+    id: 'KY', requests: 1,
+    async run(c) {
+      const html = await c.text('https://vrsws.sos.ky.gov/liveresults/', { allow404: true });
+      if (!html || !/2026 General Election|November 0?3, 2026/i.test(html)) return { notPosted: true };
+      const rows = parseKY(html);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('KY', c, rows) };
+    },
+  }],
+});
+
+/* North Dakota: results.sos.nd.gov runs a newer version of the Nebraska/New Mexico software with no CSV address, so
+   the statewide page is read instead (<h1> per contest, "Precincts Fully: N / M", one block per candidate). Checked
+   Oct 24 against the 2024 general it still shows; switches on once the page says "2026 General Election". */
+export function parseND(html) {
+  const rows = [];
+  for (const part of String(html).split(/<h1[^>]*>/i).slice(1)) {
+    const contest = stripTags(part.slice(0, part.search(/<\/h1>/i)));
+    const full = part.match(/Precincts Fully:\s*([\d,]+)\s*\/\s*([\d,]+)/i);
+    for (const b of part.split(/class=(?:"[^"]*|'[^']*)\bsection group\b/i).slice(1)) {
+      const name = b.match(/display-results-box-d[^>]*>\s*<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1];
+      const party = b.match(/display-results-box-e[^>]*>\s*<div[^>]*>([\s\S]*?)<\/div>/i)?.[1];
+      const votes = b.match(/display-results-box-g[^>]*>\s*([\d,]+)\s*</i)?.[1];
+      if (!name || votes == null) continue;
+      rows.push({ contest, name: stripTags(name), party: party ? stripTags(party) : null, votes: toNum(votes), rep: full ? toNum(full[1]) : null, tot: full ? toNum(full[2]) : null });
+    }
+  }
+  return rows;
+}
+add({
+  st: 'ND', label: 'North Dakota Secretary of State', confidence: 'unverified', format: 'Results page (HTML)',
+  units: [{
+    id: 'ND', requests: 1,
+    async run(c) {
+      const html = await c.text('https://results.sos.nd.gov/ResultsSW.aspx?text=All&type=SW&map=CTY', { allow404: true });
+      if (!html || !/2026\s+GENERAL\s+ELECTION/i.test(html)) return { notPosted: true };
+      const rows = parseND(html);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('ND', c, rows) };
+    },
+  }],
+});
+
+/* Rhode Island: electionresults.ri.gov is Enhanced Voting (same as Georgia and Virginia). Sept 9 primary checked
+   Oct 24; November isn't listed yet. Its ballot calls the Senate race "Senator in Congress". */
+add(enhanced('RI', 'Rhode Island Board of Elections', 'https://electionresults.ri.gov/results/public/api', 'RhodeIsland', 'verified'));
+
+/* Vermont: electionresults.vermont.gov is built from static JSON on static.electionresults.vermont.gov:
+   elections/elections.json (list) → elections/<guid>.json (paths of the current federal and statewide files, towns
+   reporting) → per-town votes, summed here. The Nov 3 general's files were posted (0 votes) when checked Oct 24. */
+const VT_STATIC = 'https://static.electionresults.vermont.gov/';
+export function parseVT(j, rep, tot) {
+  const rows = [];
+  for (const p of j?.d || []) for (const o of p.o || []) {
+    const sums = new Map();
+    for (const town of o.cs || []) for (const r of town.rc || []) {
+      if (r.isWriteIn) continue;
+      const prev = sums.get(r.cn);
+      if (prev) prev.votes += r.vc || 0;
+      else sums.set(r.cn, { contest: o.on, name: r.cn, party: r.pn, votes: r.vc || 0, rep, tot });
+    }
+    rows.push(...sums.values());
+  }
+  return rows;
+}
+add({
+  st: 'VT', label: 'Vermont Secretary of State', confidence: 'verified', format: 'Results site JSON',
+  units: [{
+    id: 'VT', requests: 4,
+    async run(c) {
+      let guid = c.meta.guid;
+      if (!guid) {
+        const list = await c.json(`${VT_STATIC}elections/elections.json`, { allow404: true });
+        const el = (list || []).find(e => isElectionDay(e.electionDate) && !e.town && (e.isGeneralElection || /general election/i.test(e.electionName || '')));
+        if (!el) return { notPosted: true };
+        guid = c.meta.guid = el.electionGuid;
+      }
+      const e = await c.json(`${VT_STATIC}elections/${guid}.json`);
+      const paths = [e?.federal, e?.stateWide].filter(p => p?.isEnable && p.path).map(p => p.path.replace(/\\/g, '/'));
+      if (!paths.length) return { notPosted: true };
+      const key = paths.join('|');
+      if (key === c.meta.key && c.meta.haveData) return { unchanged: true };
+      const [rep, tot] = String(e.townsReporting || '').split('/').map(toNum);
+      const rows = [];
+      for (const p of paths) rows.push(...parseVT(await c.json(VT_STATIC + p), rep, tot));
+      c.meta.key = key;
+      return { results: collect('VT', c, rows, { pctLabel: 'towns' }) };
     },
   }],
 });

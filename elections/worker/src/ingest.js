@@ -75,6 +75,24 @@ export async function runIngest({ env, universe, store, fetchImpl = fetch, now =
         if (!resp.ok) throw new HttpError(resp.status, url);
         return resp.text();
       },
+      // Only the start of a large page (Delaware's results page is ~4 MB; its statewide tables are in the first ~75 KB)
+      async textHead(url, maxBytes, o = {}) {
+        const r = await get(url, { ...o, etags: meta.etags });
+        if (r.notModified) return null;
+        if (r.missing) return undefined;
+        const reader = r.resp.body?.getReader?.();
+        if (!reader) return (await r.resp.text()).slice(0, maxBytes);
+        const dec = new TextDecoder();
+        let out = '', n = 0;
+        while (n < maxBytes) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          n += value.length;
+          out += dec.decode(value, { stream: true });
+        }
+        reader.cancel().catch(() => {});
+        return out;
+      },
       async bytes(url, o = {}) {
         const r = await get(url, { ...o, etags: meta.etags });
         return new Uint8Array(await r.resp.arrayBuffer());

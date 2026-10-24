@@ -17,7 +17,8 @@ export function raceIdFor(name, st, ids, hint = {}) {
   const s = String(name || '').toUpperCase().replace(/\s+/g, ' ').trim();
   if (!s || PRIMARY.test(s)) return null;
 
-  if (/\b(U\.? ?S\.?|UNITED STATES)\s+SENAT(E|OR)\b/.test(s) && !/\bSTATE SENAT/.test(s)) {
+  // "Senator in Congress" is Rhode Island's ballot wording for U.S. Senate
+  if (/\b(U\.? ?S\.?|UNITED STATES)\s+SENAT(E|OR)\b|\bSENATOR IN CONGRESS\b/.test(s) && !/\bSTATE SENAT/.test(s)) {
     const special = /SPECIAL|UNEXPIRED|SHORT TERM/.test(s);
     const order = special ? [`${st}-SEN-S`, `${st}-SEN`] : [`${st}-SEN`, `${st}-SEN-S`];
     return order.find(i => ids.has(i)) || null;
