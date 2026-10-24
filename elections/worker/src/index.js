@@ -19,6 +19,9 @@
  *  POST /v1/desk/retract     {raceId}                                         (desk token)
  *  POST /v1/desk/clear       {raceId}  remove a desk call/retraction so the feed shows again
  *  POST /v1/desk/result      {raceId, pctIn, candidates:[{name,party,votes}]} (desk token)
+ *  GET  /v1/desk/queue       calls waiting for the desk: DDHQ/AP calls, model suggestions, conflicts (desk token)
+ *  POST /v1/desk/queue       {key, action: "publish" | "dismiss", sim?}  or {keys: [...], ...} for several  (desk token)
+ *  GET  /v1/desk/watch       read DDHQ's Bluesky feed now and show how each post parses (desk token, saves nothing)
  */
 import universe from '../../data/races-2026.json';
 import { buildBoard } from './board.js';
@@ -31,6 +34,9 @@ import { OC_LOCAL } from './feeds/oc-local.js';
 import { CA_PROPS } from './feeds/ca-props.js';
 import { buildLocal } from './local.js';
 import { simulateCounties, simulateLocal, simulateProps } from './sources/simulate-extra.js';
+import { runWatch, ensureQueue, readDDHQ, postsToRows } from './queue/watch.js';
+import { buildQueue, targets, rehearsalPosts, SOURCE_LABEL } from './queue/build.js';
+import { parseDDHQ, matchCall } from './queue/parse.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
 const LOCAL_IDS = new Set(OC_LOCAL.contests.map(c => `OC-${c.id}`));
@@ -63,6 +69,14 @@ export default {
         if (!authorized(request, env)) return json({ error: 'Desk token missing or wrong' }, cors, 0, 401);
         if (request.method === 'GET' && p === '/v1/desk/check') return json({ ok: true }, cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/preview') return json(await preview(env, url), cors, 0);
+        if (request.method === 'GET' && p === '/v1/desk/queue') return json(await queue(env, isSim(env, url)), cors, 0);
+        if (request.method === 'GET' && p === '/v1/desk/watch') return json(await watchPreview(), cors, 0);
+        if (request.method === 'POST' && p === '/v1/desk/queue') {
+          const body = await request.json().catch(() => ({}));
+          const res = await queueAction(env, body);
+          await purge();
+          return json(res, cors, 0, res.error ? 400 : 200);
+        }
         if (request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
           const res = await desk(env, p.slice(9), body);
@@ -77,9 +91,23 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(scheduledRun(env));
+    // Every minute: watch DDHQ (and AP) for calls. Every 5 minutes: download state results.
+    if (event.cron === WATCH_CRON) ctx.waitUntil(watchRun(env));
+    else ctx.waitUntil(scheduledRun(env));
   },
 };
+
+/* ── Call watcher (every minute) ── */
+const WATCH_CRON = '* * * * *';
+const MATCH_RACES = universe.races.map(r => ({ id: r.id, state: r.state, chamber: r.chamber, district: r.district ?? 0, special: !!r.special, candidates: r.candidates }));
+const MATCH_PROPS = CA_PROPS.contests.map(c => ({ id: `CA-P${c.id}` }));
+export async function watchRun(env, { now = Date.now(), fetchImpl = fetch } = {}) {
+  if (!env.DB) return { skipped: 'no database' };
+  if (now < startOf(env) && env.INGEST_EARLY !== 'true') return { skipped: 'before results start' };
+  // Calls posted before results start (primaries, old posts) are ignored
+  const out = await runWatch({ env, db: env.DB, races: MATCH_RACES, props: MATCH_PROPS, fetchImpl, now, notBefore: env.INGEST_EARLY === 'true' ? 0 : startOf(env) });
+  return { saved: out.saved.length, status: out.status };
+}
 
 /* ── Scheduled download ── */
 export async function scheduledRun(env, { now = Date.now(), fetchImpl = fetch } = {}) {
@@ -120,6 +148,14 @@ async function board(request, env, ctx, url, cors) {
     return r;
   }
 
+  const out = await boardData(env, sim);
+  const resp = json(out, cors, CACHE_SECONDS);
+  resp.headers.set('X-Cache', 'MISS');
+  ctx.waitUntil(cache.put(cacheKey, json(out, {}, CACHE_SECONDS)));
+  return resp;
+}
+
+async function boardData(env, sim) {
   const now = Date.now();
   const feeds = [];
   let sources;
@@ -145,11 +181,7 @@ async function board(request, env, ctx, url, cors) {
   out.simulation = sim;
   out.resultsStart = new Date(startOf(env)).toISOString();
   out.desk = { calls: deskState.calls.size };
-
-  const resp = json(out, cors, CACHE_SECONDS);
-  resp.headers.set('X-Cache', 'MISS');
-  ctx.waitUntil(cache.put(cacheKey, json(out, {}, CACHE_SECONDS)));
-  return resp;
+  return out;
 }
 
 /** One status entry for AP and one per state (California's 53 units rolled up). */
@@ -253,9 +285,9 @@ async function counties(env, url) {
 
 /* ── Local-style tabs: Orange County contests and California propositions ── */
 const areaKey = url => { const a = String(url.searchParams.get('area') || 'OC').toUpperCase(); return AREAS[a] ? a : 'OC'; };
-async function local(env, url, area = 'OC') {
+async function local(env, url, area = 'OC') { return localData(env, isSim(env, url), area); }
+async function localData(env, sim, area) {
   const A = AREAS[area];
-  const sim = isSim(env, url);
   const ns = sim ? 'sim' : 'live';
   const calls = new Map();
   let res = null;
@@ -316,6 +348,90 @@ async function preview(env, url) {
       raceId, name: byId.get(raceId)?.name, pctIn: payload.pctIn, pctLabel: payload.pctLabel,
       candidates: payload.candidates.slice(0, 4).map(c => `${c.name} (${c.party}) ${c.votes.toLocaleString('en-US')}`),
     })),
+  };
+}
+
+/* ── Desk call queue (IntelHQ desk only; every route here needs the desk token) ── */
+async function queue(env, sim) {
+  if (!env.DB) return { items: [], error: 'D1 database not bound' };
+  const ns = sim ? 'sim' : 'live';
+  const now = Date.now();
+  await ensureQueue(env.DB);
+  const [board, props, oc] = await Promise.all([boardData(env, sim), localData(env, sim, 'CAP'), localData(env, sim, 'OC')]);
+  const { results: rows } = await env.DB.prepare('SELECT * FROM call_queue WHERE ns = ?').bind(ns).all();
+  // Rehearsal: practice DDHQ calls from the practice count, through the same parser as the real thing
+  const extra = sim ? postsToRows(rehearsalPosts(board, props, now, simHash), 'DDHQ', { races: MATCH_RACES, props: MATCH_PROPS, since: 0 }) : [];
+  const q = buildQueue({ rows, targets: targets(board, props, oc), extra, now });
+  const st = [
+    ...q.newKeys.map(r => env.DB.prepare(`INSERT OR IGNORE INTO call_queue (ns, key, source, race_id, candidate, party, winners, text, url, note, posted_at, created_at, status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'new')`).bind(ns, r.key, r.source, r.raceId ?? r.race_id ?? null, r.candidate ?? null, r.party ?? null,
+        r.winners ? JSON.stringify(r.winners) : null, r.text ?? null, r.url ?? null, r.note ?? null, r.postedAt ?? null, now)),
+    ...q.autoResolved.map(k => env.DB.prepare("UPDATE call_queue SET status = 'auto', resolved_at = ? WHERE ns = ? AND key = ?").bind(now, ns, k)),
+  ];
+  for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+  const w = await env.DB.prepare("SELECT meta FROM feed_unit WHERE unit = 'WATCH'").first().catch(() => null);
+  let status = null; try { status = JSON.parse(w?.meta || '{}').status || null; } catch {}
+  const held = now < startOf(env) && env.INGEST_EARLY !== 'true';
+  return {
+    simulation: sim, generated: new Date(now).toISOString(), items: q.items,
+    watch: { held, resultsStart: new Date(startOf(env)).toISOString(), ddhq: status?.ddhq || null, ap: status?.ap || { enabled: !!env.X_BEARER_TOKEN } },
+  };
+}
+const simHash = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; };
+
+async function queueAction(env, b) {
+  if (!env.DB) return { error: 'D1 database not bound' };
+  if (!['publish', 'dismiss'].includes(b.action)) return { error: 'action must be publish or dismiss' };
+  if (Array.isArray(b.keys)) {
+    // Several at once (the desk's "publish all" buttons). Conflicts are never published in bulk.
+    const keys = b.keys.slice(0, 300).map(String);
+    const items = b.action === 'publish' ? new Map((await queue(env, !!b.sim)).items.map(i => [i.key, i])) : null;
+    const done = [], failed = [];
+    for (const key of keys) {
+      if (items && items.get(key)?.type === 'conflict') { failed.push({ key, error: 'conflicts are published one at a time' }); continue; }
+      const r = await queueOne(env, { ...b, key }, items);
+      (r.error ? failed : done).push(r.error ? { key, error: r.error } : key);
+    }
+    return { ok: !failed.length || !!done.length, done: done.length, failed };
+  }
+  return queueOne(env, b);
+}
+async function queueOne(env, b, items = null) {
+  const sim = !!b.sim, ns = sim ? 'sim' : 'live';
+  const key = String(b.key || '');
+  const now = Date.now();
+  if (b.action === 'dismiss') {
+    await ensureQueue(env.DB);
+    // Model items and rehearsal items may not be stored yet; store them as dismissed
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO call_queue (ns, key, source, created_at, status) VALUES (?,?,?,?,'new')`).bind(ns, key, key.split('|')[0], now),
+      env.DB.prepare("UPDATE call_queue SET status = 'dismissed', resolved_at = ? WHERE ns = ? AND key = ?").bind(now, ns, key),
+    ]);
+    return { ok: true, key, dismissed: true };
+  }
+  // Publish: find the item as the desk sees it right now, then make the call
+  const item = items ? items.get(key) : (await queue(env, sim)).items.find(i => i.key === key);
+  if (!item) return { error: 'That item is gone: the race may already be called, or the count changed. Refresh the queue.' };
+  if (!item.raceId) return { error: 'This post isn’t matched to a race; make the call from the race itself.' };
+  const source = SOURCE_LABEL[item.source] || 'OC Scanner desk';
+  const res = item.winners?.length || isLocalId(item.raceId)
+    ? await desk(env, 'call', { raceId: item.raceId, winners: item.winners || [item.candidate], source, sim, note: item.type === 'model' ? item.reason : null })
+    : await desk(env, 'call', { raceId: item.raceId, party: item.party, candidate: item.candidate, source, sim, note: item.type === 'model' ? item.reason : null });
+  if (res.error) return res;
+  await env.DB.prepare("UPDATE call_queue SET status = 'published', resolved_at = ? WHERE ns = ? AND key = ?").bind(now, ns, key).run();
+  return { ok: true, key, raceId: item.raceId, source };
+}
+
+/** Desk check before Nov 3: read DDHQ's feed now and show what each recent post parses to. Saves nothing. */
+async function watchPreview() {
+  const posts = await readDDHQ(fetch);
+  return {
+    source: 'Decision Desk HQ on Bluesky', posts: posts.length,
+    recent: posts.slice(-15).reverse().map(p => {
+      const call = parseDDHQ(p.text);
+      const m = call ? matchCall(call, MATCH_RACES, MATCH_PROPS) : null;
+      return { at: new Date(p.at).toISOString(), text: p.text.slice(0, 160), call: call ? (m.raceId ? `${m.raceId}: ${m.candidate}` : `not matched (${m.unmatched})`) : 'not a November call' };
+    }),
   };
 }
 

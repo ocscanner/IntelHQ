@@ -245,3 +245,27 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 
 /* Five tabs: drop the race counts before the labels get squeezed */
 @media (max-width:1180px){.eb-chambers button span{display:none}}
+/* Desk call queue (IntelHQ desk mode only) */
+.eb-sw.eb-qbtn.on{border-color:#e0a32b;color:#e0a32b}
+.eb-sw.eb-qbtn b{background:#e0a32b;color:#111;border-radius:999px;padding:0 6px;margin-left:4px;font-size:.8rem}
+.eb-queue h4 small{color:#e0a32b}
+.eb-qwatch{font-size:.78rem;color:var(--eb-muted);padding:0 14px 8px}
+.eb-qlist{max-height:520px;overflow:auto;padding:0 10px 10px;display:grid;gap:8px}
+.eb-q{border:1px solid var(--eb-line2);border-left:4px solid var(--eb-lead);border-radius:8px;padding:8px 10px;background:var(--eb-bg2)}
+.eb-q.conflict{border-left-color:#e0a32b;background:color-mix(in srgb,#e0a32b 9%,var(--eb-bg2))}
+.eb-q.model{border-left-color:var(--eb-text2)}
+.eb-q.unmatched{border-left-color:var(--eb-muted);opacity:.85}
+.eb-q.late .qage{color:#e0a32b;font-weight:700}
+.eb-q.late2{box-shadow:inset 0 0 0 1px #e0a32b}.eb-q.late2 .qage{color:#ff7a59;font-weight:700}
+.eb-q .qh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.eb-q .qchip{font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--eb-text2)}
+.eb-q .qchip.net{color:var(--eb-lead)}.eb-q .qchip.conflict{color:#e0a32b}.eb-q .qchip.model.high{color:var(--eb-text)}
+.eb-q .qage{font-size:.75rem;color:var(--eb-muted);white-space:nowrap}
+.eb-q .qrace{background:none;border:0;padding:0;color:var(--eb-text);font-weight:700;font-size:.95rem;text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--eb-line2);text-underline-offset:3px}
+.eb-q .qline{font-size:.88rem;margin-top:2px;overflow-wrap:anywhere}
+.eb-q .qwhy{font-size:.8rem;color:var(--eb-muted);margin-top:3px}
+.eb-q .qact{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.eb-q .qact .eb-btn{padding:4px 10px;font-size:.82rem;text-decoration:none}
+.eb-linkbtn{background:none;border:0;padding:0;color:var(--eb-text2);text-decoration:underline;font-size:inherit;cursor:pointer}
+.eb-qbulk{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 8px}
+.eb-qbulk .eb-btn{font-size:.8rem;padding:4px 10px}

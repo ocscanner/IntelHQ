@@ -222,6 +222,48 @@ yet. Numbers you see before election night are the state's test data.
 4. Turn rehearsal off. The board should say "No results yet" and "State feeds start Nov 3, 2:00 PM".
 5. Run the preview tool for each state on Nov 2 or the morning of Nov 3.
 
+## Call queue (desk only)
+
+When you're signed in to desk mode on IntelHQ, a **Call queue** panel sits above Latest calls (the
+**Call queue** button at the top jumps to it and shows the count, and so does the browser tab title).
+It never appears on the public site, and its data needs the desk token.
+
+What lands in the queue:
+
+- **Decision Desk HQ calls.** Every minute the Worker reads DDHQ's Bluesky feed (free, open API, no account)
+  and picks out posts like "Decision Desk HQ projects … wins the IA US Senate". Each is matched to our race
+  by state, office and candidate name.
+- **AP calls** from @AP_RaceCalls, only if you add an X API key (see below). Off by default.
+- **Model suggestions** ("OC Scanner model") when our own counts say a race is effectively over: unopposed,
+  a blowout, or the trailing candidate would need 80%+ of the votes still to come (**High**; 70%+ is
+  **Medium**). In slow-count states (CA, WA, OR, NV, AZ, UT, CO, AK, HI), and for the propositions and OC
+  races, it only looks at the lead (20+ pts high, 12+ medium), because "100% of precincts" there can still
+  leave weeks of mail ballots. Georgia, Alaska and Maine need a majority first.
+- **Conflicts** (top of the list): DDHQ or AP called a race differently from the call on your board.
+- **Couldn't match**: a call post the Worker couldn't tie to a race, so it isn't silently lost.
+
+Working it:
+
+- **Publish** takes two taps. The call goes on the board credited to the source (Decision Desk HQ, AP,
+  or OC Scanner desk for model calls) and shows in Latest calls. Withdraw it like any other call.
+- **Publish all …** buttons handle a batch (all DDHQ calls, all AP calls, or all high-confidence model
+  calls) after a confirmation listing them. Conflicts are always one at a time.
+- **Dismiss** removes an item. A dismissed Medium suggestion comes back if it becomes High.
+- Items older than 5 minutes turn amber, 15 minutes red. A chime plays when something new arrives
+  (with "Chime on watched calls" on), even if the tab is in the background.
+- Calls already on the board the same way clear themselves.
+- Rehearsal data fills the queue with practice DDHQ calls and model suggestions so you can drill it.
+- **Test DDHQ feed** (under the panel title) reads DDHQ's feed right now and tells you whether it works.
+  Before Nov 3 it should say "no November calls yet".
+
+The watcher starts at RESULTS_START (Nov 3, 3 p.m. Pacific) and ignores anything DDHQ posted earlier.
+DDHQ's general-election wording is assumed from its primary-night posts; anything that doesn't parse
+cleanly shows as "couldn't match", and the model and your own eyes cover what DDHQ doesn't post.
+
+**Adding AP (optional):** create an X developer account with pay-per-use credit (about $0.005 per post read;
+election week should be roughly $10–30), copy its Bearer Token, then in `elections/worker` run
+`npx wrangler secret put X_BEARER_TOKEN` and paste it. The queue's status line then shows "AP on".
+
 ## On election night
 
 - **State feeds** (top left of the board) shows each state: how many races it filled, when it was
@@ -322,5 +364,7 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 | `GET /v1/health` | Switches, state feed list, when feeds start |
 | `GET /v1/desk/preview?state=XX` | Download and parse one state now, without saving (desk token) |
 | `POST /v1/desk/call` · `retract` · `clear` · `result` | Desk actions (desk token) |
+| `GET /v1/desk/queue` · `POST /v1/desk/queue` | The call queue; publish or dismiss items (desk token) |
+| `GET /v1/desk/watch` | Read DDHQ's Bluesky feed now and show how each post parses (desk token) |
 
 Run the tests with `npm test` in `elections/worker`.

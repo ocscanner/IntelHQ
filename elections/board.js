@@ -80,6 +80,7 @@
       token: opts.publicMode ? '' : store.get('token', ''), deskSource: store.get('deskSource', 'OC Scanner desk'),
       data: null, feed: [], seenFeed: null, shapes: null, error: null, lastOk: 0, pending: null,
       sheetOpen: false,
+      queue: null, queueSeen: null, qConfirm: null, baseTitle: document.title,
     };
 
     root.classList.add('eb');
@@ -106,6 +107,7 @@
           <div class="eb-panel eb-list"><h4><span data-r="listtitle">Races</span><small data-r="listcount"></small></h4><div data-r="list"></div></div>
         </div>
         <div class="eb-side">
+          <div class="eb-panel eb-queue" data-r="queue" hidden></div>
           <div class="eb-panel"><h4>Latest calls<small data-r="logcount"></small></h4><div class="eb-log" data-r="log"></div></div>
           <div class="eb-panel eb-detailwrap" data-r="detail"></div>
         </div>
@@ -126,6 +128,11 @@
         if (S.zoomSt && !isArea(S.chamber)) { const st = S.zoomSt; loadZoomShapes(st).then(() => { if (S.zoomSt === st) { renderMap(); animateTo(targetVB()); } return loadCounties(); }).then(() => renderMap()); }
         return;
       }
+      if (t.dataset.qpub) { queuePublish(t.dataset.qpub); return; }
+      if (t.dataset.qdis) { queueAct(t.dataset.qdis, 'dismiss', 'Dismissed'); return; }
+      if (t.dataset.qbulk) { queueBulk(t.dataset.qbulk); return; }
+      if (t.dataset.qopen) { openRace(t.dataset.qopen, t.dataset.qtab); return; }
+      if (t.dataset.gotoqueue != null) { $('queue').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (t.dataset.group) { S.group = t.dataset.group; S.limit = 60; renderMap(); renderList(); return; }
       if (t.dataset.back != null) { unzoom(); return; }
       if (t.dataset.fips) { showTip(e, countySummary(t.dataset.fips)); return; }
@@ -330,6 +337,7 @@
         <button type="button" class="eb-sw simsw" data-act="sim" aria-pressed="${S.sim}">Rehearsal data</button>
         ${chimeBtn}
         <button type="button" class="eb-sw" data-act="desk" aria-pressed="${!!S.token}">${S.token ? 'Desk on' : 'Desk sign-in'}</button>
+        ${S.token ? `<button type="button" class="eb-sw eb-qbtn${queueCount() ? ' on' : ''}" data-gotoqueue>Call queue${queueCount() ? ` <b>${queueCount()}</b>` : ''}</button>` : ''}
         ${refreshBtn}`;
       $('status').querySelector('.eb-feeds')?.addEventListener('toggle', e => { S.feedsOpen = e.target.open; });
     }
@@ -933,11 +941,22 @@
     async function action(act, btn) {
       const r = S.selected && raceOf(S.selected);
       switch (act) {
-        case 'sim': S.sim = !S.sim; store.set('sim', S.sim); S.seenFeed = null; S.countyData = null; renderStatus(); renderBanner(); return load();
+        case 'sim': S.sim = !S.sim; store.set('sim', S.sim); S.seenFeed = null; S.countyData = null; S.queue = null; S.queueSeen = null; renderStatus(); renderBanner(); loadQueue(); return load();
         case 'chime': S.chime = !S.chime; store.set('chime', S.chime); if (S.chime) chime(); return renderStatus();
         case 'refresh': return load(true);
         case 'desk': return deskSignIn();
         case 'closesheet': S.sheetOpen = false; return renderDetail();
+        case 'testwatch': {
+          try {
+            const r = await fetch(`${S.api}/v1/desk/watch`, { headers: { Authorization: `Bearer ${S.token}` }, cache: 'no-store' });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error || r.status);
+            const calls = j.recent.filter(x => x.call !== 'not a November call').length;
+            toast(`Read ${j.posts} recent Decision Desk HQ posts: ${calls ? `${calls} look like November calls` : 'no November calls yet (expected before Nov 3)'}. The feed is working.`);
+            console.info('[ElectionBoard] DDHQ feed check', j);
+          } catch (e) { toast(`DDHQ feed check failed: ${e.message}`); }
+          return;
+        }
         case 'opensheet': S.sheetOpen = true; return renderDetail();
         case 'watch': return toggleWatch(r.id);
         case 'copypost': return copy(areaOfId(r.id) ? localPost(r) : postText(r), 'Post copied');
@@ -994,14 +1013,15 @@
         if (!resp.ok) throw new Error(j.error || `Error ${resp.status}`);
         toast(okMsg + (S.sim ? ' (rehearsal)' : ''));
         await load(true);
+        loadQueue();
       } catch (e) { toast(`Not saved: ${e.message}`); renderDetail(); }
     }
     async function deskSignIn() {
-      if (S.token) { if (confirm('Sign out of desk mode on this device?')) { S.token = ''; store.set('token', ''); renderAll(); } return; }
+      if (S.token) { if (confirm('Sign out of desk mode on this device?')) { S.token = ''; store.set('token', ''); S.queue = null; renderAll(); renderQueue(); } return; }
       const t = prompt('Desk token (set on the Worker as DESK_TOKEN):');
       if (!t) return;
       const r = await fetch(`${S.api}/v1/desk/check`, { headers: { Authorization: `Bearer ${t.trim()}` } }).catch(() => null);
-      if (r?.ok) { S.token = t.trim(); store.set('token', S.token); toast('Desk mode on'); renderAll(); }
+      if (r?.ok) { S.token = t.trim(); store.set('token', S.token); toast('Desk mode on'); renderAll(); loadQueue(); }
       else toast('That token didn’t work.');
     }
 
@@ -1041,6 +1061,122 @@
       try { await navigator.clipboard.writeText(text); toast(msg); }
       catch { prompt('Copy this:', text); }
     }
+    /* ── Desk call queue (IntelHQ desk only: needs the desk token, never on the public page) ── */
+    const queueCount = () => (S.queue?.items || []).filter(i => i.type !== 'unmatched').length;
+    async function loadQueue() {
+      if (!S.token || S.pub) { S.queue = null; renderQueue(); return; }
+      try {
+        const r = await fetch(`${S.api}/v1/desk/queue?sim=${S.sim ? 1 : 0}`, { headers: { Authorization: `Bearer ${S.token}` }, cache: 'no-store' });
+        if (r.status === 401) { S.token = ''; store.set('token', ''); toast('Desk sign-in expired. Sign in again.'); S.queue = null; renderAll(); renderQueue(); return; }
+        if (!r.ok) throw new Error(`Queue answered ${r.status}`);
+        const q = await r.json();
+        const keys = new Set(q.items.map(i => i.key));
+        // Chime once for anything new (not on the first load)
+        if (S.queueSeen && S.chime && q.items.some(i => !S.queueSeen.has(i.key) && i.type !== 'unmatched')) chime();
+        S.queueSeen = new Set([...(S.queueSeen || []), ...keys]);
+        S.queue = q; S.queueError = null;
+      } catch (e) { S.queueError = e.message === 'Failed to fetch' ? 'Can’t reach the results service' : e.message; }
+      renderQueue();
+    }
+    const ageMin = at => Math.max(0, Math.round((Date.now() - at) / 60000));
+    const ageTxt = at => { const m = ageMin(at); return m < 1 ? 'just now' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+    const callWords = i => i.winners?.length && /^(yes|no)$/i.test(i.winners[0]) ? (/^yes$/i.test(i.winners[0]) ? 'passes' : 'fails') : null;
+    const whoTxt = i => callWords(i) ? `${i.raceName.replace(/:.*/, '')} ${callWords(i)}` : `${i.winners?.length > 1 ? i.winners.join(', ') : i.candidate}${i.party ? ` (${i.party})` : ''}`;
+    function renderQueue() {
+      const box = $('queue');
+      if (!box) return;
+      const on = !!S.token && !S.pub;
+      box.hidden = !on;
+      const n = on ? queueCount() : 0;
+      document.title = n ? `(${n}) ${S.baseTitle}` : S.baseTitle;
+      const qb = root.querySelector('.eb-qbtn');
+      if (qb) { qb.classList.toggle('on', !!n); qb.innerHTML = `Call queue${n ? ` <b>${n}</b>` : ''}`; }
+      if (!on) return;
+      const q = S.queue;
+      const w = q?.watch;
+      const ddhq = w?.held ? `Watching Decision Desk HQ from ${fmtStart(w.resultsStart)}` : w?.ddhq?.ok ? `Decision Desk HQ checked ${ago(w.ddhq.checkedAt)}` : w?.ddhq?.ok === false ? `Decision Desk HQ check failed: ${w.ddhq.error}` : 'Decision Desk HQ: waiting for first check';
+      const ap = w?.ap?.enabled ? (w.ap.ok === false ? ` · AP check failed: ${w.ap.error}` : ' · AP on') : ' · AP off (no X key)';
+      const items = q?.items || [];
+      const body = !q ? `<div class="eb-empty">${esc(S.queueError || 'Loading the queue…')}</div>`
+        : !items.length ? `<div class="eb-empty">Nothing waiting. Calls from Decision Desk HQ${w?.ap?.enabled ? ', AP' : ''} and races our counts say are decided show up here.</div>`
+        : items.slice(0, 40).map(i => {
+          const late = ageMin(i.at) >= 15 ? ' late2' : ageMin(i.at) >= 5 ? ' late' : '';
+          const chip = i.type === 'conflict' ? `<span class="qchip conflict">Conflict · ${esc(i.sourceLabel)}</span>`
+            : i.type === 'model' ? `<span class="qchip model ${i.confidence}">Model · ${i.confidence === 'high' ? 'High' : 'Medium'}</span>`
+            : i.type === 'unmatched' ? `<span class="qchip">Couldn’t match · ${esc(i.sourceLabel)}</span>`
+            : `<span class="qchip net">${esc(i.sourceLabel)}</span>`;
+          const line = i.type === 'conflict' ? `${esc(i.sourceLabel)} projects <b>${esc(whoTxt(i))}</b>. Your board says ${esc(i.current)}.`
+            : i.type === 'model' ? `Call it for <b>${esc(whoTxt(i))}</b>?`
+            : i.type === 'unmatched' ? esc(i.text || '')
+            : `${esc(i.sourceLabel)} projects <b>${esc(whoTxt(i))}</b>`;
+          const why = i.type === 'model' ? esc(i.reason) : i.type === 'unmatched' ? esc(i.note || '') : '';
+          const confirming = S.qConfirm === i.key;
+          const pubLabel = confirming ? 'Tap again to publish' : i.type === 'conflict' ? 'Switch the call' : i.type === 'model' ? 'Publish as OC Scanner' : `Publish (${i.sourceLabel})`;
+          return `<div class="eb-q ${i.type}${late}">
+            <div class="qh">${chip}<span class="qage" title="${esc(new Date(i.at).toLocaleString())}">${ageTxt(i.at)}</span></div>
+            ${i.raceId ? `<button type="button" class="qrace" data-qopen="${i.raceId}" data-qtab="${i.tab}">${esc(i.raceName)}</button>` : ''}
+            <div class="qline">${line}</div>${why ? `<div class="qwhy">${why}</div>` : ''}
+            <div class="qact">${i.raceId ? `<button type="button" class="eb-btn${confirming ? ' warn' : ''}" data-qpub="${esc(i.key)}">${pubLabel}</button>` : ''}<button type="button" class="eb-btn" data-qdis="${esc(i.key)}">Dismiss</button>${i.url ? `<a class="eb-btn" href="${esc(i.url)}" target="_blank" rel="noopener">Post</a>` : ''}</div>
+          </div>`;
+        }).join('') + (items.length > 40 ? `<div class="eb-empty">${items.length - 40} more below the fold — work the top ones first.</div>` : '');
+      const bulk = bulkGroups(items);
+      const bulkHtml = bulk.filter(g => g.keys.length > 1).map(g => `<button type="button" class="eb-btn" data-qbulk="${g.id}">${esc(g.label)} (${g.keys.length})</button>`).join('');
+      box.innerHTML = `<h4>Call queue<small>${items.length ? `${queueCount()} waiting` : ''}</small></h4>
+        ${bulkHtml ? `<div class="eb-qbulk">${bulkHtml}</div>` : ''}
+        <div class="eb-qwatch">${esc(ddhq + ap)}${q?.simulation ? ' · <b>Rehearsal</b>' : ''} · <button type="button" class="eb-linkbtn" data-act="testwatch">Test DDHQ feed</button></div>
+        <div class="eb-qlist">${body}</div>`;
+    }
+    // "Publish all" groups: DDHQ calls, AP calls, high-confidence model suggestions. Never conflicts.
+    function bulkGroups(items) {
+      return [
+        { id: 'AP', label: 'Publish all AP calls', keys: items.filter(i => i.type === 'call' && i.source === 'AP').map(i => i.key) },
+        { id: 'DDHQ', label: 'Publish all Decision Desk HQ calls', keys: items.filter(i => i.type === 'call' && i.source === 'DDHQ').map(i => i.key) },
+        { id: 'MODEL', label: 'Publish all high-confidence model calls', keys: items.filter(i => i.type === 'model' && i.confidence === 'high').map(i => i.key) },
+      ];
+    }
+    async function queueBulk(id) {
+      const g = bulkGroups(S.queue?.items || []).find(x => x.id === id);
+      if (!g?.keys.length) return;
+      const names = (S.queue.items.filter(i => g.keys.includes(i.key)).slice(0, 12).map(i => `• ${i.raceName}: ${whoTxt(i)}`).join('\n'));
+      const more = g.keys.length > 12 ? `\n…and ${g.keys.length - 12} more` : '';
+      if (!confirm(`${g.label.replace('Publish all', 'Publish')}: ${g.keys.length} calls${S.sim ? ' (rehearsal)' : ''}?\n\n${names}${more}`)) return;
+      try {
+        const r = await fetch(`${S.api}/v1/desk/queue`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` }, body: JSON.stringify({ keys: g.keys, action: 'publish', sim: S.sim }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+        toast(`${j.done} calls published${j.failed?.length ? `, ${j.failed.length} skipped (the race changed; they stay in the queue)` : ''}${S.sim ? ' (rehearsal)' : ''}`);
+      } catch (e) { toast(`Not saved: ${e.message}`); }
+      await load(true);
+      loadQueue();
+    }
+    let qConfirmTimer = 0;
+    function queuePublish(key) {
+      if (S.qConfirm !== key) {                        // two taps, so a stray tap can't publish
+        S.qConfirm = key; renderQueue();
+        clearTimeout(qConfirmTimer); qConfirmTimer = setTimeout(() => { S.qConfirm = null; renderQueue(); }, 5000);
+        return;
+      }
+      S.qConfirm = null; clearTimeout(qConfirmTimer);
+      return queueAct(key, 'publish', 'Call published');
+    }
+    async function queueAct(key, action, okMsg) {
+      try {
+        const r = await fetch(`${S.api}/v1/desk/queue`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` }, body: JSON.stringify({ key, action, sim: S.sim }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+        toast(okMsg + (S.sim ? ' (rehearsal)' : ''));
+        if (S.queue) S.queue.items = S.queue.items.filter(i => i.key !== key);
+        renderQueue();
+        if (action === 'publish') await load(true);
+        loadQueue();
+      } catch (e) { toast(`Not saved: ${e.message}`); loadQueue(); }
+    }
+    function openRace(id, tab) {
+      if (tab && tab !== S.chamber) { S.chamber = tab; store.set('chamber', tab); S.limit = 60; if (isArea(tab) && !AD()) loadLocal(AREA_OF[tab]).then(() => select(id)); renderAll(); }
+      select(id);
+      $('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function toast(msg) {
       const t = document.createElement('div'); t.className = 'eb-toast'; t.textContent = msg; t.setAttribute('role', 'status');
       document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
@@ -1069,9 +1205,13 @@
       timer = setInterval(() => { if (!document.hidden) load(); }, every);
       setInterval(() => { const a = $('ago'); if (a && !document.hidden && S.lastOk) a.textContent = `Updated ${ago(S.lastOk)}`; }, 5000);
     }
+    // The desk's queue refreshes every 20 seconds, even in a background tab, so new calls chime
+    loadQueue();
+    const qTimer = setInterval(() => { if (S.token && !S.pub) loadQueue(); }, 20000);
+    setInterval(() => { if (S.queue && !document.hidden) renderQueue(); }, 30000);   // keep the ages current
     return {
       refresh: () => load(),
-      destroy: () => clearInterval(timer),
+      destroy: () => { clearInterval(timer); clearInterval(qTimer); },
       get state() { return S; },
     };
   }

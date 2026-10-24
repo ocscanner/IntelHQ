@@ -11,9 +11,10 @@ previews = {}
 enabled = true
 
 # Every 5 minutes the Worker downloads whatever state files are due (each state about every 10 minutes).
-# This is 1 of the 5 scheduled triggers a free Cloudflare account allows.
+# Every minute it checks Decision Desk HQ's Bluesky feed (and AP's, if X_BEARER_TOKEN is set) for race calls
+# and adds them to the desk's call queue. These are 2 of the 5 scheduled triggers a free account allows.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/5 * * * *", "* * * * *"]
 
 [vars]
 ELECTION_DATE = "2026-11-03"
@@ -45,7 +46,8 @@ SIM_CYCLE_MINUTES = "90"
 AP_BASE = "https://api.ap.org/v3"
 AP_TEST = "false"
 
-# Secrets — set with:  npx wrangler secret put DESK_TOKEN   (and AP_API_KEY if you license AP)
+# Secrets — set with:  npx wrangler secret put DESK_TOKEN   (and AP_API_KEY if you license AP;
+# X_BEARER_TOKEN to add @AP_RaceCalls to the call queue through the X API)
 
 [[d1_databases]]
 binding = "DB"
