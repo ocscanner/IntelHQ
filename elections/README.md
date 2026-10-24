@@ -166,6 +166,34 @@ states' ballot measures aren't tracked.
 - Statewide propositions pass with a simple majority. California counts mail ballots for weeks, so close
   ones can take days to call; the percentage shown is precincts reporting, not ballots counted.
 
+## Phone alerts (desk only)
+
+Your phone can buzz when something needs you, even with IntelHQ closed. It uses standard web push (what
+installed web apps use): no app store and no outside service. Turn it on from the call queue: **Phone alerts →
+Turn on alerts on this device**, then **Send a test alert**.
+
+- **What alerts:** Decision Desk HQ / AP calls (and calls the watcher couldn't match), high-confidence model
+  calls, and feed failures (one alert when a state's feed breaks, one when it works again). Conflicts are off by
+  default. Each device keeps its own choices. Tapping an alert opens that race on the board.
+- **Busy moments:** more than 3 of one kind in the same minute arrive as one alert ("12 network calls waiting").
+- **iPhone:** works from the Home Screen app only (iOS 16.4 or later): Safari → Share → Add to Home Screen, open
+  IntelHQ from the Home Screen, sign in to the desk there (it doesn't share Safari's sign-in), turn alerts on.
+- **Android / computer:** Chrome, Edge or Firefox; allow notifications when asked.
+- **When:** queue and feed alerts start with results on Nov 3; the test alert works any time.
+- The Worker makes its own signing key on first use and keeps it in the database, so there's nothing to paste.
+- Public alerts for published calls (opt-in on the public page) are a possible next step; not built.
+
+## Issue log (for the 2028 rebuild)
+
+Everything that broke or needed a hand on election night, in the call queue under **Issue log**:
+
+- **Written automatically:** a state's feed failing, working again, or going dark after having results; DDHQ/AP
+  calls the watcher couldn't match to a race, or named someone not on our candidate list; network calls that
+  disagreed with the board; races whose counts had to be typed in (once per race); withdrawn calls.
+- **Your notes:** **Log issue** adds a one-line note, tagged to the race you have open.
+- **Copy the whole log** gives a plain-text report grouped by kind, ready to become the 2028 rebuild doc.
+- Rehearsal activity is never logged.
+
 ## Free plan or Workers Paid
 
 Cloudflare's free plan allows 100,000 requests a day **per account** (shared with the radar proxy),

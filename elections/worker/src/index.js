@@ -22,6 +22,11 @@
  *  GET  /v1/desk/queue       calls waiting for the desk: DDHQ/AP calls, model suggestions, conflicts (desk token)
  *  POST /v1/desk/queue       {key, action: "publish" | "dismiss", sim?}  or {keys: [...], ...} for several  (desk token)
  *  GET  /v1/desk/watch       read DDHQ's Bluesky feed now and show how each post parses (desk token, saves nothing)
+ *  GET  /v1/desk/log         the election-night issue log (?format=text for the post-mortem export)   (desk token)
+ *  POST /v1/desk/log         {note, raceId?}  add a desk note to the log                             (desk token)
+ *  GET  /v1/desk/push        phone alerts: signing key, devices with alerts on, alert types          (desk token)
+ *  POST /v1/desk/push        {action: "subscribe", subscription, prefs, label} | {action: "prefs", endpoint, prefs}
+ *                            | {action: "unsubscribe", endpoint} | {action: "test", endpoint?}       (desk token)
  */
 import universe from '../../data/races-2026.json';
 import { buildBoard } from './board.js';
@@ -36,7 +41,9 @@ import { buildLocal } from './local.js';
 import { simulateCounties, simulateLocal, simulateProps } from './sources/simulate-extra.js';
 import { runWatch, ensureQueue, readDDHQ, postsToRows } from './queue/watch.js';
 import { buildQueue, targets, rehearsalPosts, SOURCE_LABEL } from './queue/build.js';
-import { parseDDHQ, matchCall } from './queue/parse.js';
+import { parseDDHQ, matchCall, STATES } from './queue/parse.js';
+import { addLog, listLog, firstTime, feedChanges, logText } from './log.js';
+import { vapidKeys, listSubs, saveSub, setPrefs, removeSub, notify, ALERT_TYPES, DEFAULT_PREFS } from './push.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
 const LOCAL_IDS = new Set(OC_LOCAL.contests.map(c => `OC-${c.id}`));
@@ -71,6 +78,29 @@ export default {
         if (request.method === 'GET' && p === '/v1/desk/preview') return json(await preview(env, url), cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/queue') return json(await queue(env, isSim(env, url)), cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/watch') return json(await watchPreview(), cors, 0);
+        if (p === '/v1/desk/log') {
+          if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
+          if (request.method === 'GET') {
+            const entries = await listLog(env.DB, 2000);
+            if (url.searchParams.get('format') === 'text') return new Response(logText(entries), { headers: { ...cors, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+            return json({ entries }, cors, 0);
+          }
+          const b = await request.json().catch(() => ({}));
+          const note = String(b.note || '').trim();
+          if (!note) return json({ error: 'note required' }, cors, 0, 400);
+          const raceId = b.raceId ? String(b.raceId).toUpperCase().slice(0, 20) : null;
+          await addLog(env.DB, [{ kind: 'note', raceId, state: raceId?.slice(0, 2) || null, title: note.slice(0, 200), detail: note.length > 200 ? note.slice(200) : null, source: 'desk' }]);
+          return json({ ok: true }, cors, 0);
+        }
+        if (p === '/v1/desk/push') {
+          if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
+          if (request.method === 'GET') {
+            const [keys, subs] = await Promise.all([vapidKeys(env.DB), listSubs(env.DB)]);
+            return json({ publicKey: keys.publicKey, types: ALERT_TYPES, defaults: DEFAULT_PREFS, devices: subs.map(s => ({ endpoint: s.endpoint, label: s.label, prefs: s.prefs, createdAt: s.createdAt, lastOk: s.lastOk, lastError: s.lastError })) }, cors, 0);
+          }
+          const res = await pushAction(env, await request.json().catch(() => ({})));
+          return json(res, cors, 0, res.error ? 400 : 200);
+        }
         if (request.method === 'POST' && p === '/v1/desk/queue') {
           const body = await request.json().catch(() => ({}));
           const res = await queueAction(env, body);
@@ -106,7 +136,55 @@ export async function watchRun(env, { now = Date.now(), fetchImpl = fetch } = {}
   if (now < startOf(env) && env.INGEST_EARLY !== 'true') return { skipped: 'before results start' };
   // Calls posted before results start (primaries, old posts) are ignored
   const out = await runWatch({ env, db: env.DB, races: MATCH_RACES, props: MATCH_PROPS, fetchImpl, now, notBefore: env.INGEST_EARLY === 'true' ? 0 : startOf(env) });
-  return { saved: out.saved.length, status: out.status };
+  let alerts = null;
+  try { alerts = await afterWatch(env, out, now, fetchImpl); } catch (e) { alerts = { error: String(e.message || e).slice(0, 160) }; }
+  return { saved: out.saved.length, status: out.status, alerts };
+}
+// After each watch pass: log what needs a human (unmatched calls, conflicts) and alert the desk's phones about
+// anything new in the queue. Each queue item alerts once (table "notified").
+async function afterWatch(env, out, now, fetchImpl) {
+  const db = env.DB;
+  const entries = [];
+  for (const r of out.saved) {
+    const src = SOURCE_LABEL[r.source] || r.source;
+    if (!r.raceId) entries.push({ kind: 'unmatched_call', title: `${src} call not matched to a race${r.note ? `: ${r.note}` : ''}`, detail: r.text, source: r.source });
+    else if (r.note) entries.push({ kind: 'name_mismatch', raceId: r.raceId, state: r.raceId.slice(0, 2), title: `${src} called ${r.raceId} for ${r.candidate}, who isn't on our candidate list`, detail: r.text, source: r.source });
+  }
+  const q = await queue(env, false);
+  const fresh = await firstTime(db, q.items.map(i => `q|${i.key}`), now);
+  const items = q.items.filter(i => fresh.has(`q|${i.key}`));
+  for (const i of items) if (i.type === 'conflict') entries.push({ kind: 'conflict', raceId: i.raceId, state: i.raceId?.slice(0, 2), title: `${i.sourceLabel} projects ${whoOf(i)} in ${i.raceName}; the board had ${i.current}`, detail: i.text, source: i.source });
+  await addLog(db, entries, now);
+  const alerts = items.map(alertFor).filter(Boolean);
+  return alerts.length ? notify(db, alerts, { fetchImpl, now }) : { sent: 0 };
+}
+const DESK_URL = 'https://ocscanner.github.io/IntelHQ/hq.html';
+const raceUrl = id => id ? `${DESK_URL}?race=${encodeURIComponent(id)}#elections` : `${DESK_URL}#elections`;
+const whoOf = i => i.winners?.length && /^(yes|no)$/i.test(i.winners[0]) ? (/^yes$/i.test(i.winners[0]) ? 'it passes' : 'it fails')
+  : `${i.winners?.length > 1 ? i.winners.join(', ') : i.candidate}${i.party ? ` (${i.party})` : ''}`;
+export function alertFor(i) {
+  const who = whoOf(i);
+  if (i.type === 'call') return { type: 'calls', title: `${i.sourceLabel}: ${i.raceName}`, body: `Projects ${who}. Tap to review in the call queue.`, short: `${i.raceName}: ${who}`, url: raceUrl(i.raceId), tag: i.key };
+  if (i.type === 'unmatched') return { type: 'calls', title: `${i.sourceLabel} call to check by hand`, body: String(i.text || '').slice(0, 180), short: 'a call to match by hand', url: raceUrl(null), tag: i.key };
+  if (i.type === 'conflict') return { type: 'conflicts', title: `Conflict: ${i.raceName}`, body: `${i.sourceLabel} projects ${who}. Your board says ${i.current}.`, short: `${i.raceName} conflict`, url: raceUrl(i.raceId), tag: i.key };
+  if (i.type === 'model' && i.confidence === 'high') return { type: 'model', title: `Model: ${i.raceName} looks decided`, body: `${who}. ${i.reason}`, short: `${i.raceName}: ${who}`, url: raceUrl(i.raceId), tag: i.key };
+  return null;
+}
+async function pushAction(env, b) {
+  const db = env.DB;
+  if (b.action === 'subscribe') {
+    const r = await saveSub(db, b);
+    if (r.error) return r;
+    await notify(db, [{ type: 'test', title: 'Alerts are on for this device', body: 'You’ll get OC Scanner desk alerts here on election night.', url: `${DESK_URL}#elections`, tag: 'welcome' }], { only: b.subscription.endpoint });
+    return r;
+  }
+  if (b.action === 'prefs') return setPrefs(db, String(b.endpoint || ''), b.prefs);
+  if (b.action === 'unsubscribe') return removeSub(db, String(b.endpoint || ''));
+  if (b.action === 'test') {
+    const r = await notify(db, [{ type: 'test', title: 'Test alert from the OC Scanner desk', body: 'If you can read this, election-night alerts will reach this device.', url: `${DESK_URL}#elections`, tag: 'test' }], { only: b.endpoint || null });
+    return r.sent ? { ok: true, ...r } : { error: r.devices ? `Not delivered: ${r.errors?.[0]?.error || 'unknown error'}` : 'No devices have alerts on', ...r };
+  }
+  return { error: 'action must be subscribe, prefs, unsubscribe or test' };
 }
 
 /* ── Scheduled download ── */
@@ -130,8 +208,17 @@ export async function scheduledRun(env, { now = Date.now(), fetchImpl = fetch } 
     await store.saveUnits([row]);
   }
   const budget = Math.max(1, +(env.SUBREQUEST_BUDGET || 45) - apUsed);
+  const before = await store.loadUnits();
   const out = await runIngest({ env: { ...env, SUBREQUEST_BUDGET: budget }, universe, store, fetchImpl, now });
   await purge();
+  // Feeds that broke, recovered or went dark: into the issue log, and to the desk's phones
+  try {
+    const changes = feedChanges(before, out.units, st => ({ OC: 'Orange County', CAP: 'California propositions' })[st] || STATES[st] || st);
+    if (changes.length) {
+      await addLog(env.DB, changes, now);
+      await notify(env.DB, changes.map(c => ({ type: 'feeds', title: c.title, body: c.detail || '', short: c.title, url: `${DESK_URL}#elections`, tag: `feed-${c.state}` })), { fetchImpl, now });
+    }
+  } catch (e) { console.log('feed log/alerts failed', e.message); }
   return { used: out.used + apUsed, units: out.units.length, races: out.results.length };
 }
 
@@ -476,6 +563,7 @@ async function desk(env, action, b) {
         .bind(ns, id, prev?.party || null, prev?.candidate || null, prev?.source || null, b.note || null, prev?.called_at || null, now),
       env.DB.prepare('INSERT INTO call_log (ns, race_id, party, candidate, source, kind, at) VALUES (?,?,?,?,?,?,?)').bind(ns, id, prev?.party || null, prev?.candidate || null, prev?.source || 'OC Scanner desk', 'retract', now),
     ]);
+    if (ns === 'live') await addLog(env.DB, [{ kind: 'retract', raceId: id, state: id.slice(0, 2), title: `Withdrew the call in ${id}${prev?.candidate ? ` (${prev.candidate})` : ''}`, detail: b.note || null, source: 'desk' }], now);
     return { ok: true, raceId: id, retracted: true };
   }
   if (action === 'clear') {
@@ -487,6 +575,9 @@ async function desk(env, action, b) {
     if (!cands.length) return { error: 'candidates required' };
     const payload = { candidates: cands, pctIn: b.pctIn == null ? null : Math.max(0, Math.min(100, +b.pctIn)), pctLabel: 'expected vote', updated: new Date(now).toISOString() };
     await env.DB.prepare('INSERT OR REPLACE INTO desk_result (ns, race_id, payload, updated_at) VALUES (?,?,?,?)').bind(ns, id, JSON.stringify(payload), now).run();
+    if (ns === 'live' && (await firstTime(env.DB, [`manual|${id}`], now)).size) {
+      await addLog(env.DB, [{ kind: 'manual_count', raceId: id, state: id.slice(0, 2), title: `Typed in vote counts for ${id}`, detail: 'No feed (or a broken one) for this race', source: 'desk' }], now);
+    }
     return { ok: true, raceId: id };
   }
   return { error: `Unknown desk action ${action}` };

@@ -147,6 +147,7 @@
       if (t.dataset.race) { select(t.dataset.race); return; }
     });
     $('search').addEventListener('input', e => { S.q = e.target.value.trim().toLowerCase(); S.limit = 60; renderList(); });
+    root.addEventListener('change', e => { const k = e.target?.dataset?.apref; if (k) alertsPref(k, e.target.checked); });
     // One tooltip handler for both the US map and the county maps
     $('map').addEventListener('mousemove', e => {
       const box = $('map'), tip = box.querySelector('.eb-tip');
@@ -957,6 +958,14 @@
           } catch (e) { toast(`DDHQ feed check failed: ${e.message}`); }
           return;
         }
+        case 'tools-alerts': S.tools = S.tools === 'alerts' ? null : 'alerts'; renderQueue(); if (S.tools) pushRefresh(); return;
+        case 'tools-log': S.tools = S.tools === 'log' ? null : 'log'; renderQueue(); if (S.tools) logLoad(); return;
+        case 'alerts-on': return alertsOn();
+        case 'alerts-off': return alertsOff();
+        case 'alerts-test': return alertsTest();
+        case 'log-note': return logNote();
+        case 'log-copy': return logCopy();
+        case 'log-refresh': return logLoad();
         case 'opensheet': S.sheetOpen = true; return renderDetail();
         case 'watch': return toggleWatch(r.id);
         case 'copypost': return copy(areaOfId(r.id) ? localPost(r) : postText(r), 'Post copied');
@@ -1021,7 +1030,7 @@
       const t = prompt('Desk token (set on the Worker as DESK_TOKEN):');
       if (!t) return;
       const r = await fetch(`${S.api}/v1/desk/check`, { headers: { Authorization: `Bearer ${t.trim()}` } }).catch(() => null);
-      if (r?.ok) { S.token = t.trim(); store.set('token', S.token); toast('Desk mode on'); renderAll(); loadQueue(); }
+      if (r?.ok) { S.token = t.trim(); store.set('token', S.token); toast('Desk mode on'); renderAll(); loadQueue(); pushRefresh(); }
       else toast('That token didn’t work.');
     }
 
@@ -1124,7 +1133,128 @@
       box.innerHTML = `<h4>Call queue<small>${items.length ? `${queueCount()} waiting` : ''}</small></h4>
         ${bulkHtml ? `<div class="eb-qbulk">${bulkHtml}</div>` : ''}
         <div class="eb-qwatch">${esc(ddhq + ap)}${q?.simulation ? ' · <b>Rehearsal</b>' : ''} · <button type="button" class="eb-linkbtn" data-act="testwatch">Test DDHQ feed</button></div>
+        ${toolsHtml()}
         <div class="eb-qlist">${body}</div>`;
+    }
+
+    /* ── Desk tools: phone alerts and the issue log (IntelHQ desk only) ── */
+    const deskApi = async (method, path, body) => {
+      const r = await fetch(`${S.api}/v1/desk/${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+      return j;
+    };
+    const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const deviceLabel = () => {
+      const u = navigator.userAgent;
+      const dev = /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) || isIOS() ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows PC' : 'Device';
+      const br = /Edg\//.test(u) ? 'Edge' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : '';
+      return `${dev}${br && !standalone() ? ` (${br})` : standalone() ? ' (Home Screen app)' : ''}`;
+    };
+    const keyBytes = b64 => { const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4)); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+    S.push = S.push || { prefs: null, endpoint: null, info: null, busy: false };
+    async function pushRefresh() {
+      if (!S.token || S.pub) return;
+      try {
+        const [info, sub] = await Promise.all([deskApi('GET', 'push'), pushSupported() ? navigator.serviceWorker.getRegistration().then(r => r?.pushManager.getSubscription()) : null]);
+        S.push.info = info;
+        const mine = sub && info.devices.find(d => d.endpoint === sub.endpoint);
+        S.push.endpoint = mine ? sub.endpoint : null;
+        S.push.prefs = mine ? mine.prefs : S.push.prefs;
+      } catch (e) { S.push.error = e.message === 'Failed to fetch' ? 'Can’t reach the results service' : e.message; }
+      renderQueue();
+    }
+    async function alertsOn() {
+      if (S.push.busy) return;
+      S.push.busy = true; renderQueue();
+      try {
+        if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications are blocked for IntelHQ in this browser’s settings');
+        const reg = await navigator.serviceWorker.ready;
+        const info = S.push.info || await deskApi('GET', 'push');
+        let sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe().catch(() => {});                // start clean (it may belong to an old key)
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(info.publicKey) });
+        await deskApi('POST', 'push', { action: 'subscribe', subscription: sub.toJSON(), prefs: S.push.prefs || info.defaults || undefined, label: deviceLabel() });
+        toast('Alerts are on for this device. A welcome alert is on its way.');
+      } catch (e) { toast(`Alerts not turned on: ${e.message}`); }
+      S.push.busy = false;
+      pushRefresh();
+    }
+    async function alertsOff() {
+      try {
+        const sub = await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription();
+        if (sub) { await deskApi('POST', 'push', { action: 'unsubscribe', endpoint: sub.endpoint }); await sub.unsubscribe(); }
+        toast('Alerts are off for this device');
+      } catch (e) { toast(`Couldn’t turn alerts off: ${e.message}`); }
+      pushRefresh();
+    }
+    async function alertsTest() {
+      try { const r = await deskApi('POST', 'push', { action: 'test', endpoint: S.push.endpoint }); toast(`Test alert sent${r.devices > 1 ? '' : ''}. It should arrive in a few seconds.`); }
+      catch (e) { toast(`Test failed: ${e.message}`); }
+    }
+    async function alertsPref(k, on) {
+      const prefs = { ...(S.push.prefs || {}), [k]: on };
+      S.push.prefs = prefs;
+      if (!S.push.endpoint) return renderQueue();
+      try { await deskApi('POST', 'push', { action: 'prefs', endpoint: S.push.endpoint, prefs }); toast('Saved'); }
+      catch (e) { toast(`Not saved: ${e.message}`); }
+      pushRefresh();
+    }
+    async function logLoad() {
+      try { S.issueLog = (await deskApi('GET', 'log')).entries; S.issueLogError = null; } catch (e) { S.issueLogError = e.message === 'Failed to fetch' ? 'Can’t reach the results service' : e.message; }
+      renderQueue();
+    }
+    async function logNote() {
+      const race = S.selected && raceOf(S.selected);
+      const note = prompt(`What didn’t work?${race ? ` (tagged to ${race.id})` : ''}\nThis goes in the issue log for the 2028 rebuild.`);
+      if (!note?.trim()) return;
+      try { await deskApi('POST', 'log', { note: note.trim(), raceId: race?.id || null }); toast('Logged'); if (S.tools === 'log') logLoad(); }
+      catch (e) { toast(`Not logged: ${e.message}`); }
+    }
+    async function logCopy() {
+      try {
+        const r = await fetch(`${S.api}/v1/desk/log?format=text`, { headers: { Authorization: `Bearer ${S.token}` }, cache: 'no-store' });
+        if (!r.ok) throw new Error(`Error ${r.status}`);
+        await copy(await r.text(), 'Issue log copied');
+      } catch (e) { toast(`Couldn’t copy the log: ${e.message}`); }
+    }
+    function toolsHtml() {
+      const on = !!S.push.endpoint;
+      const row = `<div class="eb-qtools">
+        <button type="button" class="eb-btn${S.tools === 'alerts' ? ' sel' : ''}" data-act="tools-alerts">Phone alerts: ${on ? '<b>on</b>' : 'off'}</button>
+        <button type="button" class="eb-btn" data-act="log-note">Log issue</button>
+        <button type="button" class="eb-btn${S.tools === 'log' ? ' sel' : ''}" data-act="tools-log">Issue log</button></div>`;
+      if (S.tools === 'alerts') return row + `<div class="eb-qtool">${alertsHtml()}</div>`;
+      if (S.tools === 'log') return row + `<div class="eb-qtool">${logHtml()}</div>`;
+      return row;
+    }
+    function alertsHtml() {
+      const info = S.push.info;
+      if (!pushSupported()) {
+        return isIOS() && !standalone()
+          ? '<p>On iPhone, alerts work from the Home Screen app: tap <b>Share</b> → <b>Add to Home Screen</b>, open IntelHQ from the Home Screen, sign in to the desk there, and turn alerts on. (iOS 16.4 or later.)</p>'
+          : '<p>This browser can’t receive alerts. Chrome, Edge or Firefox on a computer or Android phone, or IntelHQ added to an iPhone Home Screen, can.</p>';
+      }
+      if (!info) return `<p>${esc(S.push.error || 'Loading…')}</p>`;
+      const prefs = S.push.prefs || info.defaults || {};
+      const boxes = Object.entries(info.types).map(([k, label]) => `<label class="eb-qpref"><input type="checkbox" data-apref="${k}"${prefs[k] ? ' checked' : ''}> ${esc(label)}</label>`).join('');
+      const others = info.devices.filter(d => d.endpoint !== S.push.endpoint);
+      const list = info.devices.length ? `<p class="eb-qsmall">Alerts on: ${info.devices.map(d => esc(d.label) + (d.endpoint === S.push.endpoint ? ' (this one)' : '') + (d.lastError ? ` <span class="warnt">last alert failed: ${esc(d.lastError)}</span>` : '')).join(', ')}</p>` : '';
+      const btns = S.push.endpoint
+        ? '<button type="button" class="eb-btn" data-act="alerts-test">Send a test alert</button><button type="button" class="eb-btn" data-act="alerts-off">Turn off on this device</button>'
+        : `<button type="button" class="eb-btn" data-act="alerts-on"${S.push.busy ? ' disabled' : ''}>${S.push.busy ? 'Turning on…' : 'Turn on alerts on this device'}</button>${others.length ? '<button type="button" class="eb-btn" data-act="alerts-test">Test the other devices</button>' : ''}`;
+      return `<p>Your phone buzzes when something needs you, even with IntelHQ closed. Each alert opens the race here. Starts with results on Nov 3; send a test any time.</p>
+        <div class="eb-qprefs">${boxes}</div><div class="eb-actions">${btns}</div>${list}`;
+    }
+    function logHtml() {
+      if (!S.issueLog) return `<p>${esc(S.issueLogError || 'Loading…')}</p>`;
+      const t = at => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const rows = S.issueLog.slice(0, 30).map(e => `<li><span class="qage">${t(e.at)}</span> <b>${esc(e.label)}</b> ${esc(e.title)}${e.detail ? `<div class="qwhy">${esc(e.detail.slice(0, 160))}</div>` : ''}</li>`).join('');
+      return `<p>Everything that broke or needed a hand on election night, written automatically (feeds failing, calls that didn’t match, conflicts, counts typed in, withdrawn calls) plus your notes. After the election it becomes the 2028 rebuild list.</p>
+        <div class="eb-actions"><button type="button" class="eb-btn" data-act="log-copy">Copy the whole log</button><button type="button" class="eb-btn" data-act="log-refresh">Refresh</button></div>
+        ${rows ? `<ul class="eb-ilog">${rows}</ul>` : '<p class="eb-qsmall">Nothing logged yet.</p>'}${S.issueLog.length > 30 ? `<p class="eb-qsmall">${S.issueLog.length - 30} older entries are in the copied log.</p>` : ''}`;
     }
     // "Publish all" groups: DDHQ calls, AP calls, high-confidence model suggestions. Never conflicts.
     function bulkGroups(items) {
@@ -1207,6 +1337,7 @@
     }
     // The desk's queue refreshes every 20 seconds, even in a background tab, so new calls chime
     loadQueue();
+    pushRefresh();
     const qTimer = setInterval(() => { if (S.token && !S.pub) loadQueue(); }, 20000);
     setInterval(() => { if (S.queue && !document.hidden) renderQueue(); }, 30000);   // keep the ages current
     return {

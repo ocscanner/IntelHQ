@@ -269,3 +269,16 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-linkbtn{background:none;border:0;padding:0;color:var(--eb-text2);text-decoration:underline;font-size:inherit;cursor:pointer}
 .eb-qbulk{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 8px}
 .eb-qbulk .eb-btn{font-size:.8rem;padding:4px 10px}
+
+/* Desk tools: phone alerts and issue log */
+.eb-qtools{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 8px}
+.eb-qtools .eb-btn{font-size:.8rem;padding:4px 10px}
+.eb-qtools .eb-btn.sel{outline:2px solid var(--eb-text2);outline-offset:-2px}
+.eb-qtool{margin:0 10px 10px;padding:8px 10px;border:1px solid var(--eb-line, rgba(127,127,127,.3));border-radius:8px;font-size:.85rem}
+.eb-qtool p{margin:0 0 8px}
+.eb-qprefs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 12px;margin-bottom:8px}
+.eb-qpref{display:flex;gap:6px;align-items:center;cursor:pointer}
+.eb-qsmall{font-size:.78rem;color:var(--eb-muted);margin-top:8px}
+.eb-qsmall .warnt{color:#c0392b}
+.eb-ilog{list-style:none;margin:8px 0 0;padding:0;max-height:260px;overflow:auto}
+.eb-ilog li{padding:5px 0;border-top:1px solid var(--eb-line, rgba(127,127,127,.2))}
