@@ -236,7 +236,7 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
   .eb-row{grid-template-columns:20px 1fr 92px;row-gap:4px}
   .eb-row .barcell{grid-column:2/-1;grid-row:2}
   .eb-row .pin{display:none}
-  .eb-map text{display:none}
+  .eb-map .eb-labels text{display:none}
   .eb-map .eb-cbar{position:static;margin:2px 0 6px;font-size:.95rem;flex-wrap:wrap;gap:6px}
   .eb-map .eb-cbar b{background:none;padding:0}
   .eb-back{padding:3px 9px;font-size:.85rem}
@@ -282,3 +282,8 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-qsmall .warnt{color:#c0392b}
 .eb-ilog{list-style:none;margin:8px 0 0;padding:0;max-height:260px;overflow:auto}
 .eb-ilog li{padding:5px 0;border-top:1px solid var(--eb-line, rgba(127,127,127,.2))}
+
+/* One-level-closer zoom inside a state */
+.eb-map .eb-cbar .eb-zhint{font-family:var(--eb-fb, inherit);font-weight:400;font-size:.78em;color:var(--eb-muted)}
+@media (hover:none){.eb-map .eb-cbar .eb-zhint{display:inline}}
+.eb-counties path.sub{stroke:var(--eb-sel);stroke-width:2.2px}

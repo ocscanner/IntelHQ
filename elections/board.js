@@ -122,6 +122,7 @@
         S.chamber = t.dataset.chamber; store.set('chamber', S.chamber); S.limit = 60; S.countyData = null;
         // Stay zoomed on the same state when switching between House, Senate and Governors
         S.stateFilter = S.chamber === 'house' ? S.zoomSt : null;
+        S.sub = null;
         if (isArea(S.chamber)) S.group = 'all';
         if (isArea(S.chamber) && !AD()) loadLocal(AREA_OF[S.chamber]);
         renderAll();
@@ -134,9 +135,9 @@
       if (t.dataset.qopen) { openRace(t.dataset.qopen, t.dataset.qtab); return; }
       if (t.dataset.gotoqueue != null) { $('queue').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (t.dataset.group) { S.group = t.dataset.group; S.limit = 60; renderMap(); renderList(); return; }
-      if (t.dataset.back != null) { unzoom(); return; }
-      if (t.dataset.fips) { showTip(e, countySummary(t.dataset.fips)); return; }
-      if (t.dataset.dist) { showTip(e, districtSummary(t.dataset.dist)); select(t.dataset.dist, { sheet: false }); return; }
+      if (t.dataset.back != null) { if (S.sub) zoomOut(); else unzoom(); return; }
+      if (t.dataset.fips) { showTip(e, countySummary(t.dataset.fips)); zoomInto(t); return; }
+      if (t.dataset.dist) { showTip(e, districtSummary(t.dataset.dist)); zoomInto(t); select(t.dataset.dist, { sheet: false }); return; }
       if (t.dataset.filter) { S.filter = t.dataset.filter; S.limit = 60; renderTools(); renderList(); return; }
       if (t.dataset.sort) { S.sort = t.dataset.sort; renderTools(); renderList(); return; }
       if (t.dataset.clearstate != null) { if (S.zoomSt) unzoom(); else { S.stateFilter = null; renderTools(); renderList(); renderMap(); } return; }
@@ -222,6 +223,7 @@
     }
     async function zoomTo(st) {
       if (S.zoomSt !== st) S.countyData = null;
+      S.sub = null;
       S.zoomSt = st;
       renderMap();
       await loadZoomShapes(st);
@@ -232,7 +234,7 @@
       if (S.zoomSt === st) renderMap();
     }
     function unzoom() {
-      S.zoomSt = null; S.countyData = null;
+      S.zoomSt = null; S.countyData = null; S.sub = null;
       if (S.chamber === 'house') S.stateFilter = null;
       renderTools(); renderList(); renderMap();
       animateTo(FULL_VB());
@@ -249,6 +251,44 @@
       if (w / h > aspect) { const nh = w / aspect; y0 -= (nh - h) / 2; h = nh; }
       else { const nw = h * aspect; x0 -= (nw - w) / 2; w = nw; }
       return [x0, y0, w, h];
+    }
+    /* One level closer: inside a zoomed state, tapping a county or district zooms in on it and its neighbors.
+       "← State" steps back out. Shapes that already fill most of the state view don't zoom further. */
+    function zoomInto(p) {
+      if (!S.zoomSt || !p?.getBBox) return;
+      const id = p.dataset.fips || p.dataset.dist;
+      if (S.sub?.id === id) return;
+      const [, , sw] = targetVB(), [, , fw, fh] = FULL_VB(), aspect = fw / fh;
+      const bb = p.getBBox();
+      let w = Math.max(bb.width, bb.height * aspect) * (p.dataset.fips ? 4 : 2.6);   // the shape plus its neighbors (counties are small)
+      if (w >= sw * 0.8) { if (S.sub) zoomOut(); return; }            // already big enough at state view
+      w = Math.max(w, sw / 14);                                       // never closer than ~14x the state view
+      const h = w / aspect, cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+      S.sub = { id, name: p.querySelector('title')?.textContent.split(/[:\n]/)[0] || id };
+      setTimeout(() => { const tip = $('map')?.querySelector('.eb-tip'); if (tip) tip.hidden = true; }, 0);   // it would point at the old spot
+      animateTo([cx - w / 2, cy - h / 2, w, h]);
+      sizeDistrictLabels(w);
+      markSub();
+      renderZoomBar();
+    }
+    const markSub = () => $('map')?.querySelectorAll('[data-r="counties"] path').forEach(x => x.classList.toggle('sub', S.sub?.id === x.dataset.fips));
+    function zoomOut() {
+      S.sub = null;
+      markSub();
+      const to = targetVB();
+      animateTo(to);
+      sizeDistrictLabels(to[2]);
+      renderZoomBar();
+    }
+    // District numbers stay about 12-21 px on screen at any zoom and screen size (skipped where a district is too small to hold one)
+    function sizeDistrictLabels(W) {
+      const px = $('map')?.querySelector('svg.eb-us')?.getBoundingClientRect().width || 1000;
+      const k = W / px;                                               // map units per screen pixel
+      $('map')?.querySelectorAll('[data-r="dlabels"] text').forEach(t => {
+        const sz = +t.dataset.s, fs = Math.min(Math.max(sz * 0.25, 12 * k), 21 * k);
+        t.style.fontSize = `${fs.toFixed(3)}px`; t.style.strokeWidth = `${(fs * 0.18).toFixed(3)}px`;
+        t.style.display = sz < fs * 1.9 ? 'none' : '';
+      });
     }
     let anim = 0;
     function animateTo(to) {
@@ -482,6 +522,7 @@
         // No data yet: let the state's own color show through; a state with no race on this tab goes gray
         p.style.fill = has ? countyFill(p.dataset.fips) : race || S.chamber === 'house' ? 'transparent' : 'var(--eb-wait)';
         p.querySelector('title').textContent = countySummary(p.dataset.fips);
+        p.classList.toggle('sub', S.sub?.id === p.dataset.fips);
       });
 
       // districts of the zoomed state (House tab)
@@ -492,10 +533,8 @@
         const [x0, y0, x1, y1] = dsh.bbox, span = Math.max(x1 - x0, y1 - y0), W = targetVB()[2];
         dg.innerHTML = Object.entries(dsh.districts).map(([id, c]) => `<path data-dist="${id}" d="${c.d}"><title>${esc(id)}</title></path>`).join('');
         // District numbers: sized to the zoomed view (about 12-21 px on screen), skipped where a district is too small to hold one
-        dl.innerHTML = Object.values(dsh.districts).map(c => {
-          const fs = Math.min(Math.max(c.s * 0.25, W * 0.012), W * 0.021);
-          return c.s < fs * 1.9 ? '' : `<text x="${c.c[0]}" y="${c.c[1]}" style="font-size:${fs.toFixed(2)}px;stroke-width:${(fs * 0.18).toFixed(2)}px">${c.n === 'AL' ? '' : c.n}</text>`;
-        }).join('');
+        dl.innerHTML = Object.values(dsh.districts).filter(c => c.n !== 'AL').map(c => `<text x="${c.c[0]}" y="${c.c[1]}" data-s="${c.s}">${c.n}</text>`).join('');
+        sizeDistrictLabels(S.sub ? (S.vb || targetVB())[2] : W);
         // Flip stripes sized to the state, so they read the same in Rhode Island and Texas
         const sw = (span / 70).toFixed(2);
         box.querySelectorAll('pattern[id^="eb-dflip-"]').forEach(pt => {
@@ -522,7 +561,8 @@
         const nSeats = house ? (S.data?.races || []).filter(r => r.state === z && r.chamber === 'house').length : 0;
         const title = race ? `${race.name} by county` : house ? `${stateName(z)}: ${nSeats} House ${nSeats === 1 ? 'seat' : 'districts'}` : `${stateName(z)}: no ${word} race this year`;
         const selHouse = house && S.byId?.get(S.selected)?.state === z && S.byId.get(S.selected).chamber === 'house';
-        bar.innerHTML = `<button type="button" class="eb-back" data-back>← US map</button><b>${esc(title)}</b>${race || selHouse ? '<button type="button" class="eb-back eb-narrow" data-act="opensheet">Race details</button>' : ''}`;
+        S.zoomTitle = title; S.zoomDetails = !!(race || selHouse);
+        renderZoomBar();
       }
       let note = '';
       if (z && house) {
@@ -649,6 +689,14 @@
         }).join('')}</div>
       </div>`;
       $('key').innerHTML = `<span><i style="background:var(--eb-yes)"></i>Yes</span><span><i style="background:var(--eb-no)"></i>No</span><span>Unofficial results from the ${esc(L.source)}. ${esc(L.note || '')} California counts mail ballots for weeks, so close ones can take a while to call.</span>${L.simulation ? '<span><b>Rehearsal data</b></span>' : ''}`;
+    }
+
+    function renderZoomBar() {
+      const bar = $('map')?.querySelector('[data-r="cbar"]');
+      if (!bar || !S.zoomSt) return;
+      const back = S.sub ? `← ${esc(stateName(S.zoomSt))}` : '← US map';
+      const title = S.sub ? `${esc(S.zoomTitle || '')} · ${esc(S.sub.name)}` : `${esc(S.zoomTitle || '')}<small class="eb-zhint"> · tap a ${S.chamber === 'house' ? 'district' : 'county'} to zoom in</small>`;
+      bar.innerHTML = `<button type="button" class="eb-back" data-back>${back}</button><b>${title}</b>${S.zoomDetails ? '<button type="button" class="eb-back eb-narrow" data-act="opensheet">Race details</button>' : ''}`;
     }
 
     function selectState(st) {
@@ -928,7 +976,10 @@
       renderList(); renderDetail();
       if (S.chamber === 'props') renderMap();
       // Senate and governor races zoom the map into their state's counties
-      if (r && r.chamber === 'house' && S.chamber === 'house') { if (S.zoomSt !== r.state) zoomTo(r.state); else renderMap(); }
+      if (r && r.chamber === 'house' && S.chamber === 'house') {
+        if (S.zoomSt !== r.state) zoomTo(r.state);
+        else { renderMap(); if (S.sub && S.sub.id !== id) zoomInto($('map').querySelector(`path[data-dist="${id}"]`)); }
+      }
       if (r && r.chamber !== 'house' && r.chamber === S.chamber) {
         if (S.zoomSt === r.state) { if (S.countyData?.raceId !== r.id) { S.countyData = null; renderMap(); loadCounties().then(() => renderMap()); } }
         else zoomTo(r.state);
