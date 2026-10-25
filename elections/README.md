@@ -13,6 +13,9 @@ It also has:
   (won, leading, striped for a flip) and numbered. Select a district for its race; selecting a House race
   in the list also zooms to its district. Switching tabs keeps you on the same state; select a neighboring
   state to jump there; "← US map" (or Esc) zooms back out. On phones, tap a county or district for its numbers.
+- **One level closer.** Inside a state, tap a county or district to zoom in on it and its neighbors (handy for
+  LA, the Bay Area or New York); tap a neighbor to move over, "← State" to step back out. Big shapes that
+  already fill the view don't zoom further. A trial of the simple version; free pinch/drag zoom is the next step if wanted.
 - **A CA Props tab** with California's 14 statewide propositions (Props 1–5 and 37–45): a scoreboard of
   all 14, Yes/No for each, how Orange County voted on it, and desk calls (passes / fails).
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,
