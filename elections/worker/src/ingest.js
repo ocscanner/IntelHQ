@@ -2,7 +2,7 @@
 // Runs from the Worker's cron trigger. Viewers never cause downloads from state servers.
 import { enabledAdapters } from './feeds/states.js';
 
-export const USER_AGENT = 'Mozilla/5.0 (compatible; OCScannerElectionWire/1.0; +https://ocscanner.news)';
+export const USER_AGENT = 'Mozilla/5.0 (compatible; OCScannerElectionWire/1.0; +https://ocscanner.media)';
 
 class BudgetError extends Error { constructor() { super('Download budget for this run used up'); this.budget = true; } }
 class HttpError extends Error { constructor(status, url) { super(`HTTP ${status}`); this.status = status; this.url = url; } }

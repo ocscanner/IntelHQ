@@ -19,7 +19,7 @@ crons = ["*/5 * * * *", "* * * * *"]
 [vars]
 ELECTION_DATE = "2026-11-03"
 # Sites allowed to use desk (write) actions from a browser
-ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.news"
+ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.media,https://www.ocscanner.media"
 
 # State feeds. States post test numbers in the weeks before an election, so nothing is downloaded or
 # shown before RESULTS_START (2 p.m. Pacific on Nov 3, an hour before the first polls close).

@@ -26,7 +26,7 @@ It shows up in three places:
 
 - **IntelHQ → Politics & Elections**, under "Live Results Board" (full desk tools)
 - **Full screen** at `elections/index.html` (for a second monitor on election night)
-- **Public version** at `elections/public.html`: read-only, for ocscanner.news (see below)
+- **Public version** at `elections/public.html`: read-only, for ocscanner.media (see below)
 
 ```
 elections/
@@ -330,14 +330,14 @@ election week should be roughly $10–30), copy its Bearer Token, then in `elect
 
 ## The public site
 
-The public Elections page (ocscanner.github.io/PublicSiteTest/elections.html, later ocscanner.news/elections)
+The public Elections page (ocscanner.github.io/PublicSiteTest/elections.html, later ocscanner.media/elections)
 is the same board with no desk sign-in, rehearsal switch or Copy post for X, styled to match the site.
 Your IntelHQ calls, county maps, the CA Props tab and the Orange County tab all appear there within about a minute.
 
 It uses copies of this folder's files, so **when `board.js`, `board.css` or anything in `data/` changes
 here, copy them to the PublicSiteTest repo's `elections/` folder too**: `board.js`, `board.css`,
 `data/us-states.json`, `data/counties/` and `data/districts/`. If the site moves somewhere other than ocscanner.github.io or
-ocscanner.news, add that address to `ALLOWED_ORIGINS` in `wrangler.toml`.
+ocscanner.media, add that address to `ALLOWED_ORIGINS` in `wrangler.toml`.
 
 ## Streaming the board on X (broadcast mode)
 
@@ -367,7 +367,7 @@ stream key from X Live Studio (x.com/i/live-studio) into Settings → Stream.
 **Steering it live:** in OBS, right-click the source → **Interact**. → and ← change screens, Space pauses
 on the current screen, and 1–6 jump to a screen.
 
-If you host the page anywhere other than ocscanner.github.io or ocscanner.news, add that address to
+If you host the page anywhere other than ocscanner.github.io or ocscanner.media, add that address to
 `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
 
 ## Candidate names

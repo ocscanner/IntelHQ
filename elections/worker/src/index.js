@@ -615,7 +615,7 @@ async function purge() {
 }
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
-  const allowed = (env.ALLOWED_ORIGINS || 'https://ocscanner.github.io,https://ocscanner.news').split(',').map(s => s.trim());
+  const allowed = (env.ALLOWED_ORIGINS || 'https://ocscanner.github.io,https://ocscanner.media,https://www.ocscanner.media').split(',').map(s => s.trim());
   const ok = allowed.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || /\.pages\.dev$/.test(origin);
   return {
     'Access-Control-Allow-Origin': ok ? origin : '*',
