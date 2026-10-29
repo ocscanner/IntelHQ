@@ -15,6 +15,7 @@ import { parseCASOS } from '../sources/ca-sos.js';
 import { toNum } from '../parties.js';
 import { caPropsAdapter } from './ca-props.js';
 import { ocLocalAdapter } from './oc-local.js';
+import { laLocalAdapter } from './la-local.js';
 
 const textOf = v => Array.isArray(v) ? (v.find(x => /^en/i.test(x.languageId || 'en')) || v[0] || {}).text || '' : String(v || '');
 
@@ -1144,6 +1145,7 @@ add({
 
 /* Orange County Registrar: local contests (city councils, schools, districts, measures) */
 add(ocLocalAdapter);
+add(laLocalAdapter);
 
 /* California Secretary of State: the 14 statewide propositions (statewide and Orange County counts) */
 add(caPropsAdapter);

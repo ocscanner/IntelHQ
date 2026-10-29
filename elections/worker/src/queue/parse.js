@@ -10,6 +10,13 @@
 // match is checked against our own candidate list. Anything that doesn't match cleanly is shown to the desk
 // as "couldn't match" rather than guessed.
 
+import LA from '../../../data/la-local-2026.json' with { type: 'json' };
+
+// Local races outside the state lists that DDHQ/AP may call (the LA mayor's runoff). Board ids are "OC-<id>"
+// because they live on the board's local tab.
+const LA_MAYOR = /\bLos Angeles\b[^.#]*\bmayor|\bmayor(?:al)?\b[^.#]*\bLos Angeles\b/i;
+export const LOCAL_CALLS = LA.contests.filter(c => c.id === 'LAMAYOR').map(c => ({ id: `OC-${c.id}`, re: LA_MAYOR, candidates: c.candidates }));
+
 export const STATES = {
   AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
   FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky',
@@ -60,7 +67,7 @@ function propCall(s) {
 export function parseDDHQ(text) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   if (!/Decision Desk HQ projects/i.test(t)) return null;
-  if (/\bprimary\b|\brunoff\b|\badvances?\b/i.test(t)) return null;          // November only
+  if (/\badvances?\b/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LA_MAYOR.test(t))) return null;   // November only (LA's mayor race is a November runoff)
   const body = t.replace(/#DecisionMade.*$/i, '').trim();
   const prop = propCall(body);
   if (prop) return { kind: 'prop', ...prop, st: stateIn(body) || (/\bCA\b/.test(body) ? 'CA' : null), text: t };
@@ -78,7 +85,7 @@ export function parseDDHQ(text) {
 export function parseAP(text) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   if (!/#APRaceCall/i.test(t)) return null;
-  if (/\bprimary\b|\brunoff\b|\badvances?\b|nomination/i.test(t)) return null;
+  if (/\badvances?\b|nomination/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LA_MAYOR.test(t))) return null;
   const body = t.replace(/^.*?\(AP\)\s*[—–-]+\s*/, '').replace(/#APRaceCall.*$/i, '').trim();
   const prop = propCall(body);
   if (prop) return { kind: 'prop', ...prop, st: stateIn(body), text: t };
@@ -107,6 +114,12 @@ export function matchCall(call, races, props = []) {
     if (call.st && call.st !== 'CA') return { unmatched: 'ballot measure outside California' };
     const p = props.find(x => x.id === `CA-P${call.num}`);
     return p ? { raceId: p.id, candidate: call.result, party: null, winners: [call.result] } : { unmatched: `no Proposition ${call.num} on our list` };
+  }
+  // Local races called by name and place ("… wins the Los Angeles mayoral runoff")
+  for (const l of LOCAL_CALLS) {
+    if (!l.re.test(call.text || '')) continue;
+    const c = l.candidates.find(x => samePerson(x.name, call.winner));
+    return c ? { raceId: l.id, candidate: c.name, party: null, winners: [c.name] } : { raceId: l.id, candidate: call.winner, party: null, winners: [call.winner], nameNotOnList: true };
   }
   let pool = races.filter(r => !call.st || r.state === call.st);
   if (call.office) pool = pool.filter(r => r.chamber === call.office);

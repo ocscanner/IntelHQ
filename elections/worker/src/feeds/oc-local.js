@@ -120,4 +120,6 @@ export const ocLocalAdapter = {
   }],
 };
 
-export const OC_LOCAL = OC;
+// The board's local tab: Orange County's contests plus the Los Angeles races (see la-local.js)
+import LA from '../../../data/la-local-2026.json' with { type: 'json' };
+export const OC_LOCAL = { ...OC, groups: [...OC.groups, ...LA.groups], contests: [...OC.contests, ...LA.contests] };

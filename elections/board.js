@@ -16,7 +16,7 @@
   const PREFIX = { OC: 'OC-', CAP: 'CA-P' };
   const isArea = ch => ch in AREA_OF;
   const areaOfId = id => Object.keys(PREFIX).find(a => String(id || '').startsWith(PREFIX[a])) || null;
-  const GROUP_ORDER = ['county', 'city', 'school', 'district', 'measure', 'legislature', 'prop'];
+  const GROUP_ORDER = ['county', 'city', 'school', 'district', 'measure', 'legislature', 'la', 'prop'];
   // A measure call is a single "Yes" or "No"
   const measureWord = winners => winners?.length === 1 && /^yes$/i.test(winners[0]) ? 'passes' : winners?.length === 1 && /^no$/i.test(winners[0]) ? 'fails' : null;
   // Map colors for candidates who aren't D/R/I, or when the top two share a party (California top-two)
@@ -88,6 +88,7 @@
       <div class="eb-status" data-r="status"></div>
       <div data-r="banner"></div>
       <div class="eb-strip" data-r="strip"></div>
+      <div class="eb-hl" data-r="highlights" hidden></div>
       <div class="eb-seg eb-chambers" role="tablist" aria-label="Which races to show">
         ${TABS.map(([ch, label]) => `<button type="button" role="tab" data-chamber="${ch}" aria-label="${label}"><b class="tl">${label}</b><b class="ts" aria-hidden="true">${TAB_SHORT[ch]}</b> <span data-r="n-${ch}"></span></button>`).join('')}
       </div>
@@ -344,7 +345,7 @@
     }
 
     /* ── render ── */
-    function renderAll() { renderStatus(); renderBanner(); renderStrip(); renderTools(); renderMap(); renderList(); renderLog(); renderDetail(); }
+    function renderAll() { renderStatus(); renderBanner(); renderStrip(); renderHighlights(); renderTools(); renderMap(); renderList(); renderLog(); renderDetail(); }
 
     function renderStatus() {
       const d = S.data;
@@ -437,6 +438,40 @@
           <div class="eb-sub"><span>${flips}</span><span>${s.waiting ? `${s.waiting} not reporting` : ''}</span></div>
         </button>`;
       }).join('');
+    }
+
+    /* Highlights: races the desk pinned (any tab). Tap one to open it. */
+    function renderHighlights() {
+      const box = $('highlights');
+      const hs = S.data?.highlights || [];
+      box.hidden = !hs.length;
+      if (!hs.length) { box.innerHTML = ''; return; }
+      const nm = n => esc(last(n));
+      box.innerHTML = `<h4>Highlights</h4><div class="eb-hlrow">${hs.map(h => {
+        const pc = p => (p in PNAME ? p : 'O');
+        const yn = /^(yes|no)$/i.test(h.call?.who || '') ? (/^yes$/i.test(h.call.who) ? 'Passes' : 'Fails') : null;
+        const line = h.call ? `<b class="${pc(h.call.party)}">${yn || `${esc(h.call.who && h.call.who.length > 2 ? last(h.call.who) : PNAME[h.call.party] || h.call.who)} wins`}</b>`
+          : h.counting ? h.cands.map(c => `<span class="${pc(c.party)}">${nm(c.name)} <b>${c.pct ?? '–'}%</b></span>`).join('')
+          : `<span>${h.cands.map(c => nm(c.name)).join(' vs. ') || 'Waiting'}</span>`;
+        const sub = h.call ? `Called · ${esc(h.call.source || '')}` : h.counting ? (h.pctIn != null ? `${h.pctIn}% ${esc(h.pctLabel || 'in')}` : 'Counting') : 'No results yet';
+        return `<button type="button" class="eb-hlc${h.call ? ' called' : ''}${S.selected === h.id ? ' sel' : ''}" data-qopen="${esc(h.id)}" data-qtab="${esc(h.tab)}"><span class="hn">${esc(h.name)}</span><span class="hv">${line}</span><span class="hs">${sub}</span></button>`;
+      }).join('')}</div>`;
+    }
+    const hlBtn = () => {
+      if (!S.token || S.pub || !S.selected) return '';
+      const on = (S.data?.highlights || []).some(h => h.id === S.selected);
+      return `<button type="button" class="eb-btn" data-act="highlight">${on ? 'Remove from highlights' : 'Add to highlights'}</button>`;
+    };
+    async function toggleHighlight() {
+      const id = S.selected; if (!id) return;
+      const on = (S.data?.highlights || []).some(h => h.id === id);
+      try {
+        const r = await fetch(`${S.api}/v1/desk/highlights`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` }, body: JSON.stringify({ action: on ? 'remove' : 'add', raceId: id }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+        toast(on ? 'Removed from highlights' : 'Added to highlights (public page too)');
+        await load(true);
+      } catch (e) { toast(`Not saved: ${e.message}`); }
     }
 
     function renderTools() {
@@ -786,7 +821,7 @@
     }
     function renderLocalList(rs) {
       const L = AD();
-      const glabel = S.chamber === 'props' ? 'California propositions' : S.group === 'all' ? 'Orange County races' : (L?.groups.find(g => g.key === S.group)?.label || 'Races');
+      const glabel = S.chamber === 'props' ? 'California propositions' : S.group === 'all' ? 'Local races' : (L?.groups.find(g => g.key === S.group)?.label || 'Races');
       $('listtitle').textContent = glabel;
       $('listcount').textContent = `${rs.length} shown`;
       if (!L) { $('list').innerHTML = '<div class="eb-empty">Loading races…</div>'; return; }
@@ -840,7 +875,7 @@
         if (area) {
           const w = String(x.candidate || '').split(' | ').filter(Boolean);
           const mw = measureWord(w);
-          const where = area === 'CAP' ? 'California' : 'Orange County';
+          const where = area === 'CAP' ? 'California' : /^OC-LA/.test(x.race_id) ? 'Los Angeles' : 'Orange County';
           const lb = x.kind === 'retract' ? `Call withdrawn: ${esc(x.name || x.race_id)}<small>${esc(x.source || '')}</small>`
             : mw ? `${esc(String(x.name || x.race_id).replace(/:.*/, ''))} ${mw}<small>${esc(x.source || '')}, ${where}</small>`
             : `${esc(w.map(last).join(', ') || 'Call')} ${w.length > 1 ? 'win' : 'wins'} ${esc(x.name || x.race_id)}<small>${esc(x.source || '')}, ${where}</small>`;
@@ -872,6 +907,7 @@
         <h5>${esc(isProp ? `${c.place}: ${c.title}` : c.measure ? c.office : `${c.place}: ${c.office}`)}</h5>
         <div class="meta">${isProp
           ? `${esc(c.type)}. ${c.total && L?.generated ? `Numbers from the California Secretary of State, ${esc(fmtT(L.generated))}` : 'Results from the California Secretary of State after polls close'}`
+          : c.group === 'la' ? `${sub ? `${sub}. ` : ''}${c.total ? 'Numbers from the LA County Registrar-Recorder' : 'Results from the LA County Registrar-Recorder after polls close'}`
           : `${sub ? `${sub}. ` : ''}${L?.generated ? `Numbers from the OC Registrar of Voters, ${esc(fmtT(L.generated))}` : 'Results from the OC Registrar of Voters after polls close'}`}</div>
         ${callLine}${cand}
         ${isProp && c.oc ? ocHtml(c, L) : ''}
@@ -880,7 +916,7 @@
         <div class="eb-actions">
           <button type="button" class="eb-btn" data-act="watch">${S.watch.has(c.id) ? 'Stop watching' : c.measure ? 'Watch this measure' : 'Watch this race'}</button>
           ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
-          <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
+          <button type="button" class="eb-btn" data-act="copylink">Copy link</button>${hlBtn()}
         </div>
         ${S.token && !S.pub ? localDeskHtml(c) : ''}
       </div>`;
@@ -937,7 +973,7 @@
         <div class="eb-actions">
           <button type="button" class="eb-btn" data-act="watch">${S.watch.has(r.id) ? 'Stop watching' : 'Watch this race'}</button>
           ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
-          <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
+          <button type="button" class="eb-btn" data-act="copylink">Copy link</button>${hlBtn()}
         </div>
         ${S.token && !S.pub ? deskHtml(r) : ''}
       </div>`;
@@ -1017,6 +1053,7 @@
         case 'log-note': return logNote();
         case 'log-copy': return logCopy();
         case 'log-refresh': return logLoad();
+        case 'highlight': return toggleHighlight();
         case 'opensheet': S.sheetOpen = true; return renderDetail();
         case 'watch': return toggleWatch(r.id);
         case 'copypost': return copy(areaOfId(r.id) ? localPost(r) : postText(r), 'Post copied');
@@ -1102,7 +1139,7 @@
     function localPost(c) {
       const pre = S.sim ? '[REHEARSAL, NOT REAL RESULTS] ' : '';
       const isProp = c.id.startsWith('CA-P');
-      const tag = isProp ? ' #CAprops #Election2026' : ' #OCvotes';
+      const tag = isProp ? ' #CAprops #Election2026' : c.group === 'la' ? ' #LAMayor #Election2026' : ' #OCvotes';
       const title = isProp ? `California ${c.place} (${c.office})` : c.measure ? c.name : `${c.place} ${c.office}`.replace(/^Orange County Supervisor/, 'OC Supervisor');
       const prog = c.pctIn != null ? ` with ${c.pctIn}% of precincts reporting${isProp ? ' statewide' : ''}` : '';
       const mw = c.measure && measureWord(c.call?.winners);

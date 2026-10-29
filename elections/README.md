@@ -16,6 +16,14 @@ It also has:
 - **One level closer.** Inside a state, tap a county or district to zoom in on it and its neighbors (handy for
   LA, the Bay Area or New York); tap a neighbor to move over, "← State" to step back out. Big shapes that
   already fill the view don't zoom further. A trial of the simple version; free pinch/drag zoom is the next step if wanted.
+- **Highlights.** A row of pinned races under the balance of power, on IntelHQ and the public page. Tap one to
+  open it. Desk: **Add to highlights** / **Remove from highlights** on any race (national, CA prop, OC or LA), up to 8.
+  Starts with the Los Angeles mayor's race.
+- **Los Angeles mayor** (Bass vs. Raman runoff) on the Orange County tab under **Los Angeles**, with live counts from
+  the LA County Registrar-Recorder (results.lavote.gov JSON, checked against the June primary), desk calls, model
+  suggestions, and DDHQ/AP calls matched in the queue. LA posts no precinct count per contest, so it shows the
+  count without "% in". The county's site is behind bot protection; if it ever refuses the Worker, the feed shows
+  "failing" (and alerts) and the counts can be typed in.
 - **A CA Props tab** with California's 14 statewide propositions (Props 1–5 and 37–45): a scoreboard of
   all 14, Yes/No for each, how Orange County voted on it, and desk calls (passes / fails).
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,

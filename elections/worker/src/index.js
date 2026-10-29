@@ -24,6 +24,7 @@
  *  GET  /v1/desk/watch       read DDHQ's Bluesky feed now and show how each post parses (desk token, saves nothing)
  *  GET  /v1/desk/log         the election-night issue log (?format=text for the post-mortem export)   (desk token)
  *  POST /v1/desk/log         {note, raceId?}  add a desk note to the log                             (desk token)
+ *  POST /v1/desk/highlights  {action: "add" | "remove", raceId} or {ids: [...]}: races pinned to the top   (desk token)
  *  GET  /v1/desk/push        phone alerts: signing key, devices with alerts on, alert types          (desk token)
  *  POST /v1/desk/push        {action: "subscribe", subscription, prefs, label} | {action: "prefs", endpoint, prefs}
  *                            | {action: "unsubscribe", endpoint} | {action: "test", endpoint?}       (desk token)
@@ -43,6 +44,7 @@ import { runWatch, ensureQueue, readDDHQ, postsToRows } from './queue/watch.js';
 import { buildQueue, targets, rehearsalPosts, SOURCE_LABEL } from './queue/build.js';
 import { parseDDHQ, matchCall, STATES } from './queue/parse.js';
 import { addLog, listLog, firstTime, feedChanges, logText } from './log.js';
+import { loadHighlights, saveHighlights, nextHighlights, highlightCards } from './highlights.js';
 import { vapidKeys, listSubs, saveSub, setPrefs, removeSub, notify, ALERT_TYPES, DEFAULT_PREFS } from './push.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
@@ -91,6 +93,15 @@ export default {
           const raceId = b.raceId ? String(b.raceId).toUpperCase().slice(0, 20) : null;
           await addLog(env.DB, [{ kind: 'note', raceId, state: raceId?.slice(0, 2) || null, title: note.slice(0, 200), detail: note.length > 200 ? note.slice(200) : null, source: 'desk' }]);
           return json({ ok: true }, cors, 0);
+        }
+        if (p === '/v1/desk/highlights' && request.method === 'POST') {
+          if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
+          const b = await request.json().catch(() => ({}));
+          const next = nextHighlights(await loadHighlights(env.DB), b, id => IDS.has(id) || isLocalId(id));
+          if (next.error) return json(next, cors, 0, 400);
+          await saveHighlights(env.DB, next.ids);
+          await purge();
+          return json({ ok: true, ids: next.ids }, cors, 0);
         }
         if (p === '/v1/desk/push') {
           if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
@@ -213,7 +224,7 @@ export async function scheduledRun(env, { now = Date.now(), fetchImpl = fetch } 
   await purge();
   // Feeds that broke, recovered or went dark: into the issue log, and to the desk's phones
   try {
-    const changes = feedChanges(before, out.units, st => ({ OC: 'Orange County', CAP: 'California propositions' })[st] || STATES[st] || st);
+    const changes = feedChanges(before, out.units, st => ({ OC: 'Orange County', CAP: 'California propositions', LAC: 'Los Angeles County' })[st] || STATES[st] || st);
     if (changes.length) {
       await addLog(env.DB, changes, now);
       await notify(env.DB, changes.map(c => ({ type: 'feeds', title: c.title, body: c.detail || '', short: c.title, url: `${DESK_URL}#elections`, tag: `feed-${c.state}` })), { fetchImpl, now });
@@ -268,6 +279,14 @@ async function boardData(env, sim) {
   out.simulation = sim;
   out.resultsStart = new Date(startOf(env)).toISOString();
   out.desk = { calls: deskState.calls.size };
+  // Pinned highlights (any tab), resolved into small cards so every viewer gets them with the board
+  try {
+    const ids = await loadHighlights(env.DB);
+    const locals = {};
+    if (ids.some(id => id.startsWith('OC-'))) locals.OC = await localData(env, sim, 'OC');
+    if (ids.some(id => id.startsWith('CA-P'))) locals.CAP = await localData(env, sim, 'CAP');
+    out.highlights = highlightCards(ids, out, locals);
+  } catch { out.highlights = []; }
   return out;
 }
 
@@ -379,7 +398,14 @@ async function localData(env, sim, area) {
   const calls = new Map();
   let res = null;
   if (sim) res = A.sim(Date.now(), +(env.SIM_CYCLE_MINUTES || 90));
-  else if (env.DB && Date.now() >= startOf(env)) res = await d1Store(env.DB).loadLocal(area);
+  else if (env.DB && Date.now() >= startOf(env)) {
+    res = await d1Store(env.DB).loadLocal(area);
+    // The local tab also carries the Los Angeles races, saved by their own feed (area "LAC")
+    if (area === 'OC') {
+      const la = await d1Store(env.DB).loadLocal('LAC');
+      if (la?.contests?.length) res = { ...(res || {}), contests: [...(res?.contests || []), ...la.contests] };
+    }
+  }
   if (env.DB) {
     const { results } = await env.DB.prepare('SELECT * FROM desk_call WHERE ns = ? AND race_id LIKE ?').bind(ns, `${A.prefix}%`).all();
     for (const r of results) calls.set(r.race_id, r);

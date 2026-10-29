@@ -1,0 +1,17 @@
+{
+  "area": "LAC",
+  "name": "Los Angeles",
+  "election": "2026-11-03",
+  "source": "Los Angeles County Registrar-Recorder/County Clerk",
+  "groups": [
+    { "key": "la", "label": "Los Angeles", "note": "City of Los Angeles races, counted by LA County (not Orange County). LA counts mail ballots for weeks, so close races can take days." }
+  ],
+  "contests": [
+    {
+      "id": "LAMAYOR", "group": "la", "place": "Los Angeles", "office": "Mayor", "name": "Los Angeles Mayor",
+      "laTitle": "^LOS ANGELES CITY\\b.*\\bMAYOR$",
+      "voteFor": 1, "incumbent": "Karen Bass",
+      "candidates": [{ "name": "Karen Bass", "party": null }, { "name": "Nithya Raman", "party": null }]
+    }
+  ]
+}
