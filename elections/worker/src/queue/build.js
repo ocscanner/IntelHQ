@@ -14,14 +14,14 @@ export const SOURCE_LABEL = { DDHQ: 'Decision Desk HQ', AP: 'AP', MODEL: 'OC Sca
 const ORDER = { conflict: 0, call: 1, model: 2, unmatched: 4 };
 
 /** Everything the queue can point at, keyed by board id: national races, propositions, OC contests. */
-export function targets(board, props, oc) {
+export function targets(board, props, oc, la = null) {
   const m = new Map();
   for (const r of board?.races || []) m.set(r.id, {
     id: r.id, name: r.name, tab: r.chamber, kind: 'race', state: r.state,
     cands: r.candidates.length ? r.candidates : r.preCandidates.map(c => ({ ...c, votes: null })), pctIn: r.pctIn, voteFor: 1,
     callText: r.call ? r.call.candidate || r.call.party : null, callNames: r.call?.candidate ? [r.call.candidate] : [], callParty: r.call?.party || null,
   });
-  for (const [list, tab, kind] of [[props, 'props', 'prop'], [oc, 'local', 'local']]) for (const c of list?.contests || []) m.set(c.id, {
+  for (const [list, tab, kind] of [[props, 'props', 'prop'], [oc, 'local', 'local'], [la, 'la', 'local']]) for (const c of list?.contests || []) m.set(c.id, {
     id: c.id, name: kind === 'prop' ? c.name : `${c.place}: ${c.office}`, tab, kind, state: 'CA',
     cands: c.candidates, pctIn: c.pctIn, voteFor: c.voteFor || 1,
     callText: c.call ? c.call.winners.join(', ') : null, callNames: c.call?.winners || [], callParty: null,

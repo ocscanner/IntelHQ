@@ -24,7 +24,6 @@
  *  GET  /v1/desk/watch       read DDHQ's Bluesky feed now and show how each post parses (desk token, saves nothing)
  *  GET  /v1/desk/log         the election-night issue log (?format=text for the post-mortem export)   (desk token)
  *  POST /v1/desk/log         {note, raceId?}  add a desk note to the log                             (desk token)
- *  POST /v1/desk/highlights  {action: "add" | "remove", raceId} or {ids: [...]}: races pinned to the top   (desk token)
  *  GET  /v1/desk/push        phone alerts: signing key, devices with alerts on, alert types          (desk token)
  *  POST /v1/desk/push        {action: "subscribe", subscription, prefs, label} | {action: "prefs", endpoint, prefs}
  *                            | {action: "unsubscribe", endpoint} | {action: "test", endpoint?}       (desk token)
@@ -37,6 +36,7 @@ import { normParty } from './parties.js';
 import { runIngest, d1Store, allUnits } from './ingest.js';
 import { ADAPTERS } from './feeds/states.js';
 import { OC_LOCAL } from './feeds/oc-local.js';
+import { LA_LOCAL } from './feeds/la-local.js';
 import { CA_PROPS } from './feeds/ca-props.js';
 import { buildLocal } from './local.js';
 import { simulateCounties, simulateLocal, simulateProps } from './sources/simulate-extra.js';
@@ -44,17 +44,18 @@ import { runWatch, ensureQueue, readDDHQ, postsToRows } from './queue/watch.js';
 import { buildQueue, targets, rehearsalPosts, SOURCE_LABEL } from './queue/build.js';
 import { parseDDHQ, matchCall, STATES } from './queue/parse.js';
 import { addLog, listLog, firstTime, feedChanges, logText } from './log.js';
-import { loadHighlights, saveHighlights, nextHighlights, highlightCards } from './highlights.js';
 import { vapidKeys, listSubs, saveSub, setPrefs, removeSub, notify, ALERT_TYPES, DEFAULT_PREFS } from './push.js';
 
 const IDS = new Set(universe.races.map(r => r.id));
-const LOCAL_IDS = new Set(OC_LOCAL.contests.map(c => `OC-${c.id}`));
+const LOCAL_IDS = new Set([...OC_LOCAL.contests.map(c => `OC-${c.id}`), ...LA_LOCAL.contests.map(c => `LA-${c.id}`)]);
 const PROP_IDS = new Set(CA_PROPS.contests.map(c => `CA-P${c.id}`));
-const isLocalId = id => LOCAL_IDS.has(id) || /^OC-\d{4}$/.test(id) || PROP_IDS.has(id);   // OC measures appear only on election night
+const isLocalId = id => LOCAL_IDS.has(id) || /^OC-\d{4}$/.test(id) || /^LA-\d{3,6}$/.test(id) || PROP_IDS.has(id);   // OC measures and most LA contests appear only on election night
 // Areas on the board's local-style tabs: board id prefix, contest list, rehearsal data
 const AREAS = {
   OC: { prefix: 'OC-', list: OC_LOCAL, sim: (now, cyc) => simulateLocal(OC_LOCAL, now, cyc) },
   CAP: { prefix: 'CA-P', list: CA_PROPS, sim: (now, cyc) => simulateProps(CA_PROPS, now, cyc) },
+  // LA County: 12 November runoffs listed ahead of time; every other contest comes from the county's own data
+  LA: { prefix: 'LA-', list: LA_LOCAL, sim: (now, cyc) => simulateLocal(LA_LOCAL, now, cyc, { extras: false }) },
 };
 // States whose free files include county-by-county counts (see feeds/states.js)
 const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'PA', 'UT', 'VA']);
@@ -93,15 +94,6 @@ export default {
           const raceId = b.raceId ? String(b.raceId).toUpperCase().slice(0, 20) : null;
           await addLog(env.DB, [{ kind: 'note', raceId, state: raceId?.slice(0, 2) || null, title: note.slice(0, 200), detail: note.length > 200 ? note.slice(200) : null, source: 'desk' }]);
           return json({ ok: true }, cors, 0);
-        }
-        if (p === '/v1/desk/highlights' && request.method === 'POST') {
-          if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
-          const b = await request.json().catch(() => ({}));
-          const next = nextHighlights(await loadHighlights(env.DB), b, id => IDS.has(id) || isLocalId(id));
-          if (next.error) return json(next, cors, 0, 400);
-          await saveHighlights(env.DB, next.ids);
-          await purge();
-          return json({ ok: true, ids: next.ids }, cors, 0);
         }
         if (p === '/v1/desk/push') {
           if (!env.DB) return json({ error: 'D1 database not bound' }, cors, 0, 500);
@@ -279,14 +271,6 @@ async function boardData(env, sim) {
   out.simulation = sim;
   out.resultsStart = new Date(startOf(env)).toISOString();
   out.desk = { calls: deskState.calls.size };
-  // Pinned highlights (any tab), resolved into small cards so every viewer gets them with the board
-  try {
-    const ids = await loadHighlights(env.DB);
-    const locals = {};
-    if (ids.some(id => id.startsWith('OC-'))) locals.OC = await localData(env, sim, 'OC');
-    if (ids.some(id => id.startsWith('CA-P'))) locals.CAP = await localData(env, sim, 'CAP');
-    out.highlights = highlightCards(ids, out, locals);
-  } catch { out.highlights = []; }
   return out;
 }
 
@@ -400,11 +384,6 @@ async function localData(env, sim, area) {
   if (sim) res = A.sim(Date.now(), +(env.SIM_CYCLE_MINUTES || 90));
   else if (env.DB && Date.now() >= startOf(env)) {
     res = await d1Store(env.DB).loadLocal(area);
-    // The local tab also carries the Los Angeles races, saved by their own feed (area "LAC")
-    if (area === 'OC') {
-      const la = await d1Store(env.DB).loadLocal('LAC');
-      if (la?.contests?.length) res = { ...(res || {}), contests: [...(res?.contests || []), ...la.contests] };
-    }
   }
   if (env.DB) {
     const { results } = await env.DB.prepare('SELECT * FROM desk_call WHERE ns = ? AND race_id LIKE ?').bind(ns, `${A.prefix}%`).all();
@@ -422,9 +401,15 @@ async function feed(env, url) {
   const limit = Math.min(200, +url.searchParams.get('limit') || 60);
   const { results } = await env.DB.prepare('SELECT race_id, party, candidate, source, kind, at FROM call_log WHERE ns = ? ORDER BY at DESC, id DESC LIMIT ?').bind(ns, limit).all();
   const byId = new Map(universe.races.map(r => [r.id, r]));
+  // LA County contests other than the preloaded runoffs are named from the county's own data
+  const laNames = results.some(x => /^LA-\d/.test(x.race_id)) ? new Map(((await d1Store(env.DB).loadLocal('LA'))?.contests || []).map(c => [`LA-${c.id}`, c.name])) : new Map();
   return {
     items: results.map(x => {
       const r = byId.get(x.race_id);
+      if (!r && x.race_id.startsWith('LA-')) {
+        const c = LA_LOCAL.contests.find(c => `LA-${c.id}` === x.race_id);
+        return { ...x, name: c?.name || laNames.get(x.race_id) || `LA County contest ${x.race_id.slice(3)}`, chamber: 'la', flip: false };
+      }
       if (!r && x.race_id.startsWith('OC-')) {
         const c = OC_LOCAL.contests.find(c => `OC-${c.id}` === x.race_id);
         return { ...x, name: c?.name || `Orange County contest ${x.race_id.slice(3)}`, chamber: 'local', flip: false };
@@ -470,11 +455,13 @@ async function queue(env, sim) {
   const ns = sim ? 'sim' : 'live';
   const now = Date.now();
   await ensureQueue(env.DB);
-  const [board, props, oc] = await Promise.all([boardData(env, sim), localData(env, sim, 'CAP'), localData(env, sim, 'OC')]);
+  const [board, props, oc, la] = await Promise.all([boardData(env, sim), localData(env, sim, 'CAP'), localData(env, sim, 'OC'), localData(env, sim, 'LA')]);
+  // LA County: only the preloaded runoffs go through the queue (the county's hundreds of small contests would bury it)
+  const laQueue = { ...la, contests: la.contests.filter(c => LOCAL_IDS.has(c.id)) };
   const { results: rows } = await env.DB.prepare('SELECT * FROM call_queue WHERE ns = ?').bind(ns).all();
   // Rehearsal: practice DDHQ calls from the practice count, through the same parser as the real thing
   const extra = sim ? postsToRows(rehearsalPosts(board, props, now, simHash), 'DDHQ', { races: MATCH_RACES, props: MATCH_PROPS, since: 0 }) : [];
-  const q = buildQueue({ rows, targets: targets(board, props, oc), extra, now });
+  const q = buildQueue({ rows, targets: targets(board, props, oc, laQueue), extra, now });
   const st = [
     ...q.newKeys.map(r => env.DB.prepare(`INSERT OR IGNORE INTO call_queue (ns, key, source, race_id, candidate, party, winners, text, url, note, posted_at, created_at, status)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'new')`).bind(ns, r.key, r.source, r.raceId ?? r.race_id ?? null, r.candidate ?? null, r.party ?? null,

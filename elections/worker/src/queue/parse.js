@@ -12,10 +12,10 @@
 
 import LA from '../../../data/la-local-2026.json' with { type: 'json' };
 
-// Local races outside the state lists that DDHQ/AP may call (the LA mayor's runoff). Board ids are "OC-<id>"
-// because they live on the board's local tab.
-const LA_MAYOR = /\bLos Angeles\b[^.#]*\bmayor|\bmayor(?:al)?\b[^.#]*\bLos Angeles\b/i;
-export const LOCAL_CALLS = LA.contests.filter(c => c.id === 'LAMAYOR').map(c => ({ id: `OC-${c.id}`, re: LA_MAYOR, candidates: c.candidates }));
+// LA County runoffs DDHQ/AP may call (mayor, city attorney, sheriff), matched by place and office ("callRe" in
+// data/la-local-2026.json). Board ids are "LA-<id>".
+export const LOCAL_CALLS = LA.contests.filter(c => c.callRe).map(c => ({ id: `LA-${c.id}`, re: new RegExp(c.callRe, 'i'), candidates: c.candidates }));
+const LOCAL_RUNOFF = t => LOCAL_CALLS.some(l => l.re.test(t));
 
 export const STATES = {
   AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
@@ -67,7 +67,7 @@ function propCall(s) {
 export function parseDDHQ(text) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   if (!/Decision Desk HQ projects/i.test(t)) return null;
-  if (/\badvances?\b/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LA_MAYOR.test(t))) return null;   // November only (LA's mayor race is a November runoff)
+  if (/\badvances?\b/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LOCAL_RUNOFF(t))) return null;   // November only (LA's runoffs are in November)
   const body = t.replace(/#DecisionMade.*$/i, '').trim();
   const prop = propCall(body);
   if (prop) return { kind: 'prop', ...prop, st: stateIn(body) || (/\bCA\b/.test(body) ? 'CA' : null), text: t };
@@ -85,7 +85,7 @@ export function parseDDHQ(text) {
 export function parseAP(text) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   if (!/#APRaceCall/i.test(t)) return null;
-  if (/\badvances?\b|nomination/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LA_MAYOR.test(t))) return null;
+  if (/\badvances?\b|nomination/i.test(t) || (/\bprimary\b|\brunoff\b/i.test(t) && !LOCAL_RUNOFF(t))) return null;
   const body = t.replace(/^.*?\(AP\)\s*[—–-]+\s*/, '').replace(/#APRaceCall.*$/i, '').trim();
   const prop = propCall(body);
   if (prop) return { kind: 'prop', ...prop, st: stateIn(body), text: t };

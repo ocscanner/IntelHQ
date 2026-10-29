@@ -287,15 +287,3 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-map .eb-cbar .eb-zhint{font-family:var(--eb-fb, inherit);font-weight:400;font-size:.78em;color:var(--eb-muted)}
 @media (hover:none){.eb-map .eb-cbar .eb-zhint{display:inline}}
 .eb-counties path.sub{stroke:var(--eb-sel);stroke-width:2.2px}
-
-/* Highlights strip: races the desk pinned */
-.eb-hl{margin:-4px 0 14px}
-.eb-hl h4{margin:0 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--eb-muted)}
-.eb-hlrow{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity}
-.eb-hlc{flex:0 0 auto;min-width:190px;max-width:260px;scroll-snap-align:start;display:flex;flex-direction:column;gap:3px;text-align:left;padding:9px 12px;border-radius:10px;border:1px solid var(--eb-line, rgba(127,127,127,.3));background:var(--eb-bg2);color:var(--eb-text);cursor:pointer;font:inherit}
-.eb-hlc:hover,.eb-hlc.sel{border-color:var(--eb-sel)}
-.eb-hlc .hn{font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.eb-hlc .hv{display:flex;gap:10px;font-size:.88rem;flex-wrap:wrap}
-.eb-hlc .hv .D{color:var(--D)} .eb-hlc .hv .R{color:var(--R)} .eb-hlc .hv .I{color:var(--I)}
-.eb-hlc .hs{font-size:.75rem;color:var(--eb-muted)}
-.eb-hlc.called{border-left:4px solid var(--eb-sel)}

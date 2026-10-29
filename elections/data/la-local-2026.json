@@ -1,17 +1,278 @@
 {
-  "area": "LAC",
-  "name": "Los Angeles",
-  "election": "2026-11-03",
-  "source": "Los Angeles County Registrar-Recorder/County Clerk",
-  "groups": [
-    { "key": "la", "label": "Los Angeles", "note": "City of Los Angeles races, counted by LA County (not Orange County). LA counts mail ballots for weeks, so close races can take days." }
-  ],
-  "contests": [
+ "area": "LA",
+ "name": "LA County",
+ "election": "2026-11-03",
+ "source": "Los Angeles County Registrar-Recorder/County Clerk",
+ "note": "LA County counts mail ballots for weeks, so close races can take days. The county posts no precinct count per contest.",
+ "groups": [
+  {
+   "key": "county",
+   "label": "County"
+  },
+  {
+   "key": "lacity",
+   "label": "City of Los Angeles"
+  },
+  {
+   "key": "city",
+   "label": "Other cities"
+  },
+  {
+   "key": "school",
+   "label": "Schools & colleges"
+  },
+  {
+   "key": "district",
+   "label": "Water & special districts"
+  },
+  {
+   "key": "judicial",
+   "label": "Superior Court"
+  },
+  {
+   "key": "measure",
+   "label": "Measures"
+  },
+  {
+   "key": "legislature",
+   "label": "State Legislature",
+   "note": "LA County votes only. Some of these districts reach into neighboring counties, so the full-district count can differ."
+  }
+ ],
+ "preloadNote": "Before the county posts its Nov 3 ballot, this tab lists the 12 races that went to November runoffs in the June 2 primary (top two from the county's own June results). Every other LA County contest appears once the county posts the election.",
+ "contests": [
+  {
+   "id": "MAYOR",
+   "group": "lacity",
+   "place": "Los Angeles",
+   "office": "Mayor",
+   "name": "Los Angeles Mayor",
+   "laTitle": "^LOS ANGELES CITY\\b.*\\bMAYOR$",
+   "voteFor": 1,
+   "incumbent": "Karen Bass",
+   "candidates": [
     {
-      "id": "LAMAYOR", "group": "la", "place": "Los Angeles", "office": "Mayor", "name": "Los Angeles Mayor",
-      "laTitle": "^LOS ANGELES CITY\\b.*\\bMAYOR$",
-      "voteFor": 1, "incumbent": "Karen Bass",
-      "candidates": [{ "name": "Karen Bass", "party": null }, { "name": "Nithya Raman", "party": null }]
+     "name": "Karen Bass",
+     "party": null
+    },
+    {
+     "name": "Nithya Raman",
+     "party": null
     }
-  ]
+   ],
+   "callRe": "\\bLos Angeles\\b[^.#]*\\bmayor|\\bmayor(?:al)?\\b[^.#]*\\bLos Angeles\\b"
+  },
+  {
+   "id": "CITYATTY",
+   "group": "lacity",
+   "place": "Los Angeles",
+   "office": "City Attorney",
+   "name": "Los Angeles City Attorney",
+   "laTitle": "^LOS ANGELES CITY\\b.*\\bCITY ATTORNEY$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Marissa Roy",
+     "party": null
+    },
+    {
+     "name": "John McKinney",
+     "party": null
+    }
+   ],
+   "callRe": "\\bLos Angeles\\b[^.#]*\\bcity attorney"
+  },
+  {
+   "id": "CD3",
+   "group": "lacity",
+   "place": "Los Angeles",
+   "office": "City Council, District 3",
+   "name": "Los Angeles City Council, District 3",
+   "laTitle": "^LOS ANGELES CITY\\b.*\\bCOUNCIL,? (3RD|THIRD) DISTRICT$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Timothy K. Gaspar",
+     "party": null
+    },
+    {
+     "name": "Barri Worth Girvan",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "CD9",
+   "group": "lacity",
+   "place": "Los Angeles",
+   "office": "City Council, District 9",
+   "name": "Los Angeles City Council, District 9",
+   "laTitle": "^LOS ANGELES CITY\\b.*\\bCOUNCIL,? (9TH|NINTH) DISTRICT$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Jose Ugarte",
+     "party": null
+    },
+    {
+     "name": "Estuardo Mazariegos",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "SHERIFF",
+   "group": "county",
+   "place": "LA County",
+   "office": "Sheriff",
+   "name": "LA County Sheriff",
+   "laTitle": "^SHERIFF$",
+   "voteFor": 1,
+   "incumbent": "Robert Luna",
+   "candidates": [
+    {
+     "name": "Robert Luna",
+     "party": null
+    },
+    {
+     "name": "Alex Villanueva",
+     "party": null
+    }
+   ],
+   "callRe": "\\b(Los Angeles|LA) County sheriff"
+  },
+  {
+   "id": "JUDGE64",
+   "group": "judicial",
+   "place": "Superior Court",
+   "office": "Judge, Office No. 64",
+   "name": "Superior Court Judge, Office No. 64",
+   "laTitle": "^JUDGE OF THE SUPERIOR COURT,? OFFICE NO\\.? 64$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Maria Ghobadi",
+     "party": null
+    },
+    {
+     "name": "Rhonda A. Haymon",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "JUDGE65",
+   "group": "judicial",
+   "place": "Superior Court",
+   "office": "Judge, Office No. 65",
+   "name": "Superior Court Judge, Office No. 65",
+   "laTitle": "^JUDGE OF THE SUPERIOR COURT,? OFFICE NO\\.? 65$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Justin Allen Clayton",
+     "party": null
+    },
+    {
+     "name": "Anna Slotky Reitano",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "JUDGE87",
+   "group": "judicial",
+   "place": "Superior Court",
+   "office": "Judge, Office No. 87",
+   "name": "Superior Court Judge, Office No. 87",
+   "laTitle": "^JUDGE OF THE SUPERIOR COURT,? OFFICE NO\\.? 87$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Anthony (A.J.) Bayne",
+     "party": null
+    },
+    {
+     "name": "David Dejute",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "JUDGE131",
+   "group": "judicial",
+   "place": "Superior Court",
+   "office": "Judge, Office No. 131",
+   "name": "Superior Court Judge, Office No. 131",
+   "laTitle": "^JUDGE OF THE SUPERIOR COURT,? OFFICE NO\\.? 131$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Donna Tryfman",
+     "party": null
+    },
+    {
+     "name": "David Ross",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "COMPTONMAYOR",
+   "group": "city",
+   "place": "Compton",
+   "office": "Mayor",
+   "name": "Compton Mayor",
+   "laTitle": "^CITY OF COMPTON\\b.*\\bMAYOR$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Emma Sharif",
+     "party": null
+    },
+    {
+     "name": "Andre A. Spicer",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "COMPTONCD2",
+   "group": "city",
+   "place": "Compton",
+   "office": "City Council, District 2",
+   "name": "Compton City Council, District 2",
+   "laTitle": "^CITY OF COMPTON\\b.*\\bCOUNCIL,? (2ND|SECOND) DISTRICT$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Bennie Tinson",
+     "party": null
+    },
+    {
+     "name": "Anthony Perry",
+     "party": null
+    }
+   ]
+  },
+  {
+   "id": "POMONACD2",
+   "group": "city",
+   "place": "Pomona",
+   "office": "City Council, District 2",
+   "name": "Pomona City Council, District 2",
+   "laTitle": "^CITY OF POMONA\\b.*\\bCOUNCIL,? (2ND|SECOND) DISTRICT$",
+   "voteFor": 1,
+   "candidates": [
+    {
+     "name": "Victor Preciado",
+     "party": null
+    },
+    {
+     "name": "Jacky Elizalde",
+     "party": null
+    }
+   ]
+  }
+ ]
 }

@@ -16,14 +16,18 @@ It also has:
 - **One level closer.** Inside a state, tap a county or district to zoom in on it and its neighbors (handy for
   LA, the Bay Area or New York); tap a neighbor to move over, "← State" to step back out. Big shapes that
   already fill the view don't zoom further. A trial of the simple version; free pinch/drag zoom is the next step if wanted.
-- **Highlights.** A row of pinned races under the balance of power, on IntelHQ and the public page. Tap one to
-  open it. Desk: **Add to highlights** / **Remove from highlights** on any race (national, CA prop, OC or LA), up to 8.
-  Starts with the Los Angeles mayor's race.
-- **Los Angeles mayor** (Bass vs. Raman runoff) on the Orange County tab under **Los Angeles**, with live counts from
-  the LA County Registrar-Recorder (results.lavote.gov JSON, checked against the June primary), desk calls, model
-  suggestions, and DDHQ/AP calls matched in the queue. LA posts no precinct count per contest, so it shows the
-  count without "% in". The county's site is behind bot protection; if it ever refuses the Worker, the feed shows
-  "failing" (and alerts) and the counts can be typed in.
+- **An LA County tab**, built like the Orange County one. Before the county posts its Nov 3 ballot it lists the
+  12 races that went to November runoffs in the June primary (top two from the county's own June results): LA
+  mayor (Bass vs. Raman), city attorney, City Council districts 3 and 9, sheriff (Luna vs. Villanueva), four
+  Superior Court seats, Compton mayor and council district 2, Pomona council district 2. Once LA posts the
+  election on results.lavote.gov, every local contest on the county's ballot fills in (county offices and measures,
+  City of LA, other cities, schools, special districts, Superior Court, State Legislature with LA County votes
+  only); federal and statewide contests stay on the national board and CA Props tab. Desk calls work like OC's;
+  the 12 runoffs also get model suggestions and DDHQ/AP call matching (mayor, city attorney, sheriff). LA posts no
+  precinct count per contest, so races show the count without "% in". The county's site is behind bot protection;
+  if it refuses the Worker, the feed (LAC) shows "failing" and alerts.
+- **Your own list:** viewers tap **Watch** on any race (any tab) and the **Watching** filter shows just those;
+  it's kept on their device.
 - **A CA Props tab** with California's 14 statewide propositions (Props 1–5 and 37–45): a scoreboard of
   all 14, Yes/No for each, how Orange County voted on it, and desk calls (passes / fails).
 - **An Orange County tab** with every local race on the Nov 3 ballot: 2 county supervisor races,

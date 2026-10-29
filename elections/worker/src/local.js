@@ -65,6 +65,10 @@ export function buildLocal(list, res, calls = new Map(), now = Date.now(), prefi
   // Measures (and any local contest not on the candidate list) come only from the results file
   for (const r of res?.contests || []) {
     if (seen.has(r.id)) continue;
+    if (r.group) {                                       // LA County: the feed already describes the contest
+      out.push(make({ id: r.id, group: r.group, measure: !!r.measure, place: r.place, office: r.office, name: r.name, voteFor: r.voteFor, candidates: [] }, r));
+      continue;
+    }
     const mp = measureParts(r.rawName);
     const place = mp.place ? mp.place.replace(/^City of /i, '') : 'Orange County';
     out.push(make({
@@ -78,6 +82,7 @@ export function buildLocal(list, res, calls = new Map(), now = Date.now(), prefi
     area: list.area, name: list.name, source: list.source, election: list.election,
     groups: list.groups,
     note: list.note || null,
+    preloadNote: list.preloadNote || null,
     generated: res?.generated || null, updated: res?.updated || null,
     ocReporting: res?.oc ? { pctIn: res.oc.pctIn ?? null, updated: res.oc.updated || null } : null,
     ballotsCast: res?.ballotsCast ?? null, registered: res?.registered ?? null,
