@@ -1,6 +1,6 @@
 // OC Scanner · Intel HQ — Service Worker
 // Bump CACHE_VERSION any time you deploy updates to force a cache refresh
-const CACHE_VERSION = 'inthq-v9-desk-alerts';
+const CACHE_VERSION = 'inthq-v10-radar';
 
 const STATIC_ASSETS = [
   '/IntelHQ/',
@@ -56,11 +56,10 @@ self.addEventListener('fetch', event => {
     'firms.modaps.eosdis.nasa.gov',
   ];
 
-  if (liveDataHosts.some(h => url.hostname.includes(h))) {
-    // Network-only for live feeds — let them fail gracefully if offline
-    event.respondWith(fetch(event.request).catch(() => new Response('')));
-    return;
-  }
+  // Live data goes straight to the network, untouched. This used to answer a
+  // failed request with an empty "200 OK", which hid real failures: a blocked
+  // adsb.lol call looked like success and a worker outage looked like "no data".
+  if (liveDataHosts.some(h => url.hostname.includes(h))) return;
 
   // For same-origin requests: try network first, fall back to cache
   if (url.origin === self.location.origin) {

@@ -1274,22 +1274,20 @@ let RADAR_LON = -118.022520;
 let RADAR_LOCATION_NAME = 'OC, CA';
 
 function getRadarAPIs() {
-  // adsb.lol FIRST — it's the source confirmed working from a browser and
-  // supports CORS. adsb.one as secondary. The worker proxy is the final
-  // fallback. (airplanes.live is intentionally omitted here: it actively
-  // blocks direct calls with a "contact us" message, so trying it first only
-  // wasted a cycle and could stall the chain.)
+  // Worker FIRST. As of Oct 29, 2026 adsb.lol answers browsers without a CORS
+  // header (the page can't read it) and adsb.one returns 503, so the worker
+  // was the only source that worked, but it was tried last after ~1-2s of
+  // failures every cycle. adsb.lol stays as a fallback in case it reopens.
   return [
-    `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
-    `https://api.adsb.one/v2/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`,
-    `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`
+    `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`,
+    `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`
   ];
 }
 
 function updateRadarSubtitles() {
   const latStr = Math.abs(RADAR_LAT).toFixed(4) + (RADAR_LAT >= 0 ? '°N' : '°S');
   const lonStr = Math.abs(RADAR_LON).toFixed(4) + (RADAR_LON >= 0 ? '°E' : '°W');
-  const sub    = `${latStr} ${lonStr} · Radius: 25mi · Updates every 15s`;
+  const sub    = `${latStr} ${lonStr} · Radius: 25mi · Updates every 30s`;
   const satSub = `${latStr} ${lonStr} · Min elevation: 15° · Updates every 10s`;
   const airSubEl = document.querySelector('#radar-air-section .radar-sub');
   const satSubEl = document.querySelector('#radar-sat-section .radar-sub');
@@ -1857,6 +1855,11 @@ function renderDataPanel() {
   });
 }
 
+function radarTabActive() {
+  const p = document.getElementById('panel-radar');
+  return !!(p && p.classList.contains('active'));
+}
+
 async function fetchRadarData() {
   let gotValidResponse = false;
   for (const url of getRadarAPIs()) {
@@ -1866,15 +1869,19 @@ async function fetchRadarData() {
       // of erroring), abort after 6s and move to the next source.
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 6000);
-      const r = await fetch(url, {
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json' },
-        signal: ctrl.signal
-      });
-      clearTimeout(timer);
-      console.log('[Radar] Status:', r.status);
-      if (!r.ok) continue;
-      const data = await r.json();
+      let r, body;
+      try {
+        r = await fetch(url, {
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          signal: ctrl.signal
+        });
+        console.log('[Radar] Status:', r.status);
+        if (!r.ok) continue;
+        body = await r.text();
+      } finally { clearTimeout(timer); }
+      if (!body) { console.log('[Radar] Empty body from', new URL(url).hostname); continue; }
+      const data = JSON.parse(body);
       console.log('[Radar] Keys:', Object.keys(data), 'ac:', data.ac?.length ?? 'none');
       const parsed = parseAircraft(data);
 
@@ -1926,7 +1933,7 @@ async function fetchRadarData() {
   if (el) el.textContent = 'Retrying…';
   const panel = document.getElementById('radar-data-panel');
   if (panel && !radarAircraft.length) {
-    panel.innerHTML = `<div class="radar-empty">⚠ Flight data unavailable — retrying in 15s</div>`;
+    panel.innerHTML = `<div class="radar-empty">⚠ Flight data unavailable — retrying in 30s</div>`;
   }
 }
 
@@ -1944,7 +1951,9 @@ function initRadar() {
   updateRadarSubtitles();
   animateRadar();
   fetchRadarData();
-  sched('Flight Radar', fetchRadarData, 30000, false);  // 30s: aircraft move little in that time, and it halves our ADS-B request rate to avoid free-tier rate limits
+  // Polls only while the Air Traffic radar is showing, so leaving IntelHQ on the
+  // Elections board doesn't keep spending the worker's daily request budget.
+  sched('Flight Radar', () => { if (radarTabActive() && currentRadarMode === 'air') fetchRadarData(); }, 30000, false);  // 30s: aircraft move little in that time, and it halves our ADS-B request rate to avoid free-tier rate limits
 
   // Click on canvas to select aircraft
   radarCanvas.addEventListener('click', e => {
@@ -2177,6 +2186,8 @@ function setRadarMode(mode) {
   if (mode === 'sat') {
     if (!satInitialized) initSatelliteRadar();
     else refreshSatellites();
+  } else if (radarCanvas) {
+    fetchRadarData();
   }
 }
 
@@ -2242,7 +2253,9 @@ function computeSatPositions(tles) {
 
   for (const tle of tles) {
     try {
-      const satrec    = satLib.twoline2satrec(tle.l1, tle.l2);
+      // Parsing a TLE is the slow part; do it once per TLE and keep it.
+      if (!tle._satrec) tle._satrec = satLib.twoline2satrec(tle.l1, tle.l2);
+      const satrec    = tle._satrec;
       const pv        = satLib.propagate(satrec, now);
       if (!pv.position) continue;
       const ecf       = satLib.eciToEcf(pv.position, gmst);
@@ -2259,7 +2272,8 @@ function computeSatPositions(tles) {
         ? Math.sqrt(pv.velocity.x**2 + pv.velocity.y**2 + pv.velocity.z**2)
         : null;
       const spdKmps   = vel ? vel.toFixed(2) : '--';
-      results.push({ ...tle, el, az, altMi, spdKmps, _el: el, _az: az });
+      const { _satrec, ...plain } = tle;
+      results.push({ ...plain, el, az, altMi, spdKmps, _el: el, _az: az });
     } catch(e) {}
   }
   return results;
@@ -2325,10 +2339,18 @@ function predictISSPasses(opts = {}) {
   return passes;
 }
 
+let issPassCache = null; // { key, at, passes }
 function renderISSPasses() {
   const el = document.getElementById('iss-next-pass');
   if (!el) return;
-  const passes = predictISSPasses({ minEl: 10, count: 4, hours: 48 });
+  // Recompute at most every 10 minutes, or when the location or ISS TLE changes.
+  const issTle = allTLEs.find(t => t.name.includes('ISS') || t.name.includes('ZARYA'));
+  const key = `${RADAR_LAT.toFixed(3)},${RADAR_LON.toFixed(3)},${issTle ? issTle.l1 : ''}`;
+  if (!issPassCache || issPassCache.key !== key || Date.now() - issPassCache.at > 600000) {
+    issPassCache = { key, at: Date.now(), passes: predictISSPasses({ minEl: 10, count: 4, hours: 48 }) };
+  }
+  // Drop passes that have already ended
+  const passes = issPassCache.passes.filter(p => !p.end || p.end > new Date());
   if (!passes.length) {
     el.textContent = 'No visible passes in next 48h';
     return;
@@ -2562,8 +2584,10 @@ async function fetchTLEGroup(group) {
   // Use worker proxy exclusively — avoids all browser timeout/CORS issues
   const workerUrl = `https://oc-radar-proxy.ocscannernews.workers.dev/tle?group=${group.key}`;
   console.log('[TLE] Fetching via worker:', group.key);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000); // Starlink is ~1.8 MB
   try {
-    const r = await fetch(workerUrl);
+    const r = await fetch(workerUrl, { signal: ctrl.signal });
     console.log('[TLE]', group.key, 'worker status:', r.status);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const text = await r.text();
@@ -2576,7 +2600,7 @@ async function fetchTLEGroup(group) {
   } catch(e) {
     console.log('[TLE]', group.key, 'failed:', e.message);
     return [];
-  }
+  } finally { clearTimeout(timer); }
 }
 
 async function loadSatelliteJS() {
@@ -2598,7 +2622,6 @@ async function loadSatelliteJS() {
 }
 
 async function refreshSatellites() {
-  document.getElementById('sat-data-panel').innerHTML = '<div class="radar-empty">Computing positions…</div>';
   try {
     if (!satLib) satLib = await loadSatelliteJS();
     console.log('[Sat] refreshSatellites — allTLEs:', allTLEs.length, 'satLib:', !!satLib);
@@ -2619,58 +2642,58 @@ async function refreshSatellites() {
   }
 }
 
+// TLEs per group. A refresh replaces a group only when its download worked, so
+// one failed request no longer empties the scope or drops back to "partial".
+const tleByGroup = {};
+let tleLoading = false;
+
+function rebuildTLEs() {
+  allTLEs = TLE_GROUPS.flatMap(g => tleByGroup[g.key] || []);
+  satObjects = computeSatPositions(allTLEs);
+  renderSatPanel();
+  drawSatRadar();
+}
+
 async function loadAllTLEs() {
+  if (tleLoading) return;
+  tleLoading = true;
   const panel = document.getElementById('sat-data-panel');
-  if (panel) panel.innerHTML = '<div class="radar-empty">Loading satellite data…</div>';
+  const firstLoad = !allTLEs.length;
+  if (firstLoad && panel) panel.innerHTML = '<div class="radar-empty">Loading satellite data…</div>';
 
-  const PRIORITY   = ['stations', 'visual'];
-  const BACKGROUND = ['weather', 'gps', 'starlink'];
-
-  const priorityGroups = TLE_GROUPS.filter(g => PRIORITY.includes(g.key));
-  const bgGroups       = TLE_GROUPS.filter(g => BACKGROUND.includes(g.key));
-
-  // Load priority groups with small stagger to avoid rate limiting
-  const priorityTLEs = [];
-  for (const g of priorityGroups) {
-    const result = await fetchTLEGroup(g);
-    priorityTLEs.push(...result);
-    await new Promise(r => setTimeout(r, 500)); // 500ms between requests
-  }
-
-  if (priorityTLEs.length) {
-    allTLEs = priorityTLEs;
-    satObjects = computeSatPositions(allTLEs);
-    renderSatPanel();
-    drawSatRadar();
-    const el = document.getElementById('sat-last-update');
-    if (el) el.textContent = new Date().toLocaleTimeString() + ' (partial)';
-  }
-
-  // Load background groups staggered
-  (async () => {
-    const bgTLEs = [];
-    for (const g of bgGroups) {
-      await new Promise(r => setTimeout(r, 1000)); // 1s between background requests
+  try {
+    // Stations and visual first so the ISS and bright satellites show quickly;
+    // Starlink (~1.8 MB, ~10,600 objects) last.
+    const order = ['stations', 'visual', 'weather', 'gps', 'starlink'];
+    let shown = false;
+    for (const key of order) {
+      const g = TLE_GROUPS.find(x => x.key === key);
       const result = await fetchTLEGroup(g);
-      bgTLEs.push(...result);
+      if (result.length) tleByGroup[key] = result;
+      if (firstLoad && !shown && key === 'visual' && Object.keys(tleByGroup).length) {
+        rebuildTLEs();
+        const el = document.getElementById('sat-last-update');
+        if (el) el.textContent = new Date().toLocaleTimeString() + ' (loading more)';
+        shown = true;
+      }
+      await new Promise(r => setTimeout(r, 400));
     }
-    if (bgTLEs.length) {
-      allTLEs = [...priorityTLEs, ...bgTLEs];
-      satObjects = computeSatPositions(allTLEs);
-      renderSatPanel();
-      drawSatRadar();
+    if (Object.keys(tleByGroup).length) {
+      rebuildTLEs();
       const el = document.getElementById('sat-last-update');
       if (el) el.textContent = new Date().toLocaleTimeString();
+      markHealth('Satellites (TLE)', true);
+    } else {
+      markHealth('Satellites (TLE)', false, 'radar proxy /tle not responding');
+      if (panel) panel.innerHTML = `
+        <div class="radar-empty" style="text-align:left;padding:12px">
+          ⚠ Satellite data isn't reaching the page (oc-radar-proxy /tle). Retrying in a minute.<br><br>
+          <a href="https://celestrak.org/" target="_blank" style="color:var(--accent)">CelesTrak →</a> &nbsp;
+          <a href="https://www.heavens-above.com" target="_blank" style="color:var(--accent)">Heavens-Above →</a>
+        </div>`;
     }
-  })();
-
-  if (!priorityTLEs.length) {
-    if (panel) panel.innerHTML = `
-      <div class="radar-empty" style="text-align:left;padding:12px">
-        ⚠ CelesTrak rate limit reached. Try again in a minute.<br><br>
-        <a href="https://celestrak.org/" target="_blank" style="color:var(--accent)">CelesTrak →</a> &nbsp;
-        <a href="https://www.heavens-above.com" target="_blank" style="color:var(--accent)">Heavens-Above →</a>
-      </div>`;
+  } finally {
+    tleLoading = false;
   }
 }
 
@@ -2707,8 +2730,19 @@ async function initSatelliteRadar() {
     console.log('[Sat] Loading TLEs...');
     await loadAllTLEs();
     console.log('[Sat] TLEs loaded:', allTLEs.length, 'objects');
-    sched('Satellite Tracker', refreshSatellites, 10000, false);
-    sched('TLE Refresh', loadAllTLEs, 5 * 60 * 1000, false);
+    const satOnScreen = () => radarTabActive() && currentRadarMode === 'sat';
+    // Positions every 10s, only while the satellite scope is showing.
+    sched('Satellite Tracker', () => { if (satOnScreen()) refreshSatellites(); }, 10000, false);
+    // Orbits barely change in hours and the worker caches them for 6h, so
+    // re-downloading every 5 minutes (Starlink alone is ~1.8 MB) was wasted
+    // data on a phone. Every 2 hours, or every minute until the first load works.
+    sched('TLE Refresh', () => {
+      if (!satOnScreen()) return;
+      if (!allTLEs.length || Date.now() - (window._tleLoadedAt || 0) > 2 * 3600 * 1000) {
+        loadAllTLEs().then(() => { if (allTLEs.length) window._tleLoadedAt = Date.now(); });
+      }
+    }, 60 * 1000, false);
+    if (allTLEs.length) window._tleLoadedAt = Date.now();
   } catch(e) {
     console.log('[Sat] Error:', e.message);
     document.getElementById('sat-data-panel').innerHTML =
@@ -2734,6 +2768,10 @@ function activateTab(pid){
   if (pid === 'radar' && !radarInitialized) {
     radarInitialized = true;
     setTimeout(() => { initRadar(); }, 100);
+  } else if (pid === 'radar') {
+    // Polling pauses off-tab; catch up straight away on return.
+    if (currentRadarMode === 'air') fetchRadarData();
+    else if (satInitialized) refreshSatellites();
   }
   if (pid === 'space') {
     initSpace();
