@@ -1278,9 +1278,13 @@ function getRadarAPIs() {
   // header (the page can't read it) and adsb.one returns 503, so the worker
   // was the only source that worked, but it was tried last after ~1-2s of
   // failures every cycle. adsb.lol stays as a fallback in case it reopens.
+  // AvioADSB (avioadsb.org) is the only free feed that answered a web page
+  // directly in testing (Oct 29). Thinner coverage and 100 requests/day without
+  // a key, so it's the last resort; its licence needs the credit shown.
   return [
     `https://oc-radar-proxy.ocscannernews.workers.dev/flights?lat=${RADAR_LAT}&lon=${RADAR_LON}&dist=${RADAR_RADIUS}`,
-    `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`
+    `https://api.adsb.lol/v2/lat/${RADAR_LAT}/lon/${RADAR_LON}/dist/${RADAR_RADIUS}`,
+    `https://avioadsb.org/v1/point/${RADAR_LAT}/${RADAR_LON}/${RADAR_RADIUS}`
   ];
 }
 
@@ -1855,6 +1859,18 @@ function renderDataPanel() {
   });
 }
 
+function setFlightCredit(url) {
+  const el = document.getElementById('flight-data-credit');
+  if (!el) return;
+  if (url.includes('avioadsb.org')) {
+    el.innerHTML = 'Data: <a href="https://avioadsb.org" target="_blank" rel="noopener" style="color:inherit">AvioADSB</a> (CC BY-NC 4.0) · backup feed';
+  } else if (url.includes('adsb.lol')) {
+    el.textContent = 'Data: adsb.lol';
+  } else {
+    el.textContent = 'Data: OC Scanner radar proxy (ADS-B)';
+  }
+}
+
 function radarTabActive() {
   const p = document.getElementById('panel-radar');
   return !!(p && p.classList.contains('active'));
@@ -1892,6 +1908,7 @@ async function fetchRadarData() {
         const el = document.getElementById('radar-last-update');
         if (el) el.textContent = new Date().toLocaleTimeString();
         radarStaleCount = 0;
+        setFlightCredit(url);
         console.log('[Radar] Parsed:', parsed.length, 'aircraft — using this source');
         markHealth('Flights (ADS-B)', true);
         return;
@@ -2580,8 +2597,33 @@ function renderSatPanel() {
 
 let allTLEs = [];
 
+// Orbits come from a copy that a GitHub job refreshes from CelesTrak every
+// 6 hours (Starlink daily): .github/workflows/satellite-data.yml publishes to
+// the tle-data branch. Viewers never ask CelesTrak, which blocks repeat
+// downloads and was what kept blanking the scope. The worker is a fallback.
+const TLE_COPY_BASE = 'https://raw.githubusercontent.com/ocscanner/IntelHQ/tle-data/';
+
 async function fetchTLEGroup(group) {
-  // Use worker proxy exclusively — avoids all browser timeout/CORS issues
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const r = await fetch(TLE_COPY_BASE + group.key + '.txt', { signal: ctrl.signal });
+      if (r.ok) {
+        const result = parseTLE(await r.text(), group);
+        console.log('[TLE]', group.key, 'from saved copy:', result.length, 'satellites');
+        if (result.length) { markHealth('Satellites (TLE)', true); return result; }
+      } else {
+        console.log('[TLE]', group.key, 'saved copy status:', r.status);
+      }
+    } finally { clearTimeout(timer); }
+  } catch (e) {
+    console.log('[TLE]', group.key, 'saved copy failed:', e.message);
+  }
+  return fetchTLEGroupFromWorker(group);
+}
+
+async function fetchTLEGroupFromWorker(group) {
   const workerUrl = `https://oc-radar-proxy.ocscannernews.workers.dev/tle?group=${group.key}`;
   console.log('[TLE] Fetching via worker:', group.key);
   const ctrl = new AbortController();
@@ -2648,7 +2690,13 @@ const tleByGroup = {};
 let tleLoading = false;
 
 function rebuildTLEs() {
-  allTLEs = TLE_GROUPS.flatMap(g => tleByGroup[g.key] || []);
+  const seen = new Set();
+  allTLEs = TLE_GROUPS.flatMap(g => tleByGroup[g.key] || []).filter(t => {
+    const id = t.l1.slice(2, 7);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
   satObjects = computeSatPositions(allTLEs);
   renderSatPanel();
   drawSatRadar();
@@ -2994,7 +3042,8 @@ loadAirports();         sched('Airports',       loadAirports,        5*60*1000, 
 loadElectionNews();     sched('Election News',  loadElectionNews,   15*60*1000, false);
 loadPotusSchedule();    sched('POTUS Schedule', loadPotusSchedule,  30*60*1000, false);
                         sched('Defense News',   loadMilitaryNews,   15*60*1000, false);
-                        sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
-                        sched('Mil Aircraft Map', () => { if (milAirInited) loadMilAir(); }, 20*1000, false);
+                        // Once, and only while the Military tab is showing (it was scheduled
+                        // twice and kept polling the radar proxy every 10s from any tab).
+                        sched('Mil Aircraft Map', () => { if (milAirInited && document.getElementById('panel-military')?.classList.contains('active')) loadMilAir(); }, 20*1000, false);
 sched('Status Panel',   renderStatusPanel,      15*1000);
 setNextElection();

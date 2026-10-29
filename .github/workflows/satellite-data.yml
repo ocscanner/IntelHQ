@@ -1,0 +1,58 @@
+# Keeps a copy of CelesTrak's satellite orbits on the `tle-data` branch so the
+# IntelHQ Radar tab never asks CelesTrak directly (CelesTrak blocks repeat
+# downloads, which is what kept blanking the satellite scope).
+# Runs every 6 hours; Starlink once a day. Run it by hand from
+# Actions → "Satellite data" → Run workflow.
+# The page reads https://raw.githubusercontent.com/ocscanner/IntelHQ/tle-data/<group>.txt
+name: Satellite data
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/fetch-tle.sh
+      - .github/workflows/satellite-data.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: satellite-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools
+      - name: Get the last saved copy
+        run: |
+          mkdir -p out
+          if git fetch --depth 1 origin tle-data 2>/dev/null; then
+            git --work-tree=out checkout FETCH_HEAD -- . || true
+          fi
+          ls -la out
+      - name: Download from CelesTrak
+        run: bash tools/fetch-tle.sh out
+        continue-on-error: true
+      - name: Publish to the tle-data branch
+        run: |
+          cd out
+          [ -n "$(ls *.txt 2>/dev/null)" ] || { echo "Nothing to publish"; exit 0; }
+          cat > README.md <<'MD'
+          Satellite orbits (TLEs) for the IntelHQ Radar tab, copied from CelesTrak
+          (https://celestrak.org) by the "Satellite data" workflow on main.
+          This branch is overwritten on every run. Don't edit it by hand.
+          MD
+          git init -q -b tle-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Satellite data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" tle-data
