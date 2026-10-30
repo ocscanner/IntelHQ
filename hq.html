@@ -112,6 +112,7 @@
     <div class="ngmenu" id="ngmenu-news">
       <button class="ngitem" data-p="news">📰 Live News</button>
       <button class="ngitem" data-p="weather">⛈ Weather</button>
+      <button class="ngitem" data-p="liveries">✈ Special Liveries</button>
     </div>
   </div>
   <div class="ngroup" data-g="system">
@@ -133,6 +134,7 @@
   <button class="ntab" data-p="firecams">🔥 Fire Cams</button>
   <button class="ntab" data-p="storm">🌀 Storm Index</button>
   <button class="ntab" data-p="weather">⛈ Weather</button>
+  <button class="ntab" data-p="liveries">✈ Special Liveries</button>
   <button class="ntab" data-p="elections">🗳 Politics & Elections</button>
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
@@ -1355,6 +1357,12 @@
 <div id="panel-storm" class="panel">
   <div class="sh"><h2>🌀 Storm Index</h2><span class="ltag">LIVE</span><span style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">Wind stations · NWS alerts · Wildfires · Radar</span><a class="rbtn" href="conditions/" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none">⤢ Full screen</a></div>
   <iframe id="storm-frame" title="OC Storm Index map" data-src="conditions/?v=2" style="display:block;width:100%;height:calc(100vh - 220px);min-height:560px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2)"></iframe>
+</div>
+
+<!-- ══════════════════ SPECIAL LIVERIES ══════════════════ -->
+<div id="panel-liveries" class="panel">
+  <div class="sh"><h2>✈ Special Liveries</h2><span style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">SoCal arrivals &amp; departures · Today &amp; tomorrow</span><a class="rbtn" href="liveries/" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none">⤢ Full screen</a></div>
+  <iframe id="liveries-frame" title="Special livery tracker" data-src="liveries/?v=1" style="display:block;width:100%;height:calc(100vh - 220px);min-height:560px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2)"></iframe>
 </div>
 
 <!-- ══════════════════ STATUS ══════════════════ -->

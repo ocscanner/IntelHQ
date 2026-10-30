@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Special Livery Tracker — OC Scanner IntelHQ</title>
+<meta name="description" content="Today's and tomorrow's special-livery airliner flights at Southern California airports.">
+<script>try{if(localStorage.getItem('ocs-theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}
+if(window.self!==window.top)document.documentElement.classList.add('embedded');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: slim command bar, airport strip as the primary filter, a time-ordered arrivals/departures board of photo cards, then the full roster with each tail's route for the day. Uses IntelHQ's tokens and fonts. */
+:root{
+  color-scheme: dark;
+  --bg:#060a0f; --panel:#111d28; --panel-2:#16263a;
+  --line:rgba(0,180,255,.18); --line-2:rgba(0,180,255,.32);
+  --fg:#eef4f8; --fg-2:#b8d0dc; --muted:#7a9aaa;
+  --accent:#00b4ff; --live:#00ff9d; --warn:#ffb700; --crit:#ff4d2e;
+  --chip-bg:rgba(0,180,255,.08);
+  --f-display:'Rajdhani', "Arial Narrow", sans-serif;
+  --f-body:'Barlow Condensed', "Arial Narrow", system-ui, sans-serif;
+  --f-data:'Share Tech Mono', ui-monospace, Menlo, monospace;
+}
+html[data-theme="light"]{
+  color-scheme: light;
+  --bg:#eef2f6; --panel:#ffffff; --panel-2:#e3e9ef;
+  --line:rgba(0,90,160,.16); --line-2:rgba(0,90,160,.32);
+  --fg:#12222e; --fg-2:#33505f; --muted:#5a7484;
+  --accent:#0077cc; --live:#00875a; --warn:#b57e00; --crit:#d63a1e;
+  --chip-bg:rgba(0,90,160,.07);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:17px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+img{max-width:100%;display:block}
+a{color:var(--accent)}
+[hidden]{display:none!important}
+.embedded header.bar .brand{display:none}
+.embedded header.bar{padding-top:8px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header.bar{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;padding-block:16px 12px;border-bottom:1px solid var(--line)}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand .eyebrow{font-family:var(--f-data);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.7rem;letter-spacing:.06em;line-height:1.1;text-wrap:balance}
+.feed{display:flex;align-items:baseline;gap:8px;font-family:var(--f-data);font-size:.82rem;color:var(--fg-2);min-width:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0;transform:translateY(-1px)}
+.dot.ok{background:var(--live)} .dot.bad{background:var(--crit)}
+
+/* airport strip */
+.airports{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
+.apt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--fg);cursor:pointer;text-align:left;font-family:var(--f-body)}
+.apt:hover{border-color:var(--line-2)}
+.apt[aria-pressed="true"]{border-color:var(--accent);background:var(--chip-bg)}
+.apt .code{font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.06em;line-height:1}
+.apt .name{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.apt .n{font-family:var(--f-data);font-size:.8rem;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.apt .n.hot{color:var(--live)}
+
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden}
+.seg button{font:600 .95rem var(--f-display);letter-spacing:.05em;color:var(--fg-2);background:var(--panel);border:0;padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line-2)}
+.seg button[aria-pressed="true"]{background:var(--chip-bg);color:var(--accent)}
+.filters select,.filters input[type=search]{font:500 1rem var(--f-body);color:var(--fg);background:var(--panel);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;min-width:0}
+.filters input[type=search]{flex:1 1 200px}
+.filters label.tog{display:flex;align-items:center;gap:6px;font-size:.95rem;color:var(--fg-2);cursor:pointer}
+
+h2{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2 .count{font-family:var(--f-data);font-size:.85rem;color:var(--muted);letter-spacing:0;text-transform:none}
+section{display:flex;flex-direction:column;gap:12px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card.past{opacity:.6}
+.photo{position:relative;aspect-ratio:16/10;background:var(--panel-2);display:flex;align-items:center;justify-content:center;max-width:100%}
+.photo a.img{display:block;width:100%;height:100%}
+.photo img{width:100%;height:100%;object-fit:cover}
+.photo .ph{font-family:var(--f-data);font-size:.8rem;color:var(--muted);padding:12px;text-align:center}
+.credit{font-family:var(--f-data);font-size:.7rem;color:var(--muted);padding:4px 12px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+
+/* movement header: direction + time, like an airport FIDS line */
+.move{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.dir{font-family:var(--f-data);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;border:1px solid currentColor}
+.dir.arr{color:var(--live)} .dir.dep{color:var(--accent)}
+.when{font-family:var(--f-display);font-weight:700;font-size:1.35rem;letter-spacing:.03em;font-variant-numeric:tabular-nums;line-height:1}
+.when small{display:block;font-family:var(--f-data);font-weight:400;font-size:.7rem;color:var(--muted);letter-spacing:0;text-align:right}
+.leg{font-size:.95rem;color:var(--fg-2)}
+.leg b{color:var(--fg);font-weight:600}
+.status{font-family:var(--f-data);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.status.late{color:var(--warn)} .status.cxl{color:var(--crit)} .status.done{color:var(--fg-2)}
+.livery{font-family:var(--f-display);font-weight:700;font-size:1.15rem;line-height:1.2;letter-spacing:.02em}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.92rem;color:var(--fg-2)}
+.meta .reg{font-family:var(--f-data);color:var(--fg)}
+.route{font-family:var(--f-data);font-size:.8rem;color:var(--fg-2);background:var(--panel-2);border-radius:5px;padding:5px 8px;overflow-wrap:anywhere}
+.route span{color:var(--muted)}
+.route b{color:var(--accent);font-weight:400}
+.links{display:flex;gap:12px;flex-wrap:wrap;font-size:.9rem;margin-top:2px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-family:var(--f-data);font-size:.7rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.tag.verify{color:var(--warn);border-color:currentColor}
+
+.empty{background:var(--panel);border:1px dashed var(--line-2);border-radius:10px;padding:18px;color:var(--fg-2);display:flex;flex-direction:column;gap:6px}
+.empty strong{font-family:var(--f-display);font-size:1.1rem;color:var(--fg);letter-spacing:.04em}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width:900px){.airports{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:420px){.airports{grid-template-columns:repeat(2,minmax(0,1fr))} .brand h1{font-size:1.4rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <div class="brand">
+      <span class="eyebrow">OC Scanner · IntelHQ</span>
+      <h1>Special Livery Tracker</h1>
+    </div>
+    <div class="feed"><span class="dot" id="feedDot"></span><span id="feedText">Loading schedules…</span></div>
+  </header>
+
+  <nav class="airports" id="airports" aria-label="Filter by airport"></nav>
+
+  <div class="filters">
+    <div class="seg" id="daySeg" role="group" aria-label="Day">
+      <button type="button" data-day="0" aria-pressed="true">Today</button>
+      <button type="button" data-day="1" aria-pressed="false">Tomorrow</button>
+    </div>
+    <div class="seg" id="dirSeg" role="group" aria-label="Arrivals or departures">
+      <button type="button" data-dir="" aria-pressed="true">All</button>
+      <button type="button" data-dir="arr" aria-pressed="false">Arrivals</button>
+      <button type="button" data-dir="dep" aria-pressed="false">Departures</button>
+    </div>
+    <select id="airlineSel" aria-label="Airline"><option value="">All airlines</option></select>
+    <select id="catSel" aria-label="Category"><option value="">All categories</option></select>
+    <input type="search" id="q" placeholder="Search livery, tail, flight…" aria-label="Search">
+    <label class="tog"><input type="checkbox" id="fullOnly"> Full paint only</label>
+    <label class="tog" id="pastTog"><input type="checkbox" id="showPast"> Show earlier flights</label>
+  </div>
+
+  <section>
+    <h2 id="boardTitle">SoCal board <span class="count" id="boardCount"></span></h2>
+    <div class="grid" id="boardGrid"></div>
+    <div class="empty" id="boardEmpty" hidden>
+      <strong id="emptyTitle"></strong>
+      <span id="emptyText"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Rest of the roster <span class="count" id="fleetCount"></span></h2>
+    <div class="grid" id="fleetGrid"></div>
+  </section>
+
+  <footer>
+    <span>Schedules: AeroDataBox, checked twice a day. Airlines often assign a specific plane a day ahead or less, so tomorrow fills in through the evening and planes can still be swapped last minute.</span>
+    <span>Photos: <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a>, credited to each photographer. Roster updated <span id="rosterDate"></span>.</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+// After deploying the livery-board Worker, this is its /board address.
+const BOARD_URL = 'https://livery-board.ocscannernews.workers.dev/board';
+const TZ = 'America/Los_Angeles';
+const AIRPORTS = [
+  { code:'LAX', name:'Los Angeles Intl' }, { code:'SNA', name:'John Wayne' }, { code:'LGB', name:'Long Beach' },
+  { code:'BUR', name:'Hollywood Burbank' }, { code:'ONT', name:'Ontario Intl' }, { code:'SAN', name:'San Diego Intl' },
+  { code:'PSP', name:'Palm Springs' },
+];
+const SOCAL = new Set(AIRPORTS.map(a => a.code));
+const PHOTO_TTL = 24*3600e3;   // Planespotters allows caching API responses up to 24h
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normReg = r => String(r || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const store = {
+  get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} },
+};
+
+let ROSTER = [], BOARD = null;
+const filter = { apt:'', day:0, dir:'', airline:'', cat:'', q:'', full:false, past:false };
+
+// ── time ──
+const pacificDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+function dayDate(offset){ const d = new Date(pacificDate() + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0,10); }
+const parseLocal = s => s ? new Date(s.replace(' ', 'T')) : null;   // "2026-10-29 13:55-07:00"
+const fmtTime = d => d ? d.toLocaleTimeString('en-US', { timeZone: TZ, hour:'numeric', minute:'2-digit' }) : '—';
+function untilText(d){
+  const m = Math.round((d - Date.now()) / 60000);
+  if (m < -1) return null;
+  if (m <= 1) return 'now';
+  if (m < 60) return `in ${m} min`;
+  return `in ${Math.floor(m/60)} hr ${m % 60} min`;
+}
+
+// ── board → SoCal movements ──
+function flightsFor(reg, date){ return BOARD?.aircraft?.[reg]?.dates?.[date]?.flights || null; }
+function movements(date){
+  const out = [];
+  for (const l of ROSTER){
+    const fl = flightsFor(l.reg, date); if (!fl) continue;
+    fl.forEach((f, idx) => {
+      if (SOCAL.has(f.arr.iata)) out.push(mk(l, f, fl, 'arr', f.arr, f.dep));
+      if (SOCAL.has(f.dep.iata)) out.push(mk(l, f, fl, 'dep', f.dep, f.arr));
+    });
+  }
+  return out.sort((a,b) => (a.time ?? 0) - (b.time ?? 0));
+}
+function mk(l, f, all, dir, here, other){
+  const sched = parseLocal(here.sched), rev = parseLocal(here.act || here.rev);
+  const time = rev || sched;
+  return { l, f, all, dir, apt: here.iata, other, sched, rev, time,
+    past: time ? time.getTime() < Date.now() - 10*60000 : false };
+}
+function routeChain(fl){
+  if (!fl?.length) return '';
+  const sorted = [...fl].sort((a,b) => (parseLocal(a.dep.sched) ?? 0) - (parseLocal(b.dep.sched) ?? 0));
+  const stops = [sorted[0].dep.iata, ...sorted.map(f => f.arr.iata)];
+  return stops.map(s => SOCAL.has(s) ? `<b>${esc(s)}</b>` : esc(s)).join(' <span>→</span> ');
+}
+function statusInfo(f, dir){
+  const s = (f.status || '').toLowerCase();
+  if (s.includes('cancel')) return ['Canceled', 'cxl'];
+  if (s === 'diverted') return ['Diverted', 'cxl'];
+  if (s === 'delayed') return ['Delayed', 'late'];
+  if (s === 'arrived') return ['Landed', 'done'];
+  if (s === 'departed' || s === 'enroute') return [dir === 'dep' ? 'Departed' : 'In the air', 'done'];
+  if (s === 'approaching') return ['Approaching', ''];
+  if (s === 'boarding') return ['Boarding', ''];
+  return ['Scheduled', ''];
+}
+
+// ── photos (Planespotters.net public API: hotlinked unchanged, credited, linked) ──
+const photoQueue = []; let photoActive = 0;
+function photoFor(reg){
+  const key = 'slt-ps:' + normReg(reg); const hit = store.get(key);
+  if (hit && Date.now() - hit.t < PHOTO_TTL) return Promise.resolve(hit.p);
+  return new Promise(resolve => { photoQueue.push({ reg, key, resolve }); pumpPhotos(); });
+}
+function pumpPhotos(){
+  while (photoActive < 2 && photoQueue.length){
+    const job = photoQueue.shift(); photoActive++;
+    fetch(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(job.reg)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { const p = j?.photos?.[0] ? { src: j.photos[0].thumbnail_large?.src || j.photos[0].thumbnail?.src, link: j.photos[0].link, by: j.photos[0].photographer } : null;
+                   store.set(job.key, { t: Date.now(), p }); job.resolve(p); })
+      .catch(() => job.resolve(null))
+      .finally(() => { photoActive--; setTimeout(pumpPhotos, 250); });
+  }
+}
+const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
+  for (const e of es) if (e.isIntersecting){ io.unobserve(e.target); fillPhoto(e.target); }
+}, { rootMargin:'300px' }) : null;
+function fillPhoto(card){
+  const box = card.querySelector('.photo'), reg = card.dataset.reg;
+  photoFor(reg).then(p => {
+    if (!p?.src){ box.innerHTML = '<span class="ph">No photo on Planespotters yet</span>'; return; }
+    box.innerHTML = `<a class="img" href="${esc(p.link)}" target="_blank" rel="noopener"><img src="${esc(p.src)}" alt="${esc(reg)}, ${esc(card.dataset.livery)}" loading="lazy"></a>`;
+    const cr = card.querySelector('.credit'); cr.textContent = `Photo © ${p.by || 'Planespotters.net'}`; cr.hidden = false;
+  });
+}
+
+// ── rendering ──
+function passes(l){
+  if (filter.airline && l.airline !== filter.airline) return false;
+  if (filter.cat && l.category !== filter.cat) return false;
+  if (filter.full && l.paint !== 'Full livery') return false;
+  return true;
+}
+function matchesQuery(l, flights){
+  if (!filter.q) return true;
+  const hay = `${l.airline} ${l.livery} ${l.reg} ${l.type} ${l.category} ${(flights||[]).map(f => `${f.num} ${f.cs} ${f.dep.iata} ${f.arr.iata}`).join(' ')}`.toLowerCase();
+  return hay.includes(filter.q);
+}
+function tagsHTML(l){
+  const t = [`<span class="tag">${esc(l.category)}</span>`];
+  if (l.paint !== 'Full livery') t.push(`<span class="tag">${esc(l.paint)}</span>`);
+  if (l.status === 'Verify') t.push(`<span class="tag verify" title="${esc(l.notes)}">Paint unconfirmed</span>`);
+  return `<div class="tags">${t.join('')}</div>`;
+}
+function linksHTML(l){
+  const r = encodeURIComponent(normReg(l.reg));
+  return `<div class="links"><a href="https://www.flightaware.com/live/flight/${r}" target="_blank" rel="noopener">FlightAware</a>`
+    + (l.hex ? `<a href="https://adsb.lol/?icao=${encodeURIComponent(l.hex)}" target="_blank" rel="noopener">Live map</a>` : '')
+    + `<a href="https://www.jetphotos.com/registration/${encodeURIComponent(l.reg)}" target="_blank" rel="noopener">More photos</a></div>`;
+}
+function shell(l, inner, cls=''){
+  return `<article class="card ${cls}" data-reg="${esc(l.reg)}" data-livery="${esc(l.livery)}">
+    <div class="photo"><span class="ph">Loading photo…</span></div><div class="credit" hidden></div>
+    <div class="body">${inner}</div></article>`;
+}
+function moveCard(m){
+  const { l, f, dir } = m;
+  const [st, stCls] = statusInfo(f, dir);
+  const verb = dir === 'arr' ? 'Arrives' : 'Departs';
+  const otherName = m.other.city || m.other.name || m.other.iata;
+  const changed = m.rev && m.sched && Math.abs(m.rev - m.sched) > 4*60000;
+  const until = filter.day === 0 ? untilText(m.time) : null;
+  const inner = `
+    <div class="move"><span class="dir ${dir}">${verb} ${esc(m.apt)}</span>
+      <span class="when">${fmtTime(m.time)}${changed ? `<small>sched ${fmtTime(m.sched)}</small>` : until ? `<small>${until}</small>` : ''}</span></div>
+    <div class="leg">${dir === 'arr' ? 'from' : 'to'} <b>${esc(otherName)}</b> (${esc(m.other.iata)}) · ${esc(f.num || f.cs || 'flight')}</div>
+    <div class="status ${stCls}">${st}</div>
+    <div class="livery">${esc(l.livery)}</div>
+    <div class="meta"><span>${esc(l.airline)}</span><span class="reg">${esc(l.reg)}</span><span>${esc(l.type)}</span></div>
+    <div class="route">${filter.day === 0 ? 'Today' : 'Tomorrow'}: ${routeChain(m.all)}</div>
+    ${tagsHTML(l)}${linksHTML(l)}`;
+  return shell(l, inner, m.past ? 'past' : '');
+}
+function rosterCard(l, fl, checked){
+  let line;
+  if (fl?.length) line = `<div class="route">${filter.day === 0 ? 'Today' : 'Tomorrow'}: ${routeChain(fl)}</div>`;
+  else if (fl) line = `<div class="route">No flights found ${filter.day === 0 ? 'today' : 'for tomorrow yet'}</div>`;
+  else line = `<div class="route">${checked ? 'Not checked (nose decal only)' : 'Not checked yet'}</div>`;
+  return shell(l, `<div class="livery">${esc(l.livery)}</div>
+    <div class="meta"><span>${esc(l.airline)}</span><span class="reg">${esc(l.reg)}</span><span>${esc(l.type)}</span></div>
+    ${line}${tagsHTML(l)}${linksHTML(l)}`);
+}
+function mount(grid, html){ grid.innerHTML = html; grid.querySelectorAll('.card').forEach(c => io ? io.observe(c) : fillPhoto(c)); }
+
+function render(){
+  const date = dayDate(filter.day);
+  const all = movements(date).filter(m => passes(m.l) && matchesQuery(m.l, m.all));
+  // airport counts reflect day + airline/category/search filters, not the airport itself
+  const counts = {}; for (const m of all) if (!m.past || filter.past) counts[m.apt] = (counts[m.apt] || 0) + 1;
+  const totalTails = new Set(all.filter(m => !m.past || filter.past).map(m => m.l.reg)).size;
+  document.querySelectorAll('.apt').forEach(b => {
+    const code = b.dataset.code, n = code ? (counts[code] || 0) : Object.values(counts).reduce((a,c) => a+c, 0);
+    const el = b.querySelector('.n'); el.textContent = `${n} ${n === 1 ? 'flight' : 'flights'}`; el.classList.toggle('hot', n > 0);
+    b.setAttribute('aria-pressed', String(filter.apt === code));
+  });
+  $('pastTog').hidden = filter.day !== 0;
+
+  let shown = all.filter(m => (!filter.apt || m.apt === filter.apt) && (!filter.dir || m.dir === filter.dir));
+  const hiddenPast = filter.day === 0 && !filter.past ? shown.filter(m => m.past).length : 0;
+  if (hiddenPast) shown = shown.filter(m => !m.past);
+  $('boardTitle').firstChild.nodeValue = `${filter.apt || 'SoCal'} ${filter.dir === 'arr' ? 'arrivals' : filter.dir === 'dep' ? 'departures' : 'board'} · ${filter.day === 0 ? 'today' : 'tomorrow'} `;
+  $('boardCount').textContent = `${shown.length} ${shown.length === 1 ? 'flight' : 'flights'} · ${totalTails} special ${totalTails === 1 ? 'livery' : 'liveries'}${hiddenPast ? ` · ${hiddenPast} earlier hidden` : ''}`;
+  mount($('boardGrid'), shown.map(moveCard).join(''));
+  $('boardEmpty').hidden = shown.length > 0;
+  if (!shown.length){
+    if (!BOARD?.updated){ $('emptyTitle').textContent = 'Flight schedules aren\'t connected yet';
+      $('emptyText').textContent = 'Once the livery-board Worker runs its first check, today\'s and tomorrow\'s special-livery flights appear here.'; }
+    else if (filter.day === 1 && !ROSTER.some(l => flightsFor(l.reg, date))){ $('emptyTitle').textContent = 'Tomorrow hasn\'t been checked yet';
+      $('emptyText').textContent = 'Tomorrow\'s flights are looked up each evening around 6 PM, once airlines have assigned most planes.'; }
+    else { $('emptyTitle').textContent = `No special liveries scheduled ${filter.apt ? 'at ' + filter.apt : 'in SoCal'} ${filter.day === 0 ? (hiddenPast ? 'for the rest of today' : 'today') : 'tomorrow'}`;
+      $('emptyText').textContent = hiddenPast ? 'Turn on "Show earlier flights" to see the ones that already came through.' : 'Try another airport or clear a filter. The roster below shows where every tail is flying.'; }
+  }
+
+  const onBoard = new Set(shown.map(m => m.l.reg));
+  const F = ROSTER.filter(l => !onBoard.has(l.reg) && passes(l) && matchesQuery(l, flightsFor(l.reg, date)));
+  $('fleetCount').textContent = `${F.length} aircraft`;
+  mount($('fleetGrid'), F.map(l => rosterCard(l, flightsFor(l.reg, date), l.paint === 'Nose decal')).join(''));
+}
+
+function buildControls(){
+  $('airports').innerHTML = [{ code:'', name:'All SoCal' }, ...AIRPORTS].map(a =>
+    `<button class="apt" type="button" data-code="${a.code}" aria-pressed="false"><span class="code">${a.code || 'ALL'}</span><span class="name">${esc(a.name)}</span><span class="n">0 flights</span></button>`).join('');
+  $('airports').addEventListener('click', e => { const b = e.target.closest('.apt'); if (b){ filter.apt = b.dataset.code; render(); } });
+  const seg = (id, key, conv) => $(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    filter[key] = conv(b.dataset[key]);
+    $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  });
+  seg('daySeg', 'day', v => +v); seg('dirSeg', 'dir', v => v);
+  const fill = (sel, vals) => sel.insertAdjacentHTML('beforeend', vals.map(v => `<option>${esc(v)}</option>`).join(''));
+  fill($('airlineSel'), [...new Set(ROSTER.map(l => l.airline))].sort());
+  fill($('catSel'), [...new Set(ROSTER.map(l => l.category))].sort());
+  $('airlineSel').onchange = e => { filter.airline = e.target.value; render(); };
+  $('catSel').onchange = e => { filter.cat = e.target.value; render(); };
+  $('fullOnly').onchange = e => { filter.full = e.target.checked; render(); };
+  $('showPast').onchange = e => { filter.past = e.target.checked; render(); };
+  let t; $('q').oninput = e => { clearTimeout(t); t = setTimeout(() => { filter.q = e.target.value.trim().toLowerCase(); render(); }, 150); };
+}
+
+function setFeed(kind, text){ $('feedDot').className = 'dot' + (kind ? ' ' + kind : ''); $('feedText').textContent = text; }
+async function loadBoard(){
+  try {
+    BOARD = await fetch(BOARD_URL, { cache:'no-cache' }).then(r => { if (!r.ok) throw 0; return r.json(); });
+    if (BOARD.updated){
+      const u = new Date(BOARD.updated), n = BOARD.next ? new Date(BOARD.next) : null;
+      const day = d => pacificDate(d) === pacificDate() ? '' : ' ' + d.toLocaleDateString('en-US', { timeZone: TZ, weekday:'short' });
+      setFeed('ok', `Schedules checked ${fmtTime(u)}${day(u)}${n ? ` · next check ${fmtTime(n)}${day(n)}` : ''}`);
+    } else setFeed('', 'Schedules not checked yet');
+  } catch(e){ BOARD = null; setFeed('bad', 'Can\'t reach the flight schedule service right now'); }
+  render();
+}
+
+async function init(){
+  try {
+    const data = await fetch('liveries.json', { cache:'no-cache' }).then(r => r.json());
+    ROSTER = data.aircraft; $('rosterDate').textContent = data.updated;
+  } catch(e){ setFeed('bad', 'Could not load liveries.json. Make sure it sits next to this page.'); return; }
+  buildControls(); render(); loadBoard();
+  setInterval(loadBoard, 15*60000);                 // pick up the twice-daily refresh without a reload
+  setInterval(() => { if (!document.hidden && filter.day === 0) render(); }, 60000);  // keep "in 20 min" fresh
+}
+init();
+})();
+</script>
+</body>
+</html>

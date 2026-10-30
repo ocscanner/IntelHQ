@@ -2831,6 +2831,10 @@ function activateTab(pid){
     const sf = document.getElementById('storm-frame');
     if (sf && !sf.src) sf.src = sf.dataset.src;
   }
+  if (pid === 'liveries') {
+    const lf = document.getElementById('liveries-frame');
+    if (lf && !lf.src) lf.src = lf.dataset.src;
+  }
   if (pid === 'military' && !militaryInitialized) {
     militaryInitialized = true;
     loadMilitaryNews();
