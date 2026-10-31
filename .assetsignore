@@ -6,3 +6,4 @@ node_modules
 elections/worker
 elections/tools
 elections/data/src
+liveries/worker

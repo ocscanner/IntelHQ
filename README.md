@@ -16,6 +16,14 @@ alert areas for Orange County, active wildfires and perimeters (NIFC WFIGS), and
 The tiles along the bottom give an overall county status. The page lives at `conditions/` and the tab
 shows it in a frame; **Full screen** opens it on its own. Every feed is public, so it needs no keys or Worker.
 
+## Special Liveries
+
+**News → Special Liveries** is a board of special-livery airliners (heritage jets, state flags, Disney planes and so on)
+arriving at and departing SoCal airports today and tomorrow, with photos from Planespotters.net. The page lives at
+`liveries/` and the tab shows it in a frame. The tail list is `liveries/liveries.json`. Flight schedules come from the
+`livery-board` Worker in `liveries/worker/`, which checks AeroDataBox twice a day; setup is in
+[`liveries/worker/README.md`](liveries/worker/README.md).
+
 ## Newsroom workflow
 
 The Newsroom module adds a private, device-local editorial workspace alongside

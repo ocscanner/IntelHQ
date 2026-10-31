@@ -1,0 +1,11 @@
+{
+  "name": "livery-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev -c wrangler.toml",
+    "deploy": "wrangler deploy -c wrangler.toml",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": { "wrangler": "^4" }
+}

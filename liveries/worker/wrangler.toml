@@ -1,0 +1,32 @@
+name = "livery-board"
+main = "src/index.js"
+compatibility_date = "2026-05-30"
+workers_dev = true
+
+[observability]
+enabled = true
+
+# Wakes every 15 minutes, but only calls AeroDataBox at the RUN_PLAN times below.
+# A full check runs in 2 batches 15 minutes apart (free plan: 50 outside calls per wake-up).
+# This is 1 of the 5 scheduled triggers a free account allows (the election Worker uses 2).
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+# The tail list. Raw GitHub so it works wherever IntelHQ is hosted.
+ROSTER_URL = "https://raw.githubusercontent.com/ocscanner/IntelHQ/main/liveries/liveries.json"
+# When to check, in Pacific hours: 6 AM looks up today's flights, 6 PM looks up tomorrow's.
+RUN_PLAN = "6:today,18:tomorrow"
+# Skip the Southwest nose-decal-only jets (hard to spot, saves about 10 calls per check).
+SKIP_DECALS = "true"
+# AeroDataBox calls per wake-up. Free plan: keep 40 (the limit is 50).
+SUBREQUEST_BUDGET = "40"
+
+# Secrets — set in the dashboard (Settings → Variables and Secrets) or with:
+#   npx wrangler secret put RAPIDAPI_KEY    (your AeroDataBox key from RapidAPI)
+#   npx wrangler secret put ADMIN_KEY       (any password; unlocks /run and /status)
+
+# Saved flight board. No id needed: the first deploy creates this KV namespace and keeps it
+# linked after that (Wrangler 4.45+). To use one you made yourself, add  id = "..."  here.
+[[kv_namespaces]]
+binding = "BOARD"
