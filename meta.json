@@ -1,0 +1,22 @@
+{
+  "stations": {
+    "satellites": 16,
+    "updated": "2026-10-31T12:44:34Z"
+  },
+  "visual": {
+    "satellites": 156,
+    "updated": "2026-10-31T12:44:34Z"
+  },
+  "weather": {
+    "satellites": 73,
+    "updated": "2026-10-31T12:44:34Z"
+  },
+  "gps": {
+    "satellites": 32,
+    "updated": "2026-10-31T12:44:34Z"
+  },
+  "starlink": {
+    "satellites": 10630,
+    "updated": "2026-10-31T05:54:38Z"
+  }
+}
