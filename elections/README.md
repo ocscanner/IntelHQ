@@ -78,7 +78,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 36 states, below | Free |
+| **State election offices** | 37 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -95,7 +95,7 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | UT, ID | Not opened yet (Chrome blocked the sites). Same system as AZ and GA; check with the preview tool |
 | PA | Nov 3 feed already posted in test mode (governor, all 17 House seats, by county) |
 | OH | Nov 3 contest API already serving practice numbers (governor, Senate special, all 15 House seats) |
-| TX | **Not found.** Texas's results system has nothing after 2024, and its 2026 primaries weren't posted there. Shows "not posted" until Texas publishes; enter key Texas races at the desk |
+| TX | **Nov 3 ballot already loaded** (checked Oct 31) on the SOS's new page electionresults.sos.state.tx.us/results.html: Senate, all 38 House seats, governor. "% in" is polling locations reporting |
 | NM | **Nov 3 file already posted** (checked Oct 24): Senate, governor, 3 House. Same CSV as Nebraska |
 | LA | **Nov 3 files already posted** (checked Oct 24): Senate and 6 House seats, Voter Portal JSON |
 | SC | Clarity on enr-scvotes.org; files match Colorado's. Nov 3 not listed yet: the feed watches Clarity's list and the scvotes.gov results page for the "General Election" link |
