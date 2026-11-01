@@ -426,6 +426,8 @@ async function feed(env, url) {
 /* ── Desk: test one state's feed right now ── */
 async function preview(env, url) {
   const st = String(url.searchParams.get('state') || '').toUpperCase();
+  // No state: the list of feeds, for the desk's "Feed check" panel
+  if (!st) return { feeds: Object.entries(ADAPTERS).map(([k, a]) => ({ st: k, label: a.label, confidence: a.confidence || 'verified', local: !!a.local })) };
   if (!ADAPTERS[st]) return { error: `No feed for ${st || 'that state'}. Feeds: ${Object.keys(ADAPTERS).join(', ')}` };
   const store = env.DB ? d1Store(env.DB) : { loadUnits: async () => new Map() };
   const out = await runIngest({

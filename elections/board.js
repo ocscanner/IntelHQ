@@ -1037,6 +1037,9 @@
         }
         case 'tools-alerts': S.tools = S.tools === 'alerts' ? null : 'alerts'; renderQueue(); if (S.tools) pushRefresh(); return;
         case 'tools-log': S.tools = S.tools === 'log' ? null : 'log'; renderQueue(); if (S.tools) logLoad(); return;
+        case 'tools-feeds': S.tools = S.tools === 'feeds' ? null : 'feeds'; renderQueue(); if (S.tools && !S.fc) feedsLoad(); return;
+        case 'feeds-one': return feedCheck(btn.dataset.fst);
+        case 'feeds-unverified': return feedCheckAll();
         case 'tools-quick': S.tools = S.tools === 'quick' ? null : 'quick'; return renderQueue();
         case 'quick-saveall': return quickSaveAll();
         case 'quick-reset': if (confirm('Reset Quick count to the default list of competitive races?')) { store.set('quick', QUICK_DEFAULT); renderQueue(); } return;
@@ -1311,10 +1314,12 @@
         <button type="button" class="eb-btn${S.tools === 'alerts' ? ' sel' : ''}" data-act="tools-alerts">Phone alerts: ${on ? '<b>on</b>' : 'off'}</button>
         <button type="button" class="eb-btn" data-act="log-note">Log issue</button>
         <button type="button" class="eb-btn${S.tools === 'log' ? ' sel' : ''}" data-act="tools-log">Issue log</button>
-        <button type="button" class="eb-btn${S.tools === 'quick' ? ' sel' : ''}" data-act="tools-quick">Quick count</button></div>`;
+        <button type="button" class="eb-btn${S.tools === 'quick' ? ' sel' : ''}" data-act="tools-quick">Quick count</button>
+        <button type="button" class="eb-btn${S.tools === 'feeds' ? ' sel' : ''}" data-act="tools-feeds">Feed check</button></div>`;
       if (S.tools === 'quick') return row + `<div class="eb-qtool eb-quick">${quickHtml()}</div>`;
       if (S.tools === 'alerts') return row + `<div class="eb-qtool">${alertsHtml()}</div>`;
       if (S.tools === 'log') return row + `<div class="eb-qtool">${logHtml()}</div>`;
+      if (S.tools === 'feeds') return row + `<div class="eb-qtool">${feedsHtml()}</div>`;
       return row;
     }
     /* Quick count: one screen to type in counts for competitive races in states with no automatic feed.
@@ -1396,6 +1401,54 @@
         : `<button type="button" class="eb-btn" data-act="alerts-on"${S.push.busy ? ' disabled' : ''}>${S.push.busy ? 'Turning on…' : 'Turn on alerts on this device'}</button>${others.length ? '<button type="button" class="eb-btn" data-act="alerts-test">Test the other devices</button>' : ''}`;
       return `<p>Your phone buzzes when something needs you, even with IntelHQ closed. Each alert opens the race here. Starts with results on Nov 3; send a test any time.</p>
         <div class="eb-qprefs">${boxes}</div><div class="eb-actions">${btns}</div>${list}`;
+    }
+    /* Feed check: runs a state's feed right now through the Worker (GET /v1/desk/preview, saves nothing) and shows
+       what came back: "ok" with races, "not posted" (the state hasn't put November up yet) or the error. This is the
+       Worker's own request, so it also shows whether a site blocks the Worker (New York's human check, for one). */
+    S.fc = S.fc || null;
+    async function feedsLoad() {
+      try { S.fc = { feeds: (await deskApi('GET', 'preview')).feeds, res: {}, busy: null }; }
+      catch (e) { S.fc = null; S.fcError = e.message === 'Failed to fetch' ? 'Can’t reach the results service' : e.message; }
+      renderQueue();
+    }
+    async function feedCheck(st) {
+      if (!S.fc || S.fc.busy) return;
+      const keep = () => { const l = document.querySelector('.eb-fclist'); return l ? l.scrollTop : 0; };
+      const back = y => { const l = document.querySelector('.eb-fclist'); if (l) l.scrollTop = y; };
+      let y = keep(); S.fc.busy = st; renderQueue(); back(y);
+      try { S.fc.res[st] = await deskApi('GET', `preview?state=${encodeURIComponent(st)}`); }
+      catch (e) { S.fc.res[st] = { error: e.message }; }
+      y = keep(); S.fc.busy = null; renderQueue(); back(y);
+    }
+    async function feedCheckAll() {
+      if (!S.fc || S.fc.busy) return;
+      for (const f of S.fc.feeds.filter(f => f.confidence !== 'verified')) await feedCheck(f.st);
+    }
+    function feedVerdict(r) {
+      if (!r) return ['', 'Not checked'];
+      if (r.error) return ['bad', r.error];
+      const us = r.units || [];
+      const err = us.find(u => u.status === 'error');
+      if (err) return ['bad', `Failing: ${err.error || 'error'}`];
+      if (r.races?.length) return ['good', `Working: ${r.races.length} race${r.races.length === 1 ? '' : 's'}`];
+      if (r.local?.length) return ['good', `Working: ${r.local.reduce((s, l) => s + l.contests, 0)} contests`];
+      if (us.length && us.every(u => u.status === 'not posted')) return ['wait', 'Not posted yet (reached the site; November isn’t up)'];
+      return ['wait', us.map(u => u.status).join(', ') || 'No races yet'];
+    }
+    function feedsHtml() {
+      if (!S.fc) return `<p>${esc(S.fcError || 'Loading…')}</p>`;
+      const order = { unverified: 0, verified: 1 };
+      const list = [...S.fc.feeds].sort((a, b) => (order[a.confidence] ?? 0) - (order[b.confidence] ?? 0) || a.st.localeCompare(b.st));
+      const rows = list.map(f => {
+        const r = S.fc.res[f.st], [cls, txt] = S.fc.busy === f.st ? ['', 'Checking…'] : feedVerdict(r);
+        const sample = r?.races?.slice(0, 2).map(x => `${esc(x.raceId)}: ${esc(x.candidates.slice(0, 2).join(', '))}${x.pctIn != null ? ` · ${Math.round(x.pctIn)}% ${esc(x.pctLabel || 'in')}` : ''}`).join('<br>') || '';
+        return `<li class="eb-fc ${cls}"><button type="button" class="eb-btn" data-act="feeds-one" data-fst="${esc(f.st)}"${S.fc.busy ? ' disabled' : ''}>Check</button>
+          <b>${esc(f.st)}</b> <span class="qwhy">${esc(f.label)}${f.confidence !== 'verified' ? ' · unverified' : ''}</span>
+          <div class="eb-fcres">${esc(txt)}${sample ? `<div class="qwhy">${sample}</div>` : ''}</div></li>`;
+      }).join('');
+      return `<p>Runs a state’s feed right now from the results service, the same way election night will, without saving anything. “Not posted yet” before Nov 3 is normal: it means the Worker reached the site. “Failing” means it couldn’t (a block, a human check, or a changed page).</p>
+        <div class="eb-actions"><button type="button" class="eb-btn" data-act="feeds-unverified"${S.fc.busy ? ' disabled' : ''}>Check all unverified</button></div>
+        <ul class="eb-ilog eb-fclist">${rows}</ul>`;
     }
     function logHtml() {
       if (!S.issueLog) return `<p>${esc(S.issueLogError || 'Loading…')}</p>`;

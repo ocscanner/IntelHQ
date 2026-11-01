@@ -300,3 +300,12 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-quick .qcr input{width:96px;padding:4px 6px;border-radius:6px;border:1px solid var(--eb-line, rgba(127,127,127,.4));background:var(--eb-bg);color:var(--eb-text);font:inherit;font-weight:400}
 .eb-quick .qcr input[data-k="pct"]{width:62px}
 .eb-quick .qcr .eb-btn{padding:4px 10px;font-size:.8rem}
+
+/* Feed check (desk) */
+.eb-ilog.eb-fclist{max-height:60vh}
+.eb-fclist li.eb-fc{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center}
+.eb-fc .eb-btn{width:auto;min-width:0;padding:4px 10px;grid-row:span 2;align-self:start}
+.eb-fc .eb-fcres{grid-column:2;font-size:.92em}
+.eb-fc.good .eb-fcres{color:#4ade80}
+.eb-fc.bad .eb-fcres{color:#f87171}
+.eb-fc.wait .eb-fcres{color:#fbbf24}
