@@ -224,3 +224,44 @@ test('Texas: the SOS results page (Nov 3 layout, Oct 31); Senate, House district
   const before = await run('TX', { 'https://electionresults.sos.state.tx.us/results.html': '<h1>Election Results</h1><div>2026 MARCH PRIMARY</div>' });
   assert.equal(before.units[0].status, 'not posted');
 });
+
+test('New York: governor from the page, House races from the posted-back form; fusion lines counted once', async () => {
+  // Markup copied from nyenr.elections.ny.gov on Oct 31 (November ballot); vote numbers made up
+  const race = (title, rep, tot, cands) => `<table class="datatable"><tr><td class="resultsHeaderWrap" colspan="8"><table class="resultsHeaderWrap"><tr><td class="resultsHeader"><span><input type="checkbox"></span><span>&nbsp;${title} > All Counties</span></td><td class="resultsHeaderRight"><span>Election Districts Reporting: ${rep} of ${tot}&nbsp;</span></td></tr></table></td></tr>
+    <tr><th class="resultsColumnHeader">Candidate</th><th class="resultsColumnHeader">Party</th><th class="resultsColumnHeader">Graph (by Party)</th><th class="resultsColumnHeader">% (by Party)</th><th class="resultsColumnHeader">Votes (by Party)</th><th class="resultsColumnHeader">Graph (by Candidate)</th><th class="resultsColumnHeader">% (by Candidate)</th><th class="resultsColumnHeader">Votes (by Candidate)</th></tr>
+    ${cands.map(([name, lines, total]) => `<tr><td class="resultsColumnData" rowspan="${lines.length}">${name}</td><td class="resultsColumnDataCenter">${lines[0][0]}</td><td class="resultsColumnData"></td><td class="resultsColumnDataCenter"><span>0.00 %</span></td><td class="resultsColumnDataCenter">${lines[0][1]}</td><td class="resultsColumnData"></td><td class="resultsColumnDataCenter"><span>0.00 %</span></td><td class="resultsColumnDataCenter">${total}</td></tr>`
+      + lines.slice(1).map(([p, v]) => `<tr><td class="resultsColumnDataCenter">${p}</td><td class="resultsColumnData"></td><td class="resultsColumnDataCenter"><span>0.00 %</span></td><td class="resultsColumnDataCenter">${v}</td><td class="resultsColumnData">&nbsp;</td><td class="resultsColumnDataCenter">&nbsp;</td><td class="resultsColumnDataCenter">&nbsp;</td></tr>`).join('')).join('')}
+    <tr><td class="resultsColumnData" rowspan="1">Blank</td><td class="resultsColumnDataCenter"></td><td></td><td></td><td>500</td><td></td><td></td><td class="resultsColumnDataCenter">500</td></tr>
+    <tr><td class="resultsColumnData" rowspan="1">Void</td><td class="resultsColumnDataCenter"></td><td></td><td></td><td>9</td><td></td><td></td><td class="resultsColumnDataCenter">9</td></tr>
+    <tr><td class="resultsColumnData" rowspan="1">Write-in</td><td class="resultsColumnDataCenter"></td><td></td><td></td><td>40</td><td></td><td></td><td class="resultsColumnDataCenter">40</td></tr></table>`;
+  const form = body => `<html><body><form method="post" action="./" id="form1"><input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="abc&#43;def" /><input type="hidden" name="__EVENTVALIDATION" value="xyz" />
+    <input type="hidden" name="ctl00$HomePage$hidContest" value="1" /><input type="submit" name="ctl00$HomePage$btnMyContest" value="My Tracked Contests" />
+    <table class="datatable"><tr><td class="resultsHeader">11/03/2026 10:15:00 PM</td></tr><tr><td class="columnHeader">Election</td><td class="data">General Election</td></tr></table>${body}</form></body></html>`;
+  const home = form(race('Governor and Lieutenant Governor', '6,634', '13,268', [
+    ['Kathy C. Hochul / Adrienne E. Adams', [['DEM', '1,500,000'], ['WOR', '100,000']], '1,600,000'],
+    ['Bruce A. Blakeman / Todd Hood', [['REP', '1,300,000'], ['CON', '150,000'], ['OTH', '10,000']], '1,460,000'],
+  ]));
+  let posted = null;
+  const house = form(race('17th Congressional District', '340', '679', [
+    ['Cait Conley', [['DEM', '90,000'], ['WOR', '8,000']], '98,000'],
+    ['Mike Lawler', [['REP', '95,000'], ['CON', '6,200']], '101,200'],
+  ]) + race('3rd Congressional District', '0', '520', [['Thomas R. Suozzi', [['DEM', '0']], '0'], ['Michael J. LiPetri Jr', [['REP', '0'], ['CON', '0']], '0']]));
+  const out = await run('NY', { 'https://nyenr.elections.ny.gov/': init => init.method === 'POST' ? (posted = new URLSearchParams(init.body), house) : home });
+  assert.equal(posted.get('ctl00$HomePage$ddContest'), '4');
+  assert.equal(posted.get('ctl00$HomePage$hidDistrict'), '-1');
+  assert.equal(posted.get('__VIEWSTATE'), 'abc+def');
+  assert.equal(posted.get('ctl00$HomePage$btnMyContest'), null);
+  const gov = res(out, 'NY-GOV');
+  assert.deepEqual(tally(gov).map(([, p, v]) => [p, v]), [['D', 1600000], ['R', 1460000]]);
+  assert.equal(gov.pctIn, 50);
+  assert.equal(gov.pctLabel, 'election districts');
+  const ny17 = res(out, 'NY-17');
+  assert.deepEqual(tally(ny17).map(([, p, v]) => [p, v]), [['R', 101200], ['D', 98000]]);
+  assert.equal(Math.round(ny17.pctIn), 50);
+  assert.ok(res(out, 'NY-03'));
+  const challenged = await run('NY', { 'https://nyenr.elections.ny.gov/': { status: 403, body: '<title>Just a moment...</title>' } });
+  assert.equal(challenged.units[0].status, 'error');
+  assert.match(challenged.units[0].error, /human check/);
+  const old = await run('NY', { 'https://nyenr.elections.ny.gov/': form('').replace('11/03/2026', '06/23/2026').replace('General Election', 'Primary Election') });
+  assert.equal(old.units[0].status, 'not posted');
+});

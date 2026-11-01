@@ -8,7 +8,7 @@
 //   "unverified"         = same platform as a verified state, but not opened yet
 // Field names come from each office's published formats. State files don't mark winners in a way
 // we use: race calls stay with the desk (or AP, if licensed).
-import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, parseCSV, findCol, unzipEntry } from './util.js';
+import { raceIdFor, isRealCandidate, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, parseCSV, findCol, unzipEntry } from './util.js';
 import { countyFips, mnCountyFips } from './county-names.js';
 import { parseCASOS } from '../sources/ca-sos.js';
 import { toNum } from '../parties.js';
@@ -517,6 +517,73 @@ add({
       const rows = parseMO(html);
       if (!rows.length) return { notPosted: true };
       return { results: collect('MO', c, rows) };
+    },
+  }],
+});
+
+/* New York: nyenr.elections.ny.gov is an ASP.NET form. The page itself shows the governor's race; posting the form
+   back with contest 4 (U.S. Congress) and district -1 (All) returns all 26 House races. Each race: a header
+   ("17th Congressional District > All Counties", "Election Districts Reporting: N of M") and one row per candidate
+   whose first cell spans the candidate's fusion lines (WOR, CON…); the last cell is the candidate's total across
+   lines. Checked Oct 31 against the November ballot (loaded with 0 votes). The site sits behind Cloudflare: if it
+   ever answers the Worker with a human check, the feed shows "failing" and the desk types the counts in. */
+export function nyForm(html, contest, district) {
+  const form = String(html).match(/<form[\s\S]*?<\/form>/i)?.[0] || '';
+  const body = new URLSearchParams();
+  for (const m of form.matchAll(/<input\b[^>]*>/gi)) {
+    const type = (attr(m[0], 'type') || 'text').toLowerCase(), name = attr(m[0], 'name');
+    if (!name || type !== 'hidden') continue;
+    body.set(name, unescapeHtml(attr(m[0], 'value') || ''));
+  }
+  if (!body.has('__VIEWSTATE')) return null;
+  body.set('ctl00$HomePage$ddContest', contest); body.set('ctl00$HomePage$hidContest', contest);
+  body.set('ctl00$HomePage$ddDistrict', district); body.set('ctl00$HomePage$hidDistrict', district);
+  body.set('ctl00$HomePage$ddCountyBreakDown', 'N');
+  body.set('ctl00$HomePage$btnGo', 'Search');
+  return body;
+}
+export function parseNY(html) {
+  const rows = [];
+  const parts = String(html).split(/<td[^>]*class="resultsHeader"[^>]*>/i).slice(1);
+  for (const part of parts) {
+    const head = stripTags(part.slice(0, part.search(/<\/tr>/i)));
+    const contest = head.replace(/\s*>.*$/, '').trim();
+    const er = head.match(/Election Districts Reporting:\s*([\d,]+)\s*of\s*([\d,]+)/i);
+    const rep = er ? toNum(er[1]) : null, tot = er ? toNum(er[2]) : null;
+    for (const tr of part.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      if (!/<td[^>]*class="resultsColumnData"[^>]*rowspan/i.test(tr[1].slice(0, 200))) continue;
+      const cells = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => stripTags(x[1]));
+      const name = unescapeHtml(cells[0] || '').split(/\s+\/\s+/)[0].trim();   // "Kathy C. Hochul / Adrienne E. Adams"
+      if (!name || !isRealCandidate(name) || /^void$/i.test(name)) continue;
+      const votes = toNum(cells[7] ?? cells[cells.length - 1]);
+      if (votes == null) continue;
+      rows.push({ contest, name, party: cells[1], votes, rep, tot });
+    }
+  }
+  return rows;
+}
+const NY_URL = 'https://nyenr.elections.ny.gov/';
+const nyHumanCheck = s => /Just a moment|cf-challenge|challenge-platform|Verify you are human/i.test(String(s).slice(0, 20000));
+add({
+  st: 'NY', label: 'New York State Board of Elections', confidence: 'unverified', format: 'Results page (ASP.NET form)',
+  units: [{
+    id: 'NY', requests: 2,
+    async run(c) {
+      let page;
+      try { page = await c.text(NY_URL, { allow404: true }) || ''; }
+      catch (e) { if (/\b(403|503)\b/.test(String(e?.message))) throw new Error('New York\'s site answered with a human check (Cloudflare)'); throw e; }
+      if (nyHumanCheck(page)) throw new Error('New York\'s site answered with a human check (Cloudflare)');
+      // The November general: "General Election" and an update stamp from Oct–Dec 2026
+      if (!/General Election/i.test(page) || !/\b1[012]\/\d{1,2}\/2026\b/.test(page)) return { notPosted: true };
+      const rows = parseNY(page);
+      const body = nyForm(page, '4', '-1');
+      if (body) {
+        const house = await c.post(NY_URL, body.toString());
+        if (nyHumanCheck(house)) throw new Error('New York\'s site answered with a human check (Cloudflare)');
+        rows.push(...parseNY(house));
+      }
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('NY', c, rows, { pctLabel: 'election districts' }) };
     },
   }],
 });
