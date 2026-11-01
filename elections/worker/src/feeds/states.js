@@ -562,6 +562,49 @@ export function parseNY(html) {
   }
   return rows;
 }
+/* Nevada: silverstateelection.nv.gov is a new results app (2026) reading static JSON: results-config.json → manifest
+   (one per release, "sequence" goes up) → overview.json (every contest with names, parties and statewide totals).
+   The Nov 3 election ("2026 General Election") was already posted with no votes on Oct 31. The site sits behind
+   Imperva bot protection, which blocked earlier checks; if it blocks the Worker, the feed shows "failing". */
+const flipName = s => { const m = String(s || '').match(/^([^,]+),\s*(.+)$/); return m ? `${m[2]} ${m[1]}`.replace(/\s+/g, ' ').trim() : String(s || '').trim(); };
+export function parseNV(overview) {
+  const party = new Map((overview?.parties || []).map(p => [p.id, p.abbreviation || p.label]));
+  const rows = [];
+  for (const c of overview?.contests || []) {
+    if (c.kind && c.kind !== 'Office') continue;
+    const t = c.totals || {};
+    const votes = new Map((t.choices || []).map(x => [x.choiceId, x.votes]));
+    for (const ch of c.choices || []) {
+      if (ch.kind && ch.kind !== 'Candidate') continue;
+      rows.push({ contest: c.name, name: flipName(ch.label), party: party.get(ch.candidate?.partyId) || '', votes: votes.get(ch.id) ?? 0, rep: t.receivedCountyCount ?? null, tot: t.expectedCountyCount ?? null });
+    }
+  }
+  return rows;
+}
+const NV_BASE = 'https://silverstateelection.nv.gov/';
+const nvBlocked = e => new Error(`Nevada's site blocked the Worker (bot protection${/\b\d{3}\b/.test(String(e?.message)) ? `, ${String(e.message).match(/\b\d{3}\b/)[0]}` : ''})`);
+add({
+  st: 'NV', label: 'Nevada Secretary of State', confidence: 'unverified', format: 'Results app JSON',
+  units: [{
+    id: 'NV', requests: 3,
+    async run(c) {
+      let cfg, man;
+      try {
+        cfg = await c.json(`${NV_BASE}results-config.json`, { allow404: true });
+        if (!cfg?.manifestUrl) return { notPosted: true };
+        man = await c.json(NV_BASE + cfg.manifestUrl);
+      } catch (e) { throw nvBlocked(e); }
+      const base = NV_BASE + cfg.manifestUrl.replace(/[^/]*$/, '');
+      if (!man?.overview?.path) return { notPosted: true };
+      const ov = await c.json(base + man.overview.path).catch(e => { throw nvBlocked(e); });
+      if (!/general/i.test(ov?.election?.name || '') || ov?.election?.electionDate !== '2026-11-03') return { notPosted: true };
+      const rows = parseNV(ov);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('NV', c, rows, { pctLabel: 'counties' }) };
+    },
+  }],
+});
+
 const NY_URL = 'https://nyenr.elections.ny.gov/';
 const nyHumanCheck = s => /Just a moment|cf-challenge|challenge-platform|Verify you are human/i.test(String(s).slice(0, 20000));
 add({

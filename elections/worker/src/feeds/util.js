@@ -59,14 +59,19 @@ function titleCase(s) {
  * Tidy a candidate name from a state file. Uses the pre-race candidate list for the race when the
  * last names match, so "KEN PAXTON" and "Kenneth Paxton" both display as the board's "Ken Paxton".
  */
-export function cleanName(raw, race, { ticket = false } = {}) {
+const firstOf = s => fold(s).split(' ').find(w => w.length > 1 && !SUFFIX.test(w)) || '';
+export function cleanName(raw, race, { ticket = false, party = null } = {}) {
   let n = String(raw || '').replace(/\s+/g, ' ').replace(/\s*\*+$/, '').replace(/\s*\((I|INC)\)$/i, '').trim();
   if (ticket) n = n.split(/\s+(?:and|&)\s+|\s*\/\s*/i)[0].trim();     // "Ada Example and Cam Example" → first name on the ticket
   if (/^[^,]+,\s*[^,]+$/.test(n) && !/,\s*(jr|sr|ii|iii|iv)\.?$/i.test(n)) {   // "PAXTON, KEN" → "KEN PAXTON"
     const [l, f] = n.split(/,\s*/); n = `${f} ${l}`;
   }
   const pre = race?.candidates || [];
-  const hit = pre.find(c => lastOf(c.name) && lastOf(c.name) === lastOf(n));
+  // Same last name as a listed candidate counts as that candidate when the first initial or the party agrees, so
+  // a second candidate with the same last name (Nevada 2026: Aaron Ford, Dem, and Danielle Ford, no party) stays apart
+  const p = party ? normParty(party) : null;
+  const hit = pre.find(c => lastOf(c.name) && lastOf(c.name) === lastOf(n)
+    && (firstOf(c.name)[0] === firstOf(n)[0] || !firstOf(n) || (p && c.party && p === c.party)));
   if (hit) return hit.name;
   return n === n.toUpperCase() ? titleCase(n) : n;
 }
@@ -77,7 +82,7 @@ export function makeResult(race, rows, extra) {
   const byName = new Map();
   for (const r of rows) {
     if (!isRealCandidate(r.name)) continue;
-    const name = cleanName(r.name, race, { ticket });
+    const name = cleanName(r.name, race, { ticket, party: r.party });
     const prev = byName.get(name);
     if (prev) prev.votes += Math.max(0, Math.round(toNum(r.votes) || 0));
     else byName.set(name, { name, party: normParty(r.party), votes: Math.max(0, Math.round(toNum(r.votes) || 0)), winner: false });
@@ -98,7 +103,7 @@ export function makeCountyResult(race, rows) {
   const totals = new Map(), parties = new Map(), byCounty = new Map();
   for (const r of rows) {
     if (!r.fips || !isRealCandidate(r.name)) continue;
-    const name = cleanName(r.name, race, { ticket });
+    const name = cleanName(r.name, race, { ticket, party: r.party });
     const v = Math.max(0, Math.round(toNum(r.votes) || 0));
     totals.set(name, (totals.get(name) || 0) + v);
     if (!parties.has(name)) parties.set(name, normParty(r.party));

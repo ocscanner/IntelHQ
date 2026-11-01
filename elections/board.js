@@ -161,11 +161,29 @@
       if (t.dataset.race) { select(t.dataset.race); return; }
     });
     $('search').addEventListener('input', e => { S.q = e.target.value.trim().toLowerCase(); S.limit = 60; renderList(); });
-    root.addEventListener('change', e => { const k = e.target?.dataset?.apref; if (k) alertsPref(k, e.target.checked); });
-    root.addEventListener('input', e => { const id = e.target?.dataset?.qcin; if (id) (S.qdraft[id] ||= {})[e.target.dataset.k] = e.target.value; });
+    root.addEventListener('change', e => {
+      const k = e.target?.dataset?.apref; if (k) alertsPref(k, e.target.checked);
+      const ps = e.target?.dataset?.pastesel; if (ps && S.paste) S.paste.sel[ps] = e.target.checked;
+      if (e.target?.dataset?.pastest != null && S.paste) { S.paste.st = e.target.value; pasteRead(); }
+    });
+    // Paste from page: read the paste (with its HTML when the browser gives it) as soon as it lands
+    root.addEventListener('paste', e => {
+      if (e.target?.dataset?.pastebox == null) return;
+      e.preventDefault();
+      const cd = e.clipboardData;
+      const html = cd?.getData('text/html') || '', text = cd?.getData('text/plain') || '';
+      S.paste.text = html && window.EBPaste ? EBPaste.htmlToText(html) : text;
+      S.paste.st = '';
+      e.target.blur();
+      pasteRead();
+    });
+    root.addEventListener('input', e => {
+      const id = e.target?.dataset?.qcin; if (id) (S.qdraft[id] ||= {})[e.target.dataset.k] = e.target.value;
+      const pp = e.target?.dataset?.pastepct; if (pp && S.paste) S.paste.pct[pp] = e.target.value;
+    });
     root.addEventListener('keydown', e => { const id = e.target?.dataset?.qcin; if (id && e.key === 'Enter') { e.preventDefault(); quickSave(id).then(ok => ok && load(true)); } });
     // Don't redraw the queue panel under the cursor while typing a count; catch up when the field is left
-    root.addEventListener('focusout', e => { if (e.target?.dataset?.qcin && S.queueDeferred) setTimeout(() => { if (!root.querySelector('.eb-quick')?.contains(document.activeElement)) { S.queueDeferred = false; renderQueue(); } }, 0); });
+    root.addEventListener('focusout', e => { if ((e.target?.dataset?.qcin || e.target?.dataset?.pastepct) && S.queueDeferred) setTimeout(() => { if (!root.querySelector('.eb-quick')?.contains(document.activeElement)) { S.queueDeferred = false; renderQueue(); } }, 0); });
     // One tooltip handler for both the US map and the county maps
     $('map').addEventListener('mousemove', e => {
       const box = $('map'), tip = box.querySelector('.eb-tip');
@@ -1042,6 +1060,9 @@
         case 'feeds-unverified': return feedCheckAll();
         case 'tools-quick': S.tools = S.tools === 'quick' ? null : 'quick'; return renderQueue();
         case 'quick-saveall': return quickSaveAll();
+        case 'paste-toggle': S.paste = S.paste ? null : { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
+        case 'paste-clear': S.paste = { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
+        case 'paste-save': return pasteSave();
         case 'quick-reset': if (confirm('Reset Quick count to the default list of competitive races?')) { store.set('quick', QUICK_DEFAULT); renderQueue(); } return;
         case 'quicktoggle': return quickToggle(r.id);
         case 'alerts-on': return alertsOn();
@@ -1181,7 +1202,9 @@
     function renderQueue() {
       const box = $('queue');
       if (!box) return;
-      if (S.tools === 'quick' && box.querySelector('.eb-quick')?.contains(document.activeElement)) { S.queueDeferred = true; return; }
+      // Don't redraw under someone typing (a button keeping focus after a click doesn't count)
+      const ae = document.activeElement;
+      if (S.tools === 'quick' && /^(INPUT|TEXTAREA|SELECT)$/.test(ae?.tagName || '') && ae.type !== 'checkbox' && box.querySelector('.eb-quick')?.contains(ae)) { S.queueDeferred = true; return; }
       const on = !!S.token && !S.pub;
       box.hidden = !on;
       const n = on ? queueCount() : 0;
@@ -1351,8 +1374,68 @@
         </div>`;
       }).join('');
       return `<p>Type in counts for close races in states with no automatic feed, from whatever outlet you're watching. Enter or Save stores a row; it shows on the board within about a minute. A state feed or AP replaces typed numbers when one exists.</p>
+        <div class="eb-actions"><button type="button" class="eb-btn${S.paste ? ' sel' : ''}" data-act="paste-toggle">Paste from page</button></div>
+        ${S.paste ? pasteHtml() : ''}
         ${rows || '<p class="eb-qsmall">No races in the list. Add some with <b>Add to Quick count</b> on a race.</p>'}
         <div class="eb-actions"><button type="button" class="eb-btn" data-act="quick-saveall">Save all changed</button><button type="button" class="eb-btn" data-act="quick-reset">Reset to the default list</button></div>`;
+    }
+    /* Paste from page: open a state's results page in your own browser (click through any "are you human" check
+       there), select all, copy, paste here. paste.js finds our races' candidates and their vote counts; you check
+       them and save. Saved like typed counts, so a working feed or AP still takes over. */
+    S.paste = S.paste || null;
+    function pasteRaces(st) {
+      return [...(S.byId?.values() || [])].filter(r => r.state === st && r.chamber !== 'local' && (r.preCandidates || []).length)
+        .map(r => ({ id: r.id, name: r.name, candidates: r.preCandidates.map(c => ({ name: c.name, party: c.party })) }));
+    }
+    function pasteRead() {
+      const P = S.paste;
+      if (!P || !window.EBPaste) return renderQueue();
+      if (!P.text.trim()) { P.results = null; return renderQueue(); }
+      if (!P.st) P.st = EBPaste.detectState(P.text) || '';
+      P.results = P.st ? EBPaste.read(P.text, pasteRaces(P.st)) : [];
+      P.sel = Object.fromEntries(P.results.map(r => [r.id, r.status === 'ok']));
+      P.pct = Object.fromEntries(P.results.map(r => [r.id, r.pctIn ?? '']));
+      renderQueue();
+    }
+    function pasteHtml() {
+      const P = S.paste;
+      if (!window.EBPaste) return '<p class="eb-qsmall">The paste reader didn’t load; refresh IntelHQ.</p>';
+      const opts = ['<option value="">Pick the state…</option>'].concat(Object.entries(EBPaste.STATE_NAMES).map(([k, n]) => `<option value="${k}"${P.st === k ? ' selected' : ''}>${esc(n)}</option>`)).join('');
+      const fmt = n => Number(n).toLocaleString('en-US');
+      let res = '';
+      if (P.results) {
+        res = !P.st ? '<p class="warnt">Couldn’t tell which state this page is for. Pick it above.</p>'
+          : !P.results.length ? `<p class="warnt">No ${esc(EBPaste.STATE_NAMES[P.st])} races found in what you pasted. Make sure the page shows the candidates’ vote totals, then select all and copy again.</p>`
+          : `<ul class="eb-ilog eb-pastelist">${P.results.map(r => {
+            const race = S.byId.get(r.id);
+            return `<li class="eb-pr ${r.status}"><label><input type="checkbox" data-pastesel="${esc(r.id)}"${P.sel[r.id] ? ' checked' : ''}> <b>${esc(race ? shortName(race) : r.id)}</b></label>
+              <span class="qwhy">${r.candidates.map(c => `${esc(last(c.name))} ${fmt(c.votes)}`).join(' · ')}</span>
+              <label class="eb-prpct">% in <input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-pastepct="${esc(r.id)}" value="${esc(String(P.pct[r.id] ?? ''))}"></label>
+              ${r.status !== 'ok' ? `<div class="warnt eb-qsmall">Check this one: ${r.missing.length ? `didn’t find ${esc(r.missing.map(last).join(', '))}` : 'names found far apart on the page'}. Unticked.</div>` : ''}</li>`;
+          }).join('')}</ul>
+          <div class="eb-actions"><button type="button" class="eb-btn" data-act="paste-save">Save ${Object.values(P.sel).filter(Boolean).length} ticked</button><button type="button" class="eb-btn" data-act="paste-clear">Clear</button></div>`;
+      }
+      return `<div class="eb-paste">
+        <p class="eb-qsmall">Open the state’s official results page in your browser (click through any human check there), show the races you want (New York: U.S. Congress → All → Search), then select all (Cmd/Ctrl+A), copy, and paste below. Nothing saves until you press Save.</p>
+        <label class="eb-qsmall">State <select data-pastest>${opts}</select></label>
+        <textarea data-pastebox rows="2" placeholder="Paste the page here"></textarea>
+        ${P.results ? `<p class="eb-qsmall">${esc(EBPaste.STATE_NAMES[P.st] || 'Unknown state')}: ${P.results.length} race${P.results.length === 1 ? '' : 's'} found${P.results.some(r => r.pctIn == null) ? '. Fill in “% in” where the page didn’t show it' : ''}.</p>` : ''}
+        ${res}</div>`;
+    }
+    async function pasteSave() {
+      const P = S.paste;
+      const ids = (P?.results || []).filter(r => P.sel[r.id]);
+      if (!ids.length) return toast('Nothing ticked');
+      let ok = 0;
+      for (const r of ids) {
+        const pct = P.pct[r.id] === '' || P.pct[r.id] == null ? null : Math.max(0, Math.min(100, +P.pct[r.id]));
+        try { await deskApi('POST', 'result', { raceId: r.id, pctIn: pct, candidates: r.candidates, sim: S.sim }); ok++; }
+        catch (e) { toast(`${r.id} not saved: ${e.message}`); }
+      }
+      toast(`${ok} of ${ids.length} races saved${S.sim ? ' (rehearsal)' : ''}`);
+      if (ok === ids.length) S.paste = { st: P.st, text: '', results: null, sel: {}, pct: {} };
+      renderQueue();
+      await load(true);
     }
     async function quickSave(id, quiet) {
       const r = S.byId.get(id), d = S.qdraft[id];

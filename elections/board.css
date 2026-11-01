@@ -309,3 +309,11 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-fc.good .eb-fcres{color:#4ade80}
 .eb-fc.bad .eb-fcres{color:#f87171}
 .eb-fc.wait .eb-fcres{color:#fbbf24}
+
+/* Paste from page (desk) */
+.eb-paste{margin:6px 0 12px;padding:10px;border:1px dashed var(--eb-line, rgba(127,127,127,.35));border-radius:8px}
+.eb-paste textarea{width:100%;box-sizing:border-box;margin:6px 0;font:inherit;background:transparent;color:inherit;border:1px solid var(--eb-line, rgba(127,127,127,.35));border-radius:6px;padding:6px}
+.eb-paste select{font:inherit;margin-left:6px}
+.eb-pastelist li.eb-pr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.eb-pastelist .eb-prpct input{width:4.5em;margin-left:4px}
+.eb-pastelist .warnt{flex-basis:100%}

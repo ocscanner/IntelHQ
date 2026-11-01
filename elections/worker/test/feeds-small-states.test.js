@@ -265,3 +265,39 @@ test('New York: governor from the page, House races from the posted-back form; f
   const old = await run('NY', { 'https://nyenr.elections.ny.gov/': form('').replace('11/03/2026', '06/23/2026').replace('General Election', 'Primary Election') });
   assert.equal(old.units[0].status, 'not posted');
 });
+
+test('Nevada: results app JSON (config → manifest → overview); "Last, First" names; None of These skipped', async () => {
+  // Shape copied from silverstateelection.nv.gov on Nov 1 (Nov 3 election posted with no votes); votes made up
+  const P = { r: 'party-r', d: 'party-d', n: 'party-n' };
+  const contest = (name, choices, rec = 10) => ({
+    id: name, name, kind: 'Office', voteFor: 1,
+    choices: choices.map(([label, p, kind = 'Candidate'], i) => ({ id: `${name}-${i}`, label, kind, candidate: kind === 'Candidate' ? { partyId: P[p] } : null })),
+    totals: { expectedCountyCount: 17, receivedCountyCount: rec, choices: choices.map(([, , , v], i) => ({ choiceId: `${name}-${i}`, votes: v ?? null })) },
+  });
+  const overview = {
+    election: { name: '2026 General Election', electionDate: '2026-11-03' },
+    parties: [{ id: 'party-r', abbreviation: 'REP' }, { id: 'party-d', abbreviation: 'DEM' }, { id: 'party-n', abbreviation: 'NPP' }],
+    contests: [
+      contest('Governor', [['Ford, Aaron D.', 'd', 'Candidate', 600000], ['Ford, Danielle', 'n', 'Candidate', 20000], ['Lombardo, Joseph', 'r', 'Candidate', 610000], ['None of These Candidates', null, 'NoneOfThese', 9000]]),
+      contest('Representative In Congress, District 3', [['Lee, Susie', 'd', 'Candidate', 150000], ["O'Donnell, Marty", 'r', 'Candidate', 140000]], 1),
+      contest('Lieutenant Governor', [['Anthony, Stavros', 'r', 'Candidate', 1]]),
+    ],
+  };
+  const base = 'https://silverstateelection.nv.gov/';
+  const out = await run('NV', {
+    [`${base}results-config.json`]: { manifestUrl: 'data/v2/elections/abc/manifest.json' },
+    [`${base}data/v2/elections/abc/manifest.json`]: { sequence: 6, overview: { path: 'objects/ov1.json' } },
+    [`${base}data/v2/elections/abc/objects/ov1.json`]: overview,
+  });
+  const gov = res(out, 'NV-GOV');
+  const by = Object.fromEntries(tally(gov).map(([n, p, v]) => [n, [p, v]]));
+  assert.deepEqual(by['Aaron Ford'] || by['Aaron D. Ford'], ['D', 600000]);
+  assert.ok(Object.values(by).some(([p, v]) => p === 'R' && v === 610000));
+  assert.ok(!Object.keys(by).some(n => /none/i.test(n)));
+  assert.equal(Math.round(gov.pctIn), Math.round(1000 / 17));
+  assert.equal(gov.pctLabel, 'counties');
+  assert.ok(res(out, 'NV-03'));
+  const blocked = await run('NV', { [`${base}results-config.json`]: { status: 403, body: '<html>Incapsula</html>' } });
+  assert.equal(blocked.units[0].status, 'error');
+  assert.match(blocked.units[0].error, /blocked the Worker/);
+});

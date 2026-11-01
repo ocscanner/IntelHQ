@@ -78,7 +78,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 38 states, below | Free |
+| **State election offices** | 39 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -97,6 +97,7 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | OH | Nov 3 contest API already serving practice numbers (governor, Senate special, all 15 House seats) |
 | TX | **Nov 3 ballot already loaded** (checked Oct 31) on the SOS's new page electionresults.sos.state.tx.us/results.html: Senate, all 38 House seats, governor. "% in" is polling locations reporting |
 | NY | **Nov 3 ballot already loaded** (checked Oct 31) on nyenr.elections.ny.gov, a form the feed posts back (governor from the page, all 26 House seats from the U.S. Congress search). Fusion lines (WOR, CON…) are added into each candidate. "% in" is election districts reporting. The site is behind Cloudflare: if it ever shows the Worker a human check, the feed says so and shows "failing"; type those races in with Quick count |
+| NV | Unverified. **Nov 3 election already posted** (checked Nov 1, no votes) on Nevada's new results app silverstateelection.nv.gov: static JSON (results-config.json → manifest → overview with every contest's statewide totals). Governor, 4 House. "% in" is counties reporting. The site is behind Imperva bot protection, which may block the Worker: Feed check will say "blocked the Worker"; then use Paste from page |
 | NM | **Nov 3 file already posted** (checked Oct 24): Senate, governor, 3 House. Same CSV as Nebraska |
 | LA | **Nov 3 files already posted** (checked Oct 24): Senate and 6 House seats, Voter Portal JSON |
 | SC | Clarity on enr-scvotes.org; files match Colorado's. Nov 3 not listed yet: the feed watches Clarity's list and the scvotes.gov results page for the "General Election" link |
@@ -119,7 +120,7 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 Check again with the preview tool on Nov 2 or the morning of Nov 3.
 
 States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, Michigan,
-Nevada, New Hampshire, Maine and others) fill in only from your desk entries or AP; Decision Desk HQ calls
+New Hampshire, Maine and others) fill in only from your desk entries or AP; Decision Desk HQ calls
 still reach the call queue. Oklahoma's results data needs a login token from its own app, West Virginia's
 November election isn't linked anywhere until results start, and Mississippi and Wyoming have no statewide
 election-night count (their counties post their own); see the "state feeds survey" project doc. The full state-by-state
@@ -221,6 +222,21 @@ ME-2; New Hampshire Senate, governor, NH-1; NJ-7; IL-17. Add or remove races fro
 - Each row: % in, then the Democrat's and the Republican's votes (always in that order). **Save** or Enter.
 - **Save all** saves every row you've typed in. Rows show "Saved 2m ago", "Feed: …" or "Called: …".
 - It saves through **Enter vote counts**, so a state feed or AP, when there is one, still takes over.
+
+**Paste from page** (top of Quick count): for a state whose official results page loads in your browser but not
+for the Worker (New York or Nevada if they block it), or any page that lists candidates with their vote totals.
+
+1. Open the state's results page in your browser and click through any human check there. New York: pick
+   U.S. Congress → All → Search for the House races (the governor is on the first page).
+2. Select all (Cmd/Ctrl+A), copy, and paste into the box.
+3. The board works out the state (or pick it), finds each of our races by its candidates' names (any name order,
+   middle initials, "Jr", ticket names like "Hochul / Adams"), takes each candidate's total (party lines added
+   together on New York's page) and the "% in" near the race heading when the page shows one.
+4. Check the list: races with both major candidates found are ticked; anything doubtful is unticked with the
+   reason. Fix "% in" if needed, then **Save N ticked**.
+
+Saved counts are desk entries, so a working feed or AP takes over again by itself. The reader is in `paste.js`
+(tests in `worker/test/paste.test.js`). It only reads what you paste; nothing goes to the state's site.
 
 ## Free plan or Workers Paid
 
