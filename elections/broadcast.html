@@ -221,10 +221,23 @@
   if (SIM) { $('live').classList.add('sim'); $('live').innerHTML = '<i></i>REHEARSAL'; $('tklbl').textContent = 'REHEARSAL'; }
 
   /* ── data ── */
+  // On the website the page that frames this one shares its results check (ElectionBoard.live), so the
+  // player adds no requests of its own. Standalone (OBS), it asks /v1/live itself: one request instead of three.
+  const shared = (() => { try { return EMBED && !SIM && window.parent !== window && window.parent.ElectionBoard?.live || null; } catch { return null; } })();
+  let liveOff = false;
+  async function getLive(sim) {
+    if (shared) return shared.get(API);
+    if (liveOff) return null;
+    const r = await fetch(`${API}/v1/live?sim=${sim}&local=${WANT.includes('oc') ? 'OC' : 'none'}`, { cache: 'no-store' });
+    if (r.status === 404) { liveOff = true; return null; }   // Worker not updated yet: use the separate endpoints
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
   async function load() {
     const sim = SIM ? 1 : 0;
     try {
-      const [b, f, l] = await Promise.all([
+      const lv = await getLive(sim);
+      const [b, f, l] = lv ? [lv.board, lv.feed, lv.local?.OC || null] : await Promise.all([
         fetch(`${API}/v1/board?sim=${sim}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
         fetch(`${API}/v1/feed?sim=${sim}&limit=40`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
         WANT.includes('oc') ? fetch(`${API}/v1/local?sim=${sim}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null) : null,

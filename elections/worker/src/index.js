@@ -7,6 +7,8 @@
  *  GET  /v1/board            all races + seat summaries (cached 60s per Cloudflare location)
  *  GET  /v1/board?sim=1      same, with rehearsal (fake) results — always labeled SIM
  *  GET  /v1/feed             latest calls and retractions, newest first
+ *  GET  /v1/live?local=OC    board + feed + local areas in ONE response, cached 30s per Cloudflare location.
+ *                            For the public site: one request per visitor per minute instead of five.
  *  GET  /v1/counties?race=GA-SEN   county-by-county results for a Senate or governor race
  *  GET  /v1/local?area=OC    Orange County local contests (cities, schools, districts, measures)
  *  GET  /v1/local?area=CAP   California's statewide propositions (statewide Yes/No plus Orange County's count)
@@ -61,6 +63,7 @@ const AREAS = {
 const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'PA', 'UT', 'VA']);
 const countiesOn = env => /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
 const CACHE_SECONDS = 60;
+const LIVE_SECONDS = 30;   // /v1/live: short enough that calls show quickly, long enough that D1 is read about twice a minute per location
 const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T22:00:00Z');
 
 export default {
@@ -72,6 +75,11 @@ export default {
       const p = url.pathname.replace(/\/$/, '');
       if (request.method === 'GET' && p === '/v1/board') return await board(request, env, ctx, url, cors);
       if (request.method === 'GET' && p === '/v1/feed') return json(await feed(env, url), cors, 30);
+      if (request.method === 'GET' && p === '/v1/live') {
+        const sim = isSim(env, url);
+        const areas = liveAreas(url);
+        return await cached(`live?local=${areas.join(',')}&sim=${sim ? 1 : 0}`, () => liveData(env, sim, areas), cors, ctx, url, LIVE_SECONDS);
+      }
       if (request.method === 'GET' && p === '/v1/counties') return await cached(`counties?race=${url.searchParams.get('race')}&sim=${isSim(env, url) ? 1 : 0}`, () => counties(env, url), cors, ctx, url);
       if (request.method === 'GET' && p === '/v1/local') { const area = areaKey(url); return await cached(`local?area=${area}&sim=${isSim(env, url) ? 1 : 0}`, () => local(env, url, area), cors, ctx, url); }
       if (request.method === 'GET' && p === '/v1/health') return json(await health(env), cors, 0);
@@ -344,16 +352,30 @@ async function recordFeedCalls(env, feeds, deskState, now, sim) {
 
 /* ── County results (statewide races) ── */
 const isSim = (env, url) => url.searchParams.get('sim') === '1' || env.SIMULATE === 'true';
-async function cached(key, build, cors, ctx, url) {
+async function cached(key, build, cors, ctx, url, ttl = CACHE_SECONDS) {
   const cacheKey = new Request(`https://cache.local/${key}`);
   const cache = caches.default;
   const hit = url.searchParams.get('fresh') !== '1' && await cache.match(cacheKey);
   if (hit) { const r = new Response(hit.body, hit); for (const [k, v] of Object.entries(cors)) r.headers.set(k, v); r.headers.set('X-Cache', 'HIT'); return r; }
   const out = await build();
-  ctx.waitUntil(cache.put(cacheKey, json(out, {}, CACHE_SECONDS)));
-  const resp = json(out, cors, CACHE_SECONDS);
+  ctx.waitUntil(cache.put(cacheKey, json(out, {}, ttl)));
+  const resp = json(out, cors, ttl);
   resp.headers.set('X-Cache', 'MISS');
   return resp;
+}
+
+/* ── Everything a viewer's page needs, in one response ── */
+// ?local=OC,CAP (default OC; local=none for no areas). Unknown areas are ignored.
+function liveAreas(url) {
+  const raw = url.searchParams.get('local');
+  if (raw != null && /^(none|0|)$/i.test(raw.trim())) return [];
+  const want = String(raw || 'OC').toUpperCase().split(',').map(s => s.trim()).filter(a => AREAS[a]);
+  return [...new Set(want)].slice(0, 3).sort();
+}
+async function liveData(env, sim, areas) {
+  const feedUrl = new URL(`https://live.local/v1/feed?sim=${sim ? 1 : 0}&limit=60`);
+  const [board, calls, ...locals] = await Promise.all([boardData(env, sim), feed(env, feedUrl), ...areas.map(a => localData(env, sim, a))]);
+  return { generated: new Date().toISOString(), board, feed: calls, local: Object.fromEntries(areas.map((a, i) => [a, locals[i]])) };
 }
 async function counties(env, url) {
   const id = String(url.searchParams.get('race') || '').toUpperCase();
