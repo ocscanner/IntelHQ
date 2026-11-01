@@ -72,6 +72,8 @@
     const S = {
       api: (qs.get('ebapi') || opts.api || store.get('api', '') || DEFAULT_API).replace(/\/$/, ''),
       shapesUrl: opts.shapesUrl || 'elections/data/us-states.json',
+      // Public results page that "Copy post for X" links to (each post opens its own race there)
+      publicUrl: opts.publicUrl || 'https://ocscanner.media/elections',
       countiesUrl: opts.countiesUrl || (opts.shapesUrl || 'elections/data/us-states.json').replace(/us-states\.json$/, 'counties'),
       districtsUrl: opts.districtsUrl || (opts.shapesUrl || 'elections/data/us-states.json').replace(/us-states\.json$/, 'districts'),
       pub: !!opts.publicMode,
@@ -1036,7 +1038,7 @@
         case 'log-refresh': return logLoad();
         case 'opensheet': S.sheetOpen = true; return renderDetail();
         case 'watch': return toggleWatch(r.id);
-        case 'copypost': return copy(areaOfId(r.id) ? localPost(r) : postText(r), 'Post copied');
+        case 'copypost': return copy(withLink(areaOfId(r.id) ? localPost(r) : postText(r), r.id), 'Post copied (with a link to the race)');
         case 'copylink': { const u = new URL(location.href); u.search = `?race=${r.id}`; if (!u.hash) u.hash = '#elections'; return copy(u.toString(), 'Link copied'); }
         case 'call': {
           const src = root.querySelector('[data-r="src"]')?.value || S.deskSource;
@@ -1134,6 +1136,9 @@
       if (c.total) return `${pre}🗳️ ${title}: ${c.candidates.slice(0, Math.max(2, c.voteFor + 1)).map(x => `${x.name} ${x.pct}%`).join(', ')}${prog}. No call yet.${tag}`;
       return `${pre}🗳️ Watching ${title}: ${c.candidates.map(x => x.name).join(' vs. ')}. Results after polls close at 8 p.m.${tag}`;
     }
+    // The post plus a link that opens this race on the public results page (X counts any link as 23 characters)
+    const raceLink = id => `${S.publicUrl}?race=${encodeURIComponent(id)}`;
+    const withLink = (text, id) => `${text}\nLive results: ${raceLink(id)}`;
     async function copy(text, msg) {
       try { await navigator.clipboard.writeText(text); toast(msg); }
       catch { prompt('Copy this:', text); }
