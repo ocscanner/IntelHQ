@@ -14,6 +14,8 @@
     ?secs=25                    seconds per scene (default 22)
     ?scenes=senate,close,house  which scenes, in order (senate, house, governor, close, flips, oc)
     ?director=0                 turn the auto-director off (plain rotation only)
+    ?embed=1                    for the website player: checks for new results every 60 s and pauses
+                                while the viewer's tab is hidden (not for OBS)
   Keys (OBS: right-click the source → Interact): → / ← next or previous scene, Space pause, 1–6 jump to a scene,
        A turn the auto-director on or off.
   Auto-director: between rotation screens it cuts to what just happened — a Senate or governor call, any flip,
@@ -153,7 +155,7 @@
 <body>
 <div id="stage">
   <div class="top">
-    <img src="../assets/oc-scanner-logo.png" alt="">
+    <img src="broadcast-logo.png" alt="">
     <div class="brand"><b>OC SCANNER</b><span>2026 Midterm Elections · Live Results</span></div>
     <div class="live" id="live"><i></i>LIVE</div>
     <div class="sp"></div>
@@ -178,7 +180,8 @@
   const SECS = Math.max(8, +qs.get('secs') || 22);
   const ALL_SCENES = ['senate', 'close', 'house', 'governor', 'flips', 'oc'];
   const WANT = (qs.get('scenes') || ALL_SCENES.join(',')).split(',').map(s => s.trim()).filter(s => ALL_SCENES.includes(s));
-  const REFRESH = Math.max(10, +qs.get('refresh') || 30);   // seconds between data checks
+  const EMBED = qs.get('embed') === '1';
+  const REFRESH = Math.max(10, +qs.get('refresh') || (EMBED ? 60 : 30));   // seconds between data checks
   const PNAME = { D: 'Dem', R: 'Rep', I: 'Ind', O: 'Other' };
   const PFULL = { D: 'Democrats', R: 'Republicans', I: 'independents', O: 'other parties' };
   const CH = { house: 'House', senate: 'Senate', governor: 'Governors' };
@@ -612,7 +615,10 @@
   });
 
   buildScenes(); renderScene(); loadShapes(); load();
-  setInterval(load, REFRESH * 1000);
+  // On the website, skip checks while the viewer's tab is hidden and catch up when they come back.
+  // (Not in OBS: a browser source can report itself hidden while it's still on the stream.)
+  setInterval(() => { if (!(EMBED && document.hidden)) load(); }, REFRESH * 1000);
+  if (EMBED) document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - S.lastOk > REFRESH * 1000) load(); });
 })();
 </script>
 </body>
