@@ -141,6 +141,8 @@
         return;
       }
       if (t.dataset.qpub) { queuePublish(t.dataset.qpub); return; }
+      if (t.dataset.qcsave) { quickSave(t.dataset.qcsave).then(ok => ok && load(true)); return; }
+      if (t.dataset.qcdel) { quickToggle(t.dataset.qcdel); return; }
       if (t.dataset.qdis) { queueAct(t.dataset.qdis, 'dismiss', 'Dismissed'); return; }
       if (t.dataset.qbulk) { queueBulk(t.dataset.qbulk); return; }
       if (t.dataset.qopen) { openRace(t.dataset.qopen, t.dataset.qtab); return; }
@@ -160,6 +162,10 @@
     });
     $('search').addEventListener('input', e => { S.q = e.target.value.trim().toLowerCase(); S.limit = 60; renderList(); });
     root.addEventListener('change', e => { const k = e.target?.dataset?.apref; if (k) alertsPref(k, e.target.checked); });
+    root.addEventListener('input', e => { const id = e.target?.dataset?.qcin; if (id) (S.qdraft[id] ||= {})[e.target.dataset.k] = e.target.value; });
+    root.addEventListener('keydown', e => { const id = e.target?.dataset?.qcin; if (id && e.key === 'Enter') { e.preventDefault(); quickSave(id).then(ok => ok && load(true)); } });
+    // Don't redraw the queue panel under the cursor while typing a count; catch up when the field is left
+    root.addEventListener('focusout', e => { if (e.target?.dataset?.qcin && S.queueDeferred) setTimeout(() => { if (!root.querySelector('.eb-quick')?.contains(document.activeElement)) { S.queueDeferred = false; renderQueue(); } }, 0); });
     // One tooltip handler for both the US map and the county maps
     $('map').addEventListener('mousemove', e => {
       const box = $('map'), tip = box.querySelector('.eb-tip');
@@ -977,6 +983,7 @@
           ${r.call ? '<button type="button" class="eb-btn warn" data-act="retract">Withdraw call</button>' : ''}
           ${r.deskOverride ? `<button type="button" class="eb-btn" data-act="clear">${r.deskOverride === 'withdrawn' ? 'Undo withdrawal' : 'Remove desk call'}</button>` : ''}
           <button type="button" class="eb-btn" data-act="manual">${S.manualOpen === r.id ? 'Hide vote entry' : 'Enter vote counts'}</button>
+          <button type="button" class="eb-btn" data-act="quicktoggle">${store.get('quick', QUICK_DEFAULT).includes(r.id) ? 'Remove from Quick count' : 'Add to Quick count'}</button>
         </div>
         ${S.manualOpen === r.id ? `<div data-r="manual">
           ${manual.map((c, i) => `<div class="eb-grid3"><input aria-label="Candidate ${i + 1} name" value="${esc(c.name)}" data-m="name"><input aria-label="Party" value="${esc(c.party)}" data-m="party" maxlength="3"><input aria-label="Votes" inputmode="numeric" value="${c.votes ?? ''}" data-m="votes"></div>`).join('')}
@@ -1030,6 +1037,10 @@
         }
         case 'tools-alerts': S.tools = S.tools === 'alerts' ? null : 'alerts'; renderQueue(); if (S.tools) pushRefresh(); return;
         case 'tools-log': S.tools = S.tools === 'log' ? null : 'log'; renderQueue(); if (S.tools) logLoad(); return;
+        case 'tools-quick': S.tools = S.tools === 'quick' ? null : 'quick'; return renderQueue();
+        case 'quick-saveall': return quickSaveAll();
+        case 'quick-reset': if (confirm('Reset Quick count to the default list of competitive races?')) { store.set('quick', QUICK_DEFAULT); renderQueue(); } return;
+        case 'quicktoggle': return quickToggle(r.id);
         case 'alerts-on': return alertsOn();
         case 'alerts-off': return alertsOff();
         case 'alerts-test': return alertsTest();
@@ -1167,6 +1178,7 @@
     function renderQueue() {
       const box = $('queue');
       if (!box) return;
+      if (S.tools === 'quick' && box.querySelector('.eb-quick')?.contains(document.activeElement)) { S.queueDeferred = true; return; }
       const on = !!S.token && !S.pub;
       box.hidden = !on;
       const n = on ? queueCount() : 0;
@@ -1298,11 +1310,75 @@
       const row = `<div class="eb-qtools">
         <button type="button" class="eb-btn${S.tools === 'alerts' ? ' sel' : ''}" data-act="tools-alerts">Phone alerts: ${on ? '<b>on</b>' : 'off'}</button>
         <button type="button" class="eb-btn" data-act="log-note">Log issue</button>
-        <button type="button" class="eb-btn${S.tools === 'log' ? ' sel' : ''}" data-act="tools-log">Issue log</button></div>`;
+        <button type="button" class="eb-btn${S.tools === 'log' ? ' sel' : ''}" data-act="tools-log">Issue log</button>
+        <button type="button" class="eb-btn${S.tools === 'quick' ? ' sel' : ''}" data-act="tools-quick">Quick count</button></div>`;
+      if (S.tools === 'quick') return row + `<div class="eb-qtool eb-quick">${quickHtml()}</div>`;
       if (S.tools === 'alerts') return row + `<div class="eb-qtool">${alertsHtml()}</div>`;
       if (S.tools === 'log') return row + `<div class="eb-qtool">${logHtml()}</div>`;
       return row;
     }
+    /* Quick count: one screen to type in counts for competitive races in states with no automatic feed.
+       Starts with the Oct 31 list (ranked by competitiveness); add or remove races per device. Each row saves
+       through the desk's vote entry (POST /v1/desk/result), so a feed or AP, when there is one, still wins. */
+    const QUICK_DEFAULT = ['MI-GOV', 'MI-SEN', 'MI-07', 'MI-08', 'MI-04', 'MI-10', 'NY-17', 'NY-22', 'NY-03', 'NY-04', 'NY-19',
+      'WI-GOV', 'WI-03', 'WI-01', 'NV-GOV', 'NV-03', 'ME-SEN', 'ME-GOV', 'ME-02', 'NH-SEN', 'NH-GOV', 'NH-01', 'NJ-07', 'IL-17'];
+    const quickIds = () => store.get('quick', QUICK_DEFAULT).filter(id => S.byId?.has(id));
+    S.qdraft = S.qdraft || {};
+    // The two candidates to type in, always in the same order (Democrat, then Republican) so the boxes never swap
+    function quickCands(r) {
+      const pre = r.preCandidates || [];
+      const by = p => pre.find(c => c.party === p);
+      return [by('D'), by('R')].filter(Boolean).concat(pre.filter(c => c.party !== 'D' && c.party !== 'R')).slice(0, 2);
+    }
+    function quickHtml() {
+      const ids = quickIds();
+      const rows = ids.map(id => {
+        const r = S.byId.get(id), cs = quickCands(r), d = S.qdraft[id] || {};
+        const val = (k, v) => esc(d[k] ?? (v ?? ''));
+        const feed = r.source && r.source !== 'OC Scanner desk' && !/desk/i.test(r.pctLabel || '') && r.pctLabel !== 'expected vote';
+        const typed = r.pctLabel === 'expected vote';
+        const status = r.call ? `Called: ${esc(last(r.call.candidate || ''))}` : feed ? `Feed: ${esc(r.source)}` : typed && r.updated ? `Saved ${ago(Date.parse(r.updated))}` : 'Not entered yet';
+        return `<div class="eb-qc" data-qc="${id}">
+          <div class="qch"><button type="button" class="eb-linkbtn qcname" data-qopen="${id}" data-qtab="${r.chamber}">${esc(shortName(r))}</button><span class="qcs${feed ? ' feed' : ''}">${status}</span><button type="button" class="eb-linkbtn" data-qcdel="${id}" title="Remove from Quick count" aria-label="Remove ${esc(shortName(r))} from Quick count">×</button></div>
+          <div class="qcr"><label>% in <input type="number" inputmode="decimal" min="0" max="100" step="0.1" data-qcin="${id}" data-k="pct" value="${val('pct', typed ? r.pctIn : '')}"></label>
+          ${cs.map((c, i) => `<label class="${c.party in PNAME ? c.party : 'O'}">${esc(last(c.name))} <input type="number" inputmode="numeric" min="0" step="1" data-qcin="${id}" data-k="v${i}" value="${val(`v${i}`, typed ? r.candidates.find(x => x.name === c.name)?.votes : '')}"></label>`).join('')}
+          <button type="button" class="eb-btn" data-qcsave="${id}">Save</button></div>
+        </div>`;
+      }).join('');
+      return `<p>Type in counts for close races in states with no automatic feed, from whatever outlet you're watching. Enter or Save stores a row; it shows on the board within about a minute. A state feed or AP replaces typed numbers when one exists.</p>
+        ${rows || '<p class="eb-qsmall">No races in the list. Add some with <b>Add to Quick count</b> on a race.</p>'}
+        <div class="eb-actions"><button type="button" class="eb-btn" data-act="quick-saveall">Save all changed</button><button type="button" class="eb-btn" data-act="quick-reset">Reset to the default list</button></div>`;
+    }
+    async function quickSave(id, quiet) {
+      const r = S.byId.get(id), d = S.qdraft[id];
+      if (!r || !d) return false;
+      const cs = quickCands(r);
+      const num = v => v === '' || v == null ? null : Math.max(0, +v);
+      const vs = cs.map((c, i) => num(d[`v${i}`] ?? (r.pctLabel === 'expected vote' ? r.candidates.find(x => x.name === c.name)?.votes : null)));
+      if (vs.some(v => v == null || !Number.isFinite(v))) { if (!quiet) toast(`${shortName(r)}: enter votes for both candidates`); return false; }
+      const pct = num(d.pct ?? (r.pctLabel === 'expected vote' ? r.pctIn : null));
+      try {
+        await deskApi('POST', 'result', { raceId: id, pctIn: pct, candidates: cs.map((c, i) => ({ name: c.name, party: c.party, votes: vs[i] })), sim: S.sim });
+        delete S.qdraft[id];
+        if (!quiet) toast(`${shortName(r)} saved${S.sim ? ' (rehearsal)' : ''}`);
+        return true;
+      } catch (e) { toast(`${shortName(r)} not saved: ${e.message}`); return false; }
+    }
+    async function quickSaveAll() {
+      const ids = Object.keys(S.qdraft).filter(id => quickIds().includes(id));
+      if (!ids.length) return toast('Nothing changed');
+      let ok = 0;
+      for (const id of ids) if (await quickSave(id, true)) ok++;
+      toast(`${ok} of ${ids.length} saved${S.sim ? ' (rehearsal)' : ''}`);
+      await load(true);
+    }
+    const quickToggle = id => {
+      const ids = store.get('quick', QUICK_DEFAULT);
+      store.set('quick', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+      toast(ids.includes(id) ? 'Removed from Quick count' : 'Added to Quick count');
+      renderQueue(); renderDetail();
+    };
+
     function alertsHtml() {
       const info = S.push.info;
       if (!pushSupported()) {
