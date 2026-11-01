@@ -52,8 +52,8 @@ test('log: entries saved, listed newest first, exported grouped by kind; firstTi
     { kind: 'feed_up', state: 'KS', title: 'Kansas feed working again', at: t + 120000 },
   ]);
   const list = await listLog(db);
-  assert.deepEqual(list.map(e => e.kind), ['feed_up', 'note', 'feed_down']);
-  assert.equal(list[1].label, 'Desk note');
+  assert.deepEqual(list.filter(e => e.kind !== 'known_gap').map(e => e.kind), ['feed_up', 'note', 'feed_down']);
+  assert.equal(list.find(e => e.kind === 'note').label, 'Desk note');
   const text = logText(list);
   assert.match(text, /## Feed failing \(1\)\n- Nov 3, 8:00 PM · Kansas feed failing — HTTP 403/);
   assert.match(text, /## Desk note \(1\)\n- Nov 3, 8:01 PM · Maricopa drop came late \[AZ-06\]/);
@@ -169,4 +169,14 @@ test('push: encryption is fresh every time (new salt and key)', async () => {
   const b = await encryptPayload(d.subscription.keys, new TextEncoder().encode('{"a":1}'));
   assert.notDeepEqual(Buffer.from(a), Buffer.from(b));
   assert.deepEqual(d.decrypt(a), { a: 1 });
+});
+
+test('Known 2026 state gaps are written into the issue log once, for the 2028 rebuild', async () => {
+  const db = memoryD1();
+  const first = await listLog(db);
+  const gaps = first.filter(e => e.kind === 'known_gap');
+  assert.equal(gaps.length, 20);
+  assert.ok(gaps.some(e => e.state === 'MI' && /no statewide/i.test(e.title)));
+  assert.equal((await listLog(db)).filter(e => e.kind === 'known_gap').length, 20);   // not repeated
+  assert.match(logText(first), /Known before election night \(2028 prep\) \(20\)/);
 });

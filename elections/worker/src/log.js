@@ -26,6 +26,7 @@ export const KINDS = {
   manual_count: 'Counts typed in by hand',
   retract: 'Call withdrawn',
   note: 'Desk note',
+  known_gap: 'Known before election night (2028 prep)',
 };
 
 /** @param {{at?, kind, state?, raceId?, title, detail?, source?}[]} entries */
@@ -38,8 +39,40 @@ export async function addLog(db, entries, now = Date.now()) {
   return entries.length;
 }
 
+/* Gaps found while building the 2026 feeds (Oct 21 – Nov 1), written into the log once so the 2028 rebuild list
+   starts with them. Goal for the 2028 primaries and general: every state automated. */
+const AT = Date.parse('2026-11-01T08:00:00Z');
+export const KNOWN_GAPS = [
+  ['MI', 'Michigan: no statewide election-night results', 'SOS tells media to use the 83 county clerk sites; mi.gov/vote posts statewide unofficial results only after every county reports. Counties use mixed systems (PDFs, vendor pages). 2026: Quick count + DDHQ calls. 2028: build county readers for the big counties or get a feed from the SOS; AP license is the fallback.'],
+  ['WI', 'Wisconsin: no statewide election-night results', 'WEC: "no central official website"; 72 county clerks post within two hours of getting municipal returns (1,850 municipalities). 2026: Quick count. 2028: county readers (Milwaukee, Dane, Waukesha, Brown first) or AP.'],
+  ['NY', 'New York: results site behind Cloudflare', 'nyenr.elections.ny.gov answered ordinary requests on Oct 31, but showed a "verify you are human" check in an earlier survey. Feed built (ASP.NET form, governor + 26 House); falls back to Paste from page. 2028: ask the State Board to allow the Worker or publish a data file.'],
+  ['NV', 'Nevada: results app behind Imperva bot protection', 'silverstateelection.nv.gov (new in 2026) is static JSON; feed built, but Imperva blocked automated checks before. Falls back to Paste from page. 2028: ask the SOS for access, or confirm the Worker gets through.'],
+  ['ME', 'Maine: no official election-night count', 'Towns report; the state posts results later. 2026: Quick count (Senate, governor, ME-2). 2028: find a town-level source or license AP.'],
+  ['NH', 'New Hampshire: no official election-night count', 'Towns report; the SOS posts results later. 2026: Quick count (Senate, governor, NH-1). 2028: same as Maine.'],
+  ['NJ', 'New Jersey: no statewide election-night count', '21 county clerks post their own results. 2026: Quick count (NJ-7). 2028: county readers.'],
+  ['IL', 'Illinois: no statewide election-night count', '108 local election authorities report separately. 2026: Quick count (IL-17). 2028: readers for Cook and the collar counties.'],
+  ['MA', 'Massachusetts: no statewide election-night count', 'Results come from cities and towns; nothing statewide on the night. Safe races in 2026. 2028: find a source.'],
+  ['OK', 'Oklahoma: results data needs a login', 'The results API answers 401 unless the site\'s own app signs in. Not built around an access gate. 2028: ask the State Election Board for a public feed.'],
+  ['MS', 'Mississippi: no statewide election-night reporting', 'A bill to create it died; SOS posts certified PDFs later; 82 counties. 2028: check whether the state adds one.'],
+  ['WY', 'Wyoming: no statewide election-night count', 'SOS posts official PDFs after the canvass and points to county sites. 2028: county readers (23 counties) or AP.'],
+  ['WV', 'West Virginia: November election not linked until results start', 'Clarity site; the election ID isn\'t published ahead of time. 2028: watch Clarity\'s election list automatically.'],
+  ['AL', 'Alabama: results site blank until results start', 'Layout can\'t be checked ahead of time. 2028: save the 2026 layout and build the reader from it.'],
+  ['LAC', 'LA County: results site behind Imperva', 'results.lavote.gov JSON API; may refuse the Worker. Feed check on Nov 2.'],
+  [null, 'County maps missing for several states', 'No free county-by-county file: Texas, Nebraska, South Dakota, Ohio; Nevada and Michigan have none on the night. 2028: find county files or county readers.'],
+  [null, 'Free plan too small for big state files', 'Free Workers plan: 10 ms per run; NC, TX, FL, GA files and all county files need Workers Paid. Switch on before election night; plan for Paid from the start in 2028.'],
+  [null, 'Many feeds unverified until results start', 'Checked against primaries or old elections only: MO, TN, MD, OR, MT, KS, KY, HI, DE, ND, AK, UT, ID, NY, NV, LAC. Feed check on Nov 2-3. 2028: run every feed against the primaries first.'],
+  [null, 'Feeds only read general elections', 'Every adapter looks for the November general. 2028 primaries need primary support: party-specific contests, many candidates, different dates per state, runoffs.'],
+  [null, 'No source for calls except DDHQ posts and the desk', 'AP calls need a paid X API or the AP Elections API (elections_api_info@ap.org). 2028: decide on AP early.'],
+];
+export async function seedKnownGaps(db, now = Date.now()) {
+  const fresh = await firstTime(db, ['seed|known-gaps-2026'], now);
+  if (!fresh.size) return 0;
+  return addLog(db, KNOWN_GAPS.map(([state, title, detail]) => ({ at: AT, kind: 'known_gap', state, title, detail, source: 'prep' })), now);
+}
+
 export async function listLog(db, limit = 500) {
   await ensureLog(db);
+  await seedKnownGaps(db);
   const { results } = await db.prepare('SELECT * FROM issue_log ORDER BY at DESC, id DESC LIMIT ?').bind(limit).all();
   return results.map(r => ({ id: r.id, at: r.at, kind: r.kind, label: KINDS[r.kind] || r.kind, state: r.state, raceId: r.race_id, title: r.title, detail: r.detail, source: r.source }));
 }
