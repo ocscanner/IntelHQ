@@ -158,24 +158,6 @@ test('Colorado (Clarity): downloads the zip, then skips it while the version is 
   assert.equal(log.filter(u => u.endsWith('elections.json')).length, 1, 'election id is remembered');
 });
 
-test('Texas: version files, Federal.json, missing StateWide.json is fine', async () => {
-  const base = 'https://results.texas-election.com/static/data';
-  const routes = {
-    [`${base}/Version.json`]: JSON.stringify({ ___versionNo: 77 }),
-    [`${base}/ElectionConstants_77.json`]: JSON.stringify({ electionInfo: { 2026: { G: { 51000: { N: '2026 November 3rd General Election' } } } } }),
-    [`${base}/election/51000/Version.json`]: JSON.stringify({ ___versionNo: 12 }),
-    [`${base}/election/51000/12/Federal.json`]: JSON.stringify({ Races: [
-      { N: 'U.S. SENATOR', Candidates: [{ N: 'JAMES TALARICO', P: 'DEM', V: 1000 }, { N: 'KEN PAXTON', P: 'REP', V: 1100 }] },
-      { N: 'U.S. REPRESENTATIVE DISTRICT 15', PR: 100, TP: 400, Candidates: [{ N: 'BOBBY PULIDO', P: 'DEM', V: 50 }, { N: 'MONICA DE LA CRUZ', P: 'REP', V: 49 }] },
-    ] }),
-  };
-  const out = await run('TX', routes);
-  assert.equal(out.units[0].status, 'ok', out.units[0].error);
-  assert.deepEqual(res(out, 'TX-SEN').candidates.map(c => c.name), ['Ken Paxton', 'James Talarico']);
-  assert.equal(res(out, 'TX-15').pctIn, 25);
-  assert.equal(res(out, 'TX-15').candidates[1].name, 'Monica De La Cruz');
-});
-
 test('Florida: adds counties together, counts each county\'s precincts once', async () => {
   const head = 'ElectionDate\tPartyCode\tPartyName\tRaceCode\tRaceName\tCountyCode\tCountyName\tJuris1num\tJuris2num\tPrecincts\tPrecinctsReporting\tCanNameLast\tCanNameFirst\tCanNameMiddle\tCanVotes';
   const tsv = [head,

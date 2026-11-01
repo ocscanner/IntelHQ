@@ -206,3 +206,21 @@ test('Vermont: election JSON points at the current federal and statewide files; 
   assert.equal(vt.pctLabel, 'towns');
   assert.deepEqual(tally(res(out, 'VT-GOV')), [['Phil Scott', 'R', 500], ['Amanda Janoo', 'D', 100]]);
 });
+
+test('Texas: the SOS results page (Nov 3 layout, Oct 31); Senate, House district, governor; write-ins skipped', async () => {
+  const race = (title, pct, rows) => `<div class="election">${title} </div><div class="polling">Polling Locations Reporting: ${pct}%</div><div><table class="election"><tr class="header"><th class="party">Party</th><th class="candidate">Candidate</th><th class="ballot">Ballots Cast</th></tr>${rows.map(([p, n, v]) => `<tr><td class="party">${p}</td><td class="candidate">${n}</td>${v == null ? '<td class="ballot" />' : `<td class="ballot">${v}</td>`}</tr>`).join('')}</table></div>`;
+  const html = `<h1>Election Results - Tuesday, November 3, 2026</h1><button><div>2026 NOVEMBER GENERAL ELECTION<span> (Updated 11/03/2026 09:10 PM)</span></div></button>
+    ${race('U. S. SENATOR', 41.5, [['REPUBLICAN', 'KEN PAXTON', '2,100,000'], ['DEMOCRATIC', 'JAMES TALARICO', '1,900,000'], ['LIBERTARIAN', 'TED BROWN', '50,000'], ['WRITE-IN', 'AVERY AYERS', '12']])}
+    ${race('U. S. REPRESENTATIVE DISTRICT 28', 50, [['REPUBLICAN', 'SOMEONE R', '80,000'], ['DEMOCRATIC', 'HENRY CUELLAR', '90,000']])}
+    ${race('GOVERNOR', 41.5, [['REPUBLICAN', 'GREG ABBOTT', '2,200,000'], ['DEMOCRATIC', 'GINA HINOJOSA', '1,800,000']])}
+    ${race('RAILROAD COMMISSIONER', 41.5, [['REPUBLICAN', 'X', '1']])}`;
+  const out = await run('TX', { 'https://electionresults.sos.state.tx.us/results.html': html });
+  const sen = res(out, 'TX-SEN');
+  assert.deepEqual(tally(sen).map(([, p, v]) => [p, v]), [['R', 2100000], ['D', 1900000], ['L', 50000]]);
+  assert.equal(sen.pctIn, 41.5);
+  assert.equal(sen.pctLabel, 'polling locations');
+  assert.deepEqual(tally(res(out, 'TX-28')).map(([, p, v]) => [p, v]), [['D', 90000], ['R', 80000]]);
+  assert.deepEqual(tally(res(out, 'TX-GOV')).map(([, p, v]) => [p, v]), [['R', 2200000], ['D', 1800000]]);
+  const before = await run('TX', { 'https://electionresults.sos.state.tx.us/results.html': '<h1>Election Results</h1><div>2026 MARCH PRIMARY</div>' });
+  assert.equal(before.units[0].status, 'not posted');
+});

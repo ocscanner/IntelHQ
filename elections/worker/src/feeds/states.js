@@ -6,7 +6,6 @@
 // confidence (checked against the live files on Oct 21, 2026):
 //   "verified"           = the state's real files were opened and match this reader
 //   "unverified"         = same platform as a verified state, but not opened yet
-//   "not found for 2026" = Texas: its results system has nothing after 2024 yet
 // Field names come from each office's published formats. State files don't mark winners in a way
 // we use: race calls stay with the desk (or AP, if licensed).
 import { raceIdFor, makeResult, makeCountyResult, isStatewide, pctFromUnits, isElectionDay, isGeneralName, csvObjects, parseCSV, findCol, unzipEntry } from './util.js';
@@ -966,32 +965,35 @@ add({
   }],
 });
 
-/* Texas: Version.json → election id → Federal.json + StateWide.json */
+/* Texas: the Secretary of State's election-results page, electionresults.sos.state.tx.us/results.html (static HTML,
+   ~280 KB, every contest). The old results.texas-election.com system has nothing after 2024; this page carried the
+   Nov 3 ballot (Paxton vs. Talarico, all 38 House seats, governor) when checked Oct 31. Each contest is
+   <div class="election">TITLE</div><div class="polling">Polling Locations Reporting: N%</div><table> party /
+   candidate / ballots cast. Federal races and governor come first, so only the start of the page is read. */
+export function parseTX(html) {
+  const rows = [];
+  for (const part of String(html).split(/<div class=["']?election["']?>/i).slice(1)) {
+    const contest = stripTags(part.slice(0, part.search(/<\/div>/i)));
+    const pct = toNum(part.match(/Polling Locations Reporting:\s*([\d.]+)\s*%/i)?.[1]);
+    for (const tr of part.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cell = k => stripTags(tr[1].match(new RegExp(`class=["']?${k}["']?[^>]*>([\\s\\S]*?)<\\/td>`, 'i'))?.[1] || '');
+      const party = cell('party'), name = cell('candidate');
+      if (!name || /write-?in/i.test(party)) continue;
+      rows.push({ contest, name, party, votes: toNum(cell('ballot')) || 0, rep: pct, tot: pct == null ? null : 100 });
+    }
+  }
+  return rows;
+}
 add({
-  st: 'TX', label: 'Texas Secretary of State', confidence: 'not found for 2026', format: 'ENR JSON',
+  st: 'TX', label: 'Texas Secretary of State', confidence: 'verified', format: 'Election results page (HTML)',
   units: [{
-    id: 'TX', requests: 5,
+    id: 'TX', requests: 1,
     async run(c) {
-      const base = 'https://results.texas-election.com/static/data';
-      let eid = c.meta.eid;
-      if (!eid) {
-        const v = await c.json(`${base}/Version.json`);
-        const k = await c.json(`${base}/ElectionConstants_${v.___versionNo}.json`);
-        const hit = Object.entries(k.electionInfo?.['2026']?.G || {}).find(([, e]) => isGeneralName(e.N));
-        if (!hit) return { notPosted: true };
-        eid = c.meta.eid = hit[0];
-      }
-      const ev = await c.json(`${base}/election/${eid}/Version.json`);
-      if (ev.___versionNo === c.meta.ver && c.meta.haveData) return { unchanged: true };
-      const rows = [];
-      for (const f of ['Federal.json', 'StateWide.json']) {
-        const json = await c.json(`${base}/election/${eid}/${ev.___versionNo}/${f}`, { allow404: true });
-        for (const race of json?.Races || []) for (const cand of race.Candidates || []) {
-          rows.push({ contest: race.N, name: cand.N, party: cand.P, votes: cand.V, rep: race.PrecinctsReporting ?? race.PR, tot: race.PrecinctsTotal ?? race.TP });
-        }
-      }
-      c.meta.ver = ev.___versionNo;
-      return { results: collect('TX', c, rows) };
+      const html = await c.textHead('https://electionresults.sos.state.tx.us/results.html', 120000, { allow404: true });
+      if (!html || !/2026 NOVEMBER GENERAL ELECTION/i.test(html)) return { notPosted: true };
+      const rows = parseTX(html);
+      if (!rows.length) return { notPosted: true };
+      return { results: collect('TX', c, rows, { pctLabel: 'polling locations' }) };
     },
   }],
 });
