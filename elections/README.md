@@ -210,6 +210,18 @@ Everything that broke or needed a hand on election night, in the call queue unde
 - **Copy the whole log** gives a plain-text report grouped by kind, ready to become the 2028 rebuild doc.
 - Rehearsal activity is never logged.
 
+## Quick count (desk only)
+
+One screen in the call queue for typing in counts for close races in states with no automatic feed. It starts
+with 24 races, ranked by how competitive they are (Oct 31): Michigan governor, Senate, MI-7, MI-8, MI-4, MI-10;
+NY-17, NY-22, NY-3, NY-4, NY-19; Wisconsin governor, WI-3, WI-1; Nevada governor, NV-3; Maine Senate, governor,
+ME-2; New Hampshire Senate, governor, NH-1; NJ-7; IL-17. Add or remove races from a race's detail panel
+(**Add to / Remove from Quick count**); the list is kept per device.
+
+- Each row: % in, then the Democrat's and the Republican's votes (always in that order). **Save** or Enter.
+- **Save all** saves every row you've typed in. Rows show "Saved 2m ago", "Feed: …" or "Called: …".
+- It saves through **Enter vote counts**, so a state feed or AP, when there is one, still takes over.
+
 ## Free plan or Workers Paid
 
 Cloudflare's free plan allows 100,000 requests a day **per account** (shared with the radar proxy),
@@ -263,17 +275,24 @@ Then commit and push the IntelHQ repo as usual so `elections/` and the updated `
 
 **If you license AP:** `npx wrangler secret put AP_API_KEY`, then `npm run deploy`.
 
-## Checking a state's feed (preview tool)
+## Checking a state's feed (Feed check)
 
-It needs your desk token, so run it from Terminal (change `GA` to any feed state):
+In the call queue, **Feed check** lists every feed (unverified ones first). **Check** runs that state's feed
+right now from the Worker, the same way election night will, without saving anything; **Check all unverified**
+runs them one after another. Results:
+
+- **Working: N races** with the first two races' top candidates (before Nov 3, the state's test numbers or zeros).
+- **Not posted yet:** the Worker reached the site but November isn't up. Normal before Nov 3.
+- **Failing:** the Worker couldn't get the data (a block, a human check, a changed page). For New York it says
+  so when Cloudflare shows the Worker a human check.
+
+The same check from Terminal (change `GA` to any feed state; no state gives the list of feeds):
 
 ```bash
 curl -H "Authorization: Bearer YOUR_DESK_TOKEN" "https://oc-election-wire.ocscannernews.workers.dev/v1/desk/preview?state=GA"
 ```
 
-It downloads that state right now (even before Nov 3), and shows which races it found and the
-top candidates, without saving anything. `state=OC` checks the Orange County Registrar's file. "not posted" means the state hasn't put up its Nov 3 file
-yet. Numbers you see before election night are the state's test data.
+`state=OC` checks the Orange County Registrar's file, `state=LAC` LA County's.
 
 ## Before election night
 
