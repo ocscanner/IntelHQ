@@ -547,12 +547,30 @@ async function fetchAIDigest() {
       digestEl.style.fontStyle = 'normal';
       digestEl.style.color = 'var(--text2)';
       if (tsEl) tsEl.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+      try { localStorage.setItem('hq-ai-digest', JSON.stringify({ digest: data.digest, ts: new Date().toISOString() })); } catch (_) {}
     } else {
-      digestEl.innerHTML = `<span style="color:var(--danger)">Digest unavailable${data.error ? ': ' + data.error : ''}.</span>`;
+      console.warn('[AI Digest] service error:', data.error);
+      aiDigestQuietFail(digestEl, tsEl);
     }
   } catch (e) {
-    digestEl.innerHTML = '<span style="color:var(--danger)">Error reaching AI service.</span>';
     console.log('[AI Digest] Error:', e.message);
+    aiDigestQuietFail(digestEl, tsEl);
+  }
+}
+
+// Desk view: show the last good digest (with its time) instead of a raw API error.
+// The real error stays in the console for troubleshooting.
+function aiDigestQuietFail(digestEl, tsEl) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('hq-ai-digest') || 'null'); } catch (_) {}
+  if (saved && saved.digest) {
+    digestEl.textContent = saved.digest;
+    digestEl.style.fontStyle = 'normal';
+    digestEl.style.color = 'var(--text2)';
+    if (tsEl) tsEl.textContent = 'Last updated ' + new Date(saved.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  } else {
+    digestEl.innerHTML = '<span style="color:var(--muted);font-style:italic">Digest updating. Try ↺ Refresh in a few minutes.</span>';
+    if (tsEl) tsEl.textContent = '';
   }
 }
 
