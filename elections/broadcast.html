@@ -14,6 +14,8 @@
     ?secs=25                    seconds per scene (default 22)
     ?scenes=senate,close,house  which scenes, in order (senate, house, governor, close, flips, oc)
     ?director=0                 turn the auto-director off (plain rotation only)
+    ?embed=1                    for the website player: checks for new results every 60 s and pauses
+                                while the viewer's tab is hidden (not for OBS)
   Keys (OBS: right-click the source → Interact): → / ← next or previous scene, Space pause, 1–6 jump to a scene,
        A turn the auto-director on or off.
   Auto-director: between rotation screens it cuts to what just happened — a Senate or governor call, any flip,
@@ -153,7 +155,7 @@
 <body>
 <div id="stage">
   <div class="top">
-    <img src="../assets/oc-scanner-logo.png" alt="">
+    <img src="broadcast-logo.png" alt="">
     <div class="brand"><b>OC SCANNER</b><span>2026 Midterm Elections · Live Results</span></div>
     <div class="live" id="live"><i></i>LIVE</div>
     <div class="sp"></div>
@@ -178,7 +180,8 @@
   const SECS = Math.max(8, +qs.get('secs') || 22);
   const ALL_SCENES = ['senate', 'close', 'house', 'governor', 'flips', 'oc'];
   const WANT = (qs.get('scenes') || ALL_SCENES.join(',')).split(',').map(s => s.trim()).filter(s => ALL_SCENES.includes(s));
-  const REFRESH = Math.max(10, +qs.get('refresh') || 30);   // seconds between data checks
+  const EMBED = qs.get('embed') === '1';
+  const REFRESH = Math.max(10, +qs.get('refresh') || (EMBED ? 60 : 30));   // seconds between data checks
   const PNAME = { D: 'Dem', R: 'Rep', I: 'Ind', O: 'Other' };
   const PFULL = { D: 'Democrats', R: 'Republicans', I: 'independents', O: 'other parties' };
   const CH = { house: 'House', senate: 'Senate', governor: 'Governors' };
@@ -218,10 +221,23 @@
   if (SIM) { $('live').classList.add('sim'); $('live').innerHTML = '<i></i>REHEARSAL'; $('tklbl').textContent = 'REHEARSAL'; }
 
   /* ── data ── */
+  // On the website the page that frames this one shares its results check (ElectionBoard.live), so the
+  // player adds no requests of its own. Standalone (OBS), it asks /v1/live itself: one request instead of three.
+  const shared = (() => { try { return EMBED && !SIM && window.parent !== window && window.parent.ElectionBoard?.live || null; } catch { return null; } })();
+  let liveOff = false;
+  async function getLive(sim) {
+    if (shared) return shared.get(API);
+    if (liveOff) return null;
+    const r = await fetch(`${API}/v1/live?sim=${sim}&local=${WANT.includes('oc') ? 'OC' : 'none'}`, { cache: 'no-store' });
+    if (r.status === 404) { liveOff = true; return null; }   // Worker not updated yet: use the separate endpoints
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
   async function load() {
     const sim = SIM ? 1 : 0;
     try {
-      const [b, f, l] = await Promise.all([
+      const lv = await getLive(sim);
+      const [b, f, l] = lv ? [lv.board, lv.feed, lv.local?.OC || null] : await Promise.all([
         fetch(`${API}/v1/board?sim=${sim}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
         fetch(`${API}/v1/feed?sim=${sim}&limit=40`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
         WANT.includes('oc') ? fetch(`${API}/v1/local?sim=${sim}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null) : null,
@@ -612,7 +628,10 @@
   });
 
   buildScenes(); renderScene(); loadShapes(); load();
-  setInterval(load, REFRESH * 1000);
+  // On the website, skip checks while the viewer's tab is hidden and catch up when they come back.
+  // (Not in OBS: a browser source can report itself hidden while it's still on the stream.)
+  setInterval(() => { if (!(EMBED && document.hidden)) load(); }, REFRESH * 1000);
+  if (EMBED) document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - S.lastOk > REFRESH * 1000) load(); });
 })();
 </script>
 </body>

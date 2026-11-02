@@ -477,6 +477,7 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 |---|---|
 | `GET /v1/board` | Every race and the seat summaries. Add `?sim=1` for rehearsal data |
 | `GET /v1/feed` | Latest calls and withdrawals |
+| `GET /v1/live?local=OC` | Board, calls and Orange County in one response, cached 30 s. The public site's Elections page and the broadcast screen use it: one request per visitor per minute |
 | `GET /v1/counties?race=GA-SEN` | County results for a Senate or governor race |
 | `GET /v1/local?area=OC` | Orange County local contests, results and desk calls |
 | `GET /v1/local?area=CAP` | California's propositions: statewide Yes/No, Orange County's count, desk calls |

@@ -67,6 +67,26 @@
   }
   const shortName = r => r.chamber === 'house' ? r.id.replace('-AL', ' at-large').replace(/-0?/, '-') : r.name;
 
+  /* Shared results check for the public site. /v1/live returns the board, the calls feed and Orange County
+     in one response, and every board on the page (plus the broadcast player in its frame, which asks
+     window.parent.ElectionBoard.live) shares it: calls within 45 seconds get the same answer. If the Worker
+     doesn't have /v1/live yet (404), it answers null and boards fall back to separate requests. */
+  const live = {
+    p: null, at: 0, off: false,
+    get(api = DEFAULT_API) {
+      if (live.off) return Promise.resolve(null);
+      if (live.p && Date.now() - live.at < 45000) return live.p;
+      live.at = Date.now();
+      live.p = fetch(`${api.replace(/\/$/, '')}/v1/live?sim=0&local=OC`, { cache: 'no-store' }).then(r => {
+        if (r.status === 404) { live.off = true; return null; }
+        if (!r.ok) throw new Error(`Results service answered ${r.status}`);
+        return r.json();
+      });
+      live.p.catch(() => { live.at = 0; });   // a failed check isn't reused
+      return live.p;
+    },
+  };
+
   function mount(root, opts = {}) {
     const qs = new URLSearchParams(location.search);
     const S = {
@@ -222,11 +242,20 @@
       const q = `${S.sim ? 'sim=1' : 'sim=0'}${fresh ? '&fresh=1' : ''}`;
       try {
         const areas = neededAreas();
-        const [b, f, ...ls] = await Promise.all([
-          fetch(`${S.api}/v1/board?${q}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(`Results service answered ${r.status}`); return r.json(); }),
-          fetch(`${S.api}/v1/feed?${S.sim ? 'sim=1' : 'sim=0'}&limit=60`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
-          ...areas.map(a => fetchLocal(a, fresh)),
-        ]);
+        // Public page: one shared request (see live above). Desk, rehearsal: separate requests as before.
+        const lv = opts.shared && !S.sim ? await live.get(S.api) : null;
+        let b, f, ls;
+        if (lv) {
+          b = lv.board; f = lv.feed;
+          ls = await Promise.all(areas.map(a => lv.local?.[a] || fetchLocal(a, fresh)));
+          for (const [a, l] of Object.entries(lv.local || {})) if (!areas.includes(a) && l) setLocal(a, l);
+        } else {
+          [b, f, ...ls] = await Promise.all([
+            fetch(`${S.api}/v1/board?${q}`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(`Results service answered ${r.status}`); return r.json(); }),
+            fetch(`${S.api}/v1/feed?${S.sim ? 'sim=1' : 'sim=0'}&limit=60`, { cache: 'no-store' }).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] })),
+            ...areas.map(a => fetchLocal(a, fresh)),
+          ]);
+        }
         S.data = b; S.byId = new Map(b.races.map(r => [r.id, r])); S.error = null; S.lastOk = Date.now();
         ls.forEach((l, i) => { if (l) setLocal(areas[i], l); });
         noteNewCalls(f.items || []);
@@ -1632,5 +1661,5 @@
     };
   }
 
-  window.ElectionBoard = { mount };
+  window.ElectionBoard = { mount, live };
 })();
