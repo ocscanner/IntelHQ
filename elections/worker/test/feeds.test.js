@@ -440,3 +440,32 @@ test('Missouri: reads the form, posts it back for the November general, parses t
   const before = await run('MO', { [url]: form('<option value="750006905">State of Missouri - Primary Election, August 04, 2026</option>') });
   assert.equal(before.units[0].status, 'not posted');
 });
+
+test('West Virginia (Clarity): election id found on the SOS site (even URL-encoded), or pasted in by the desk', async () => {
+  const base = 'https://results.enr.clarityelections.com/WV';
+  const csv = [
+    // Header and contest wording from WV's May 12, 2026 primary file (election 103231), without the party suffix
+    '"line number","contest name","choice name","party name","total votes","percent of votes","registered voters","ballots cast","num Area total","num Area rptg","over votes","under votes"',
+    '1,"U.S. SENATOR (Vote For 1)","Shelley Moore Capito","REP",300000,70,0,0,1700,850,0,0',
+    '2,"U.S. SENATOR (Vote For 1)","Rachel Fetty Anderson","DEM",120000,28,0,0,1700,850,0,0',
+    '3,"U.S. HOUSE OF REPRESENTATIVES, 2nd Congressional District (Vote For 1)","Riley Moore","REP",150000,68,0,0,850,425,0,0',
+  ].join('\n');
+  const files = eid => ({
+    [`${base}/${eid}/current_ver.txt`]: '400001',
+    [`${base}/${eid}/400001/reports/summary.zip`]: zip('summary.csv', csv),
+  });
+  // Nothing anywhere yet: not posted
+  const none = await run('WV', { [`${base}/elections.json`]: '[]', 'https://sos.wv.gov/': '<a href="/elections">Elections</a>', 'https://sos.wv.gov/news': '' });
+  assert.equal(none.units[0].status, 'not posted');
+  // The SOS news page links it through a tracking redirect (URL-encoded); the May primary's id (103231) is ignored
+  const news = '<a href="https://example.cc.rs6.net/tn.jsp?u=https%3A%2F%2Fresults.enr.clarityelections.com%2FWV%2F106777%2Fweb.300000%2F%23%2Fsummary">results</a> old: https://results.enr.clarityelections.com/WV/103231/web.247524/';
+  const found = await run('WV', { [`${base}/elections.json`]: '[]', 'https://sos.wv.gov/': '', 'https://sos.wv.gov/news': news, ...files('106777') });
+  assert.equal(res(found, 'WV-SEN').candidates[0].name, 'Shelley Moore Capito');
+  assert.equal(res(found, 'WV-SEN').pctIn, 50);
+  assert.ok(res(found, 'WV-02'));
+  // Desk-pasted link: saved as the feed's election id, used on the next run
+  const store = memoryStore();
+  await store.saveUnits([{ unit: 'WV', state: 'WV', fetched_at: null, ok: 0, status: 'not posted', error: null, races: 0, meta: { eid: '106999' } }]);
+  const linked = await run('WV', { [`${base}/elections.json`]: '[]', ...files('106999') }, { store });
+  assert.equal(res(linked, 'WV-SEN').candidates[1].votes, 120000);
+});

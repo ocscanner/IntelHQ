@@ -87,6 +87,7 @@ export default {
         if (!authorized(request, env)) return json({ error: 'Desk token missing or wrong' }, cors, 0, 401);
         if (request.method === 'GET' && p === '/v1/desk/check') return json({ ok: true }, cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/preview') return json(await preview(env, url), cors, 0);
+        if (request.method === 'POST' && p === '/v1/desk/feedlink') return json(await feedLink(env, await request.json().catch(() => ({}))), cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/queue') return json(await queue(env, isSim(env, url)), cors, 0);
         if (request.method === 'GET' && p === '/v1/desk/watch') return json(await watchPreview(), cors, 0);
         if (p === '/v1/desk/log') {
@@ -446,10 +447,26 @@ async function feed(env, url) {
 }
 
 /* ── Desk: test one state's feed right now ── */
+/* The desk pastes a state's results link (Clarity states: CO, SC, IA, WV) when the feed can't find it on its own.
+   Saved as the feed's election id; the next run (or Feed check) downloads from it. */
+async function feedLink(env, b) {
+  const st = String(b.state || '').toUpperCase();
+  const a = ADAPTERS[st];
+  if (!a?.linkable) return { error: `${st || 'That state'} doesn't take a results link` };
+  const eid = String(b.url || '').match(new RegExp(`/${st}/(\\d{4,8})(?:/|$|#|\\?)`, 'i'))?.[1];
+  if (!eid) return { error: `That doesn't look like ${st}'s results link (…/${st}/<number>/…)` };
+  if (!env.DB) return { error: 'D1 database not bound' };
+  const store = d1Store(env.DB);
+  const prev = (await store.loadUnits()).get(st);
+  const meta = { ...(prev?.meta || {}), eid, ver: null, haveData: false, linkedBy: 'desk' };
+  await store.saveUnits([{ unit: st, state: st, fetched_at: prev?.fetched_at ?? null, ok: prev?.ok ?? 0, status: prev?.status || 'not posted', error: null, races: prev?.races ?? 0, meta }]);
+  return { ok: true, state: st, eid };
+}
+
 async function preview(env, url) {
   const st = String(url.searchParams.get('state') || '').toUpperCase();
   // No state: the list of feeds, for the desk's "Feed check" panel
-  if (!st) return { feeds: Object.entries(ADAPTERS).map(([k, a]) => ({ st: k, label: a.label, confidence: a.confidence || 'verified', local: !!a.local })) };
+  if (!st) return { feeds: Object.entries(ADAPTERS).map(([k, a]) => ({ st: k, label: a.label, confidence: a.confidence || 'verified', local: !!a.local, linkable: !!a.linkable })) };
   if (!ADAPTERS[st]) return { error: `No feed for ${st || 'that state'}. Feeds: ${Object.keys(ADAPTERS).join(', ')}` };
   const store = env.DB ? d1Store(env.DB) : { loadUnits: async () => new Map() };
   const out = await runIngest({

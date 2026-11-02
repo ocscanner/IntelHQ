@@ -78,7 +78,7 @@ if you license it). Seats only change color as "won" when you call them; until t
 
 | Source | Covers | Cost |
 |---|---|---|
-| **State election offices** | 39 states, below | Free |
+| **State election offices** | 40 states, below | Free |
 | **Your desk entries** | Any race: calls, and typed-in vote counts for states without a feed | Free |
 | **AP Elections API** | Every race, votes and calls | Paid license (elections_api_info@ap.org). Turns on when you add `AP_API_KEY` |
 
@@ -98,6 +98,7 @@ When two sources cover a race, numbers come from AP first, then the state, then 
 | TX | **Nov 3 ballot already loaded** (checked Oct 31) on the SOS's new page electionresults.sos.state.tx.us/results.html: Senate, all 38 House seats, governor. "% in" is polling locations reporting |
 | NY | **Nov 3 ballot already loaded** (checked Oct 31) on nyenr.elections.ny.gov, a form the feed posts back (governor from the page, all 26 House seats from the U.S. Congress search). Fusion lines (WOR, CON…) are added into each candidate. "% in" is election districts reporting. The site is behind Cloudflare: if it ever shows the Worker a human check, the feed says so and shows "failing"; type those races in with Quick count |
 | NV | Unverified. **Nov 3 election already posted** (checked Nov 1, no votes) on Nevada's new results app silverstateelection.nv.gov: static JSON (results-config.json → manifest → overview with every contest's statewide totals). Governor, 4 House. "% in" is counties reporting. The site is behind Imperva bot protection, which may block the Worker: Feed check will say "blocked the Worker"; then use Paste from page |
+| WV | Unverified for November. Clarity (same files as Colorado; the May 12 primary, election 103231, checked Nov 1). West Virginia doesn't list the November election ahead of time: the feed watches Clarity's list and the SOS home and news pages. If it still says "not posted" once results start, open the results page from the SOS announcement and paste its link in **Feed check → WV → Set results link**. Senate, 2 House |
 | NM | **Nov 3 file already posted** (checked Oct 24): Senate, governor, 3 House. Same CSV as Nebraska |
 | LA | **Nov 3 files already posted** (checked Oct 24): Senate and 6 House seats, Voter Portal JSON |
 | SC | Clarity on enr-scvotes.org; files match Colorado's. Nov 3 not listed yet: the feed watches Clarity's list and the scvotes.gov results page for the "General Election" link |
@@ -121,8 +122,7 @@ Check again with the preview tool on Nov 2 or the morning of Nov 3.
 
 States with no free statewide feed (Wisconsin, Massachusetts, Illinois, New Jersey, Michigan,
 New Hampshire, Maine and others) fill in only from your desk entries or AP; Decision Desk HQ calls
-still reach the call queue. Oklahoma's results data needs a login token from its own app, West Virginia's
-November election isn't linked anywhere until results start, and Mississippi and Wyoming have no statewide
+still reach the call queue. Oklahoma's results data needs a login token from its own app, and Mississippi and Wyoming have no statewide
 election-night count (their counties post their own); see the "state feeds survey" project doc. The full state-by-state
 research is in the "Free election results feeds, state by state" doc.
 
@@ -309,6 +309,10 @@ curl -H "Authorization: Bearer YOUR_DESK_TOKEN" "https://oc-election-wire.ocscan
 ```
 
 `state=OC` checks the Orange County Registrar's file, `state=LAC` LA County's.
+
+**Set results link** (Clarity states: West Virginia, Colorado, South Carolina, Iowa): when a feed says "not posted"
+after results have started because it can't find November's election, paste the results page's link
+(`https://results.enr.clarityelections.com/WV/<number>/…`); the feed uses it from the next run.
 
 ## Before election night
 

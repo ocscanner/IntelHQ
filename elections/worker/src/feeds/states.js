@@ -149,7 +149,7 @@ export function parseClarityDetail(xml, st, ids) {
 /* ── Clarity ENR (elections.json → current_ver.txt → reports/summary.zip) ── */
 function clarity(st, label, indexUrl, fileBase, confidence, findEid = null) {
   return {
-    st, label, confidence, format: 'Clarity summary CSV',
+    st, label, confidence, format: 'Clarity summary CSV', linkable: true,   // the desk can paste the results link (Feed check)
     units: [{
       id: st, requests: 4,
       async run(c) {
@@ -272,6 +272,19 @@ add(clarity('SC', 'South Carolina Election Commission', 'https://www.enr-scvotes
     for (const m of String(html || '').matchAll(/<a[^>]+href="https?:\/\/www\.enr-scvotes\.org\/SC\/(\d+)\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)) {
       const text = m[2].replace(/<[^>]+>/g, ' ');
       if (/general/i.test(text) && !/primar|runoff|special|municipal|city|town|county/i.test(text)) return m[1];
+    }
+    return null;
+  }));
+// West Virginia: Clarity too, but its election list stays empty and the SOS site doesn't link the results page ahead
+// of time (May 2026: the link went out in a press release, behind a tracking redirect). The feed watches the list
+// and the SOS home and news pages; on election night the desk can paste the results link in Feed check
+// (POST /v1/desk/feedlink). The May 12, 2026 primary (election 103231) has the standard Clarity summary.zip.
+add(clarity('WV', 'West Virginia Secretary of State', 'https://results.enr.clarityelections.com/WV/elections.json', 'https://results.enr.clarityelections.com/WV', 'unverified',
+  async c => {
+    for (const url of ['https://sos.wv.gov/', 'https://sos.wv.gov/news']) {
+      const html = decodeURIComponent(String(await c.text(url, { allow404: true }).catch(() => '') || '').replace(/%(?![0-9a-f]{2})/gi, '%25'));
+      const ids = [...html.matchAll(/clarityelections\.com\/WV\/(\d{5,7})\b/gi)].map(m => +m[1]).filter(n => n > 103231);
+      if (ids.length) return String(Math.max(...ids));
     }
     return null;
   }));

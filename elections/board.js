@@ -1087,6 +1087,7 @@
         case 'tools-feeds': S.tools = S.tools === 'feeds' ? null : 'feeds'; renderQueue(); if (S.tools && !S.fc) feedsLoad(); return;
         case 'feeds-one': return feedCheck(btn.dataset.fst);
         case 'feeds-unverified': return feedCheckAll();
+        case 'feeds-link': return feedLink(btn.dataset.fst);
         case 'tools-quick': S.tools = S.tools === 'quick' ? null : 'quick'; return renderQueue();
         case 'quick-saveall': return quickSaveAll();
         case 'paste-toggle': S.paste = S.paste ? null : { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
@@ -1532,6 +1533,13 @@
       catch (e) { S.fc.res[st] = { error: e.message }; }
       y = keep(); S.fc.busy = null; renderQueue(); back(y);
     }
+    // Clarity states (WV especially): paste the results page's link when the feed can't find November's election itself
+    async function feedLink(st) {
+      const url = prompt(`Paste ${st}'s election-night results link (from the Secretary of State's site or announcement).\nIt looks like https://results.enr.clarityelections.com/${st}/123456/…`);
+      if (!url?.trim()) return;
+      try { const r = await deskApi('POST', 'feedlink', { state: st, url: url.trim() }); toast(`${st} linked (election ${r.eid}); checking…`); feedCheck(st); }
+      catch (e) { toast(`Not saved: ${e.message}`); }
+    }
     async function feedCheckAll() {
       if (!S.fc || S.fc.busy) return;
       for (const f of S.fc.feeds.filter(f => f.confidence !== 'verified')) await feedCheck(f.st);
@@ -1556,7 +1564,7 @@
         const sample = r?.races?.slice(0, 2).map(x => `${esc(x.raceId)}: ${esc(x.candidates.slice(0, 2).join(', '))}${x.pctIn != null ? ` · ${Math.round(x.pctIn)}% ${esc(x.pctLabel || 'in')}` : ''}`).join('<br>') || '';
         return `<li class="eb-fc ${cls}"><button type="button" class="eb-btn" data-act="feeds-one" data-fst="${esc(f.st)}"${S.fc.busy ? ' disabled' : ''}>Check</button>
           <b>${esc(f.st)}</b> <span class="qwhy">${esc(f.label)}${f.confidence !== 'verified' ? ' · unverified' : ''}</span>
-          <div class="eb-fcres">${esc(txt)}${sample ? `<div class="qwhy">${sample}</div>` : ''}</div></li>`;
+          <div class="eb-fcres">${esc(txt)}${sample ? `<div class="qwhy">${sample}</div>` : ''}${f.linkable && cls !== 'good' ? ` <button type="button" class="eb-linkbtn" data-act="feeds-link" data-fst="${esc(f.st)}">Set results link</button>` : ''}</div></li>`;
       }).join('');
       return `<p>Runs a state’s feed right now from the results service, the same way election night will, without saving anything. “Not posted yet” before Nov 3 is normal: it means the Worker reached the site. “Failing” means it couldn’t (a block, a human check, or a changed page).</p>
         <div class="eb-actions"><button type="button" class="eb-btn" data-act="feeds-unverified"${S.fc.busy ? ' disabled' : ''}>Check all unverified</button></div>
