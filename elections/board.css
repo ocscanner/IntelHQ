@@ -317,3 +317,23 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-pastelist li.eb-pr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
 .eb-pastelist .eb-prpct input{width:4.5em;margin-left:4px}
 .eb-pastelist .warnt{flex-basis:100%}
+
+/* Race-call graphic prompt and other networks' calls (desk only) */
+.eb-btn.main{background:#D91E2E;border-color:#D91E2E;color:#fff}
+.eb-made{margin:10px 0;padding:10px 12px;border:1px solid #D91E2E;border-left-width:4px;border-radius:8px;background:rgba(217,30,46,.12)}
+.eb-made .eb-actions{margin-top:8px}
+.eb-hint{color:var(--eb-muted);font-size:.88rem;margin:4px 0}
+.eb-net{margin-top:14px;padding-top:10px;border-top:1px dashed var(--eb-line2)}
+.eb-net h6{font-family:var(--eb-fh);font-size:.95rem;margin:0 0 6px;color:var(--eb-text2)}
+.eb-net h6 small{font-family:var(--eb-fu);font-weight:400;color:var(--eb-muted);margin-left:6px}
+.eb-netrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:6px 0;border-bottom:1px solid var(--eb-line)}
+.eb-netrow .s{font-weight:700}
+.eb-netrow .w{flex:1 1 130px;min-width:0}
+.eb-netrow small{color:var(--eb-muted)}
+.eb-netrow em{font-style:normal;font-size:.8rem;border-radius:4px;padding:1px 6px;background:var(--eb-bg3);color:var(--eb-muted)}
+.eb-netrow em.ok{color:#4be08c}
+.eb-netrow em.diff{color:var(--eb-warn);border:1px solid var(--eb-warn);background:none}
+.eb-netrow .b{display:flex;gap:6px;margin-left:auto}
+.eb-link{background:none;border:0;padding:0;text-align:left;text-decoration:underline;color:var(--eb-text)}
+.eb-netform input[type=time]{max-width:160px}
+.eb-netform select+input,.eb-netform select+select{margin-top:6px}

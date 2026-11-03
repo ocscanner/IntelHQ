@@ -492,3 +492,10 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 | `GET /v1/desk/watch` | Read DDHQ's Bluesky feed now and show how each post parses (desk token) |
 
 Run the tests with `npm test` in `elections/worker`.
+
+## Race-call graphic and other networks' calls (desk only)
+
+- After you publish a call, a "Call published. Post it?" bar offers **Make graphic** or **Text only**. The graphic (1080×1350, OC Scanner template, red accents, "Source: <who made the call>") and a 280-character X post draft are made in the browser; copy or download them and post by hand. Nothing is posted automatically.
+- **Manual graphic** (Tools row) opens the same window blank, for any race, even if the board is down.
+- **Network calls** (Tools row, and a per-race panel) logs calls from Fox, CNN, NBC, ABC, CBS, AP, DDHQ, NYT or Other, with a "same as / differs from the board" flag. The log lives in this browser only (not synced, not public, not sent to the Worker). Rehearsal and real entries are kept apart.
+- Files: `callgraphic.js`, `netcalls.js`, `shield.png`. The Worker and `public.html` are unchanged.
