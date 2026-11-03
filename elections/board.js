@@ -1562,7 +1562,7 @@
           : `<ul class="eb-ilog eb-pastelist">${P.results.map(r => {
             const race = S.byId.get(r.id);
             return `<li class="eb-pr ${r.status}"><label><input type="checkbox" data-pastesel="${esc(r.id)}"${P.sel[r.id] ? ' checked' : ''}> <b>${esc(race ? shortName(race) : r.id)}</b></label>
-              <span class="qwhy">${r.candidates.map(c => `${esc(last(c.name))} ${fmt(c.votes)}`).join(' · ')}</span>
+              <span class="qwhy">${[...r.candidates].sort((a, b) => b.votes - a.votes).map((c, i) => `${i === 0 ? '▸ ' : ''}${esc(last(c.name))} ${fmt(c.votes)}`).join(' · ')}</span>
               <label class="eb-prpct">% in <input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-pastepct="${esc(r.id)}" value="${esc(String(P.pct[r.id] ?? ''))}"></label>
               ${r.status !== 'ok' ? `<div class="warnt eb-qsmall">Check this one: ${r.missing.length ? `didn’t find ${esc(r.missing.map(last).join(', '))}` : 'names found far apart on the page'}. Unticked.</div>` : ''}</li>`;
           }).join('')}</ul>

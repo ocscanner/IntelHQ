@@ -627,6 +627,7 @@ async function desk(env, action, b) {
   if (action === 'result') {
     const cands = (b.candidates || []).slice(0, 12).map(c => ({ name: String(c.name || '').slice(0, 80), party: normParty(c.party), votes: Math.max(0, Math.round(+c.votes || 0)), winner: false }));
     if (!cands.length) return { error: 'candidates required' };
+    cands.sort((a, b) => b.votes - a.votes);   // store in vote order, so the leader is first everywhere (the board re-sorts too)
     const payload = { candidates: cands, pctIn: b.pctIn == null ? null : Math.max(0, Math.min(100, +b.pctIn)), pctLabel: 'expected vote', updated: new Date(now).toISOString() };
     await env.DB.prepare('INSERT OR REPLACE INTO desk_result (ns, race_id, payload, updated_at) VALUES (?,?,?,?)').bind(ns, id, JSON.stringify(payload), now).run();
     if (ns === 'live' && (await firstTime(env.DB, [`manual|${id}`], now)).size) {

@@ -180,3 +180,4 @@ test('Known 2026 state gaps are written into the issue log once, for the 2028 re
   assert.equal((await listLog(db)).filter(e => e.kind === 'known_gap').length, 20);   // not repeated
   assert.match(logText(first), /Known before election night \(2028 prep\) \(20\)/);
 });
+
