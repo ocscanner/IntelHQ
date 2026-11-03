@@ -110,6 +110,7 @@
       data: null, feed: [], seenFeed: null, shapes: null, error: null, lastOk: 0, pending: null,
       sheetOpen: false,
       queue: null, queueSeen: null, qConfirm: null, baseTitle: document.title,
+      madeCall: null, net: { src: store.get('netsrc', 'Fox News'), other: '', wins: [], time: '' },
     };
 
     root.classList.add('eb');
@@ -185,6 +186,7 @@
       const k = e.target?.dataset?.apref; if (k) alertsPref(k, e.target.checked);
       const ps = e.target?.dataset?.pastesel; if (ps && S.paste) S.paste.sel[ps] = e.target.checked;
       if (e.target?.dataset?.pastest != null && S.paste) { S.paste.st = e.target.value; pasteRead(); }
+      if (e.target?.dataset?.net) netField(e.target);
     });
     // Paste from page: read the paste (with its HTML when the browser gives it) as soon as it lands
     root.addEventListener('paste', e => {
@@ -200,6 +202,7 @@
     root.addEventListener('input', e => {
       const id = e.target?.dataset?.qcin; if (id) (S.qdraft[id] ||= {})[e.target.dataset.k] = e.target.value;
       const pp = e.target?.dataset?.pastepct; if (pp && S.paste) S.paste.pct[pp] = e.target.value;
+      if (e.target?.dataset?.net) netField(e.target);
     });
     root.addEventListener('keydown', e => { const id = e.target?.dataset?.qcin; if (id && e.key === 'Enter') { e.preventDefault(); quickSave(id).then(ok => ok && load(true)); } });
     // Don't redraw the queue panel under the cursor while typing a count; catch up when the field is left
@@ -945,7 +948,7 @@
           ? `${esc(c.type)}. ${c.total && L?.generated ? `Numbers from the California Secretary of State, ${esc(fmtT(L.generated))}` : 'Results from the California Secretary of State after polls close'}`
           : area === 'LA' ? `${sub ? `${sub}. ` : ''}${c.total ? 'Numbers from the LA County Registrar-Recorder' : 'Results from the LA County Registrar-Recorder after polls close'}`
           : `${sub ? `${sub}. ` : ''}${L?.generated ? `Numbers from the OC Registrar of Voters, ${esc(fmtT(L.generated))}` : 'Results from the OC Registrar of Voters after polls close'}`}</div>
-        ${callLine}${cand}
+        ${callLine}${madeBar(c)}${cand}
         ${isProp && c.oc ? ocHtml(c, L) : ''}
         ${isProp ? `<p class="eb-lnote">${esc(L?.note || 'Statewide propositions pass with a simple majority.')}</p>`
           : c.measure ? '<p class="eb-lnote">Most local measures pass with a simple majority; some taxes and bonds need 55% or two-thirds. Check the measure’s text.</p>' : ''}
@@ -954,7 +957,7 @@
           ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
           <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
         </div>
-        ${S.token && !S.pub ? localDeskHtml(c) : ''}
+        ${S.token && !S.pub ? localDeskHtml(c) + deskExtras(c) : ''}
       </div>`;
     }
     // How Orange County voted on a statewide proposition (the Secretary of State's Orange County file)
@@ -1005,13 +1008,13 @@
         <button type="button" class="eb-sheetclose" data-act="closesheet" aria-label="Close">×</button>
         <h5>${esc(r.name)}</h5>
         <div class="meta">${r.holder.name ? `Held by ${esc(r.holder.name)} (${r.holder.party})${r.holder.open ? ', open seat' : ''}` : 'Vacant seat'}${r.source ? `. Numbers from ${esc(r.source)}${r.updated ? `, ${esc(fmtT(r.updated))}` : ''}` : ''}</div>
-        ${callLine}${candHtml}
+        ${callLine}${madeBar(r)}${candHtml}
         <div class="eb-actions">
           <button type="button" class="eb-btn" data-act="watch">${S.watch.has(r.id) ? 'Stop watching' : 'Watch this race'}</button>
           ${S.pub ? '' : '<button type="button" class="eb-btn" data-act="copypost">Copy post for X</button>'}
           <button type="button" class="eb-btn" data-act="copylink">Copy link</button>
         </div>
-        ${S.token && !S.pub ? deskHtml(r) : ''}
+        ${S.token && !S.pub ? deskHtml(r) + deskExtras(r) : ''}
       </div>`;
     }
 
@@ -1043,7 +1046,7 @@
     function select(id, { sheet = true } = {}) {
       const r = S.byId?.get(id);
       if (!r && !S.localById.has(id)) return;
-      S.selected = id; S.pending = null;
+      S.selected = id; S.pending = null; S.net.wins = []; if (S.madeCall !== id) S.madeCall = null;
       // On narrow screens the race opens as a sheet; a tap on the map shows the county map first instead
       S.sheetOpen = sheet && window.matchMedia('(max-width:1100px)').matches;
       renderList(); renderDetail();
@@ -1089,6 +1092,20 @@
         case 'feeds-unverified': return feedCheckAll();
         case 'feeds-link': return feedLink(btn.dataset.fst);
         case 'tools-quick': S.tools = S.tools === 'quick' ? null : 'quick'; return renderQueue();
+        case 'tools-net': S.tools = S.tools === 'net' ? null : 'net'; return renderQueue();
+        case 'net-add': return netAdd(r);
+        case 'net-pub': return netPublish(r, btn.dataset.id);
+        case 'net-del': EBNetCalls.remove(btn.dataset.id); renderDetail(); if (S.tools === 'net') renderQueue(); return;
+        case 'net-clear': if (confirm('Clear every network call logged on this device?')) { EBNetCalls.clear(S.sim); renderDetail(); renderQueue(); } return;
+        case 'cg-make': case 'cg-text': {
+          const info = callInfo(r);
+          if (!info) { toast('Publish a call first.'); return; }
+          if (act === 'cg-text') { S.madeCall = null; renderDetail(); return copy(EBCallGraphic.post(info, 0), 'Post copied (text only)'); }
+          S.madeCall = null; renderDetail();
+          return EBCallGraphic.open(info);
+        }
+        case 'cg-dismiss': S.madeCall = null; return renderDetail();
+        case 'cg-manual': return EBCallGraphic.openManual({ sim: S.sim, link: S.publicUrl });
         case 'quick-saveall': return quickSaveAll();
         case 'paste-toggle': S.paste = S.paste ? null : { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
         case 'paste-clear': S.paste = { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
@@ -1156,6 +1173,7 @@
         if (resp.status === 401) { S.token = ''; store.set('token', ''); toast('Desk sign-in expired. Sign in again.'); renderAll(); return; }
         if (!resp.ok) throw new Error(j.error || `Error ${resp.status}`);
         toast(okMsg + (S.sim ? ' (rehearsal)' : ''));
+        S.madeCall = path === 'call' ? body.raceId : S.madeCall === body.raceId ? null : S.madeCall;
         await load(true);
         loadQueue();
       } catch (e) { toast(`Not saved: ${e.message}`); renderDetail(); }
@@ -1204,6 +1222,108 @@
     // The post plus a link that opens this race on the public results page (X counts any link as 23 characters)
     const raceLink = id => `${S.publicUrl}?race=${encodeURIComponent(id)}`;
     const withLink = (text, id) => `${text}\nLive results: ${raceLink(id)}`;
+
+    /* ── Race-call graphic and other networks' calls (desk only; the code is in callgraphic.js and netcalls.js) ── */
+    const callWinners = r => !r.call ? null : r.call.winners ? r.call.winners : r.call.candidate ? [r.call.candidate] : null;
+    const sameNames = (a, b) => a.length === b.length && a.every(x => b.some(y => String(y).toLowerCase() === String(x).toLowerCase()));
+    const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    const known = p => p in { D: 1, R: 1, I: 1 } ? p : '';
+    // Everything the graphic and the post need, taken from a call that is already published on the board
+    function callInfo(r) {
+      if (!r || !r.call || !window.EBCallGraphic) return null;
+      const base = { raceId: r.id, source: r.call.source || '', sim: S.sim, link: raceLink(r.id) };
+      if (!areaOfId(r.id)) {
+        const p = r.call.party in PNAME ? r.call.party : 'O';
+        return { ...base, kind: 'candidate', names: [{ name: r.call.candidate || `${PADJ[p]} candidate`, party: known(p) }],
+          title: r.chamber === 'house' ? (r.district ? `${r.stateName} · District ${r.district}` : `${r.stateName} · At-large`) : r.stateName,
+          subtitle: r.chamber === 'house' ? 'U.S. House' : r.chamber === 'senate' ? (r.special ? 'U.S. Senate · Special election' : 'U.S. Senate') : 'Governor',
+          raceLong: longRaceName(r), pct: r.pctIn != null ? progress(r) : '', tag: '#Election2026' };
+      }
+      const isProp = r.id.startsWith('CA-P');
+      const tag = isProp ? '#CAprops #Election2026' : r.id.startsWith('LA-') ? '#LAvotes #Election2026' : '#OCvotes';
+      const pct = r.pctIn != null ? `${r.pctIn}% of precincts reporting${isProp ? ' statewide' : ''}` : '';
+      const mw = r.measure && measureWord(r.call.winners);
+      if (mw) return { ...base, kind: 'measure', measure: mw, names: [], tag, pct,
+        title: isProp ? `California ${r.place}` : (r.place || r.office), subtitle: isProp || r.place ? r.office : '',
+        raceLong: isProp ? `California ${r.place} (${r.office})` : r.name };
+      return { ...base, kind: 'candidate', tag, pct,
+        names: r.call.winners.map(n => ({ name: n, party: known((r.candidates.find(x => x.name === n) || {}).party) })),
+        title: r.place || r.name, subtitle: `${r.office || ''}${r.voteFor > 1 ? ` (vote for ${r.voteFor})` : ''}`,
+        raceLong: `${r.place} ${r.office}`.replace(/^Orange County Supervisor/, 'OC Supervisor') };
+    }
+    // Shown right after a call is published: make the graphic, or just the post. Not a pop-up: it never blocks the next call.
+    const madeBar = r => S.madeCall === r.id && r.call && S.token && !S.pub && window.EBCallGraphic
+      ? `<div class="eb-made"><b>Call published.</b> Post it?
+          <div class="eb-actions"><button type="button" class="eb-btn main" data-act="cg-make">Make graphic</button><button type="button" class="eb-btn" data-act="cg-text">Text only</button><button type="button" class="eb-btn" data-act="cg-dismiss">Not now</button></div></div>` : '';
+    const deskExtras = r => `<div class="eb-desk eb-extras"><h6>Post this race</h6>
+        <div class="eb-actions" style="margin-top:0">${r.call && window.EBCallGraphic
+          ? '<button type="button" class="eb-btn main" data-act="cg-make">Race-call graphic</button><button type="button" class="eb-btn" data-act="cg-text">Call post (text)</button>'
+          : '<span class="eb-hint">Publish a call and its graphic and post are ready here.</span>'}</div>
+        ${netHtml(r)}</div>`;
+
+    const netOpts = r => {
+      if (areaOfId(r.id)) return { kind: !r.measure && r.voteFor > 1 ? 'multi' : 'one', list: ordered(r).map(x => ({ v: x.name, label: r.measure && isYes(x.name) ? `${x.name} (passes)` : r.measure && isNo(x.name) ? `${x.name} (fails)` : x.name })) };
+      return { kind: 'one', list: (r.candidates.length ? r.candidates : r.preCandidates).map(x => ({ v: x.name, label: `${x.name} (${x.party})`, party: x.party })) };
+    };
+    const netFlag = r => e => { if (!r) return ''; const bw = callWinners(r); return bw ? (sameNames(bw, e.winners) ? '<em class="ok">same as the board</em>' : '<em class="diff">differs from the board</em>') : '<em>board not called</em>'; };
+    function netHtml(r) {
+      if (!window.EBNetCalls) return '';
+      const list = EBNetCalls.forRace(r.id, S.sim), { kind, list: os } = netOpts(r), n = S.net, flag = netFlag(r);
+      const win = !os.length ? `<input type="text" data-net="wintext" placeholder="Winner" value="${esc(n.wins[0] || '')}" maxlength="80" aria-label="Winner">`
+        : kind === 'multi' ? `<fieldset class="eb-pick"><legend>Winners (pick ${r.voteFor})</legend>${os.map(o => `<label><input type="checkbox" data-net="winm" value="${esc(o.v)}"${n.wins.includes(o.v) ? ' checked' : ''}> ${esc(o.label)}</label>`).join('')}</fieldset>`
+        : `<select data-net="win1" aria-label="Winner"><option value="">Pick the winner</option>${os.map(o => `<option value="${esc(o.v)}"${n.wins[0] === o.v ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+      return `<div class="eb-net"><h6>Other networks’ calls <small>kept on this device, not on the public board</small></h6>
+        ${list.length ? list.map(e => `<div class="eb-netrow"><span class="s">${esc(e.source)}</span><span class="w">${esc(e.winners.join(', '))}</span><small>${fmtT(e.at)}</small>${flag(e)}
+            <span class="b">${!r.call ? `<button type="button" class="eb-btn" data-act="net-pub" data-id="${esc(e.id)}">Use as board call</button>` : ''}<button type="button" class="eb-btn" data-act="net-del" data-id="${esc(e.id)}" aria-label="Remove this entry">×</button></span></div>`).join('')
+          : '<p class="eb-hint">None logged for this race.</p>'}
+        <div class="eb-netform">
+          <label for="eb-nsrc">Network</label>
+          <select id="eb-nsrc" data-net="src">${EBNetCalls.NETWORKS.map(s => `<option${s === n.src ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select>
+          ${n.src === 'Other' ? `<input type="text" data-net="other" placeholder="Network name" value="${esc(n.other)}" maxlength="30" aria-label="Network name">` : ''}
+          <label>${kind === 'multi' ? 'Winners' : 'Winner'}</label>${win}
+          <label for="eb-ntime">Called at</label><input id="eb-ntime" type="time" data-net="time" value="${esc(n.time || nowHM())}">
+          <div class="eb-actions"><button type="button" class="eb-btn" data-act="net-add">Add network call</button></div>
+        </div></div>`;
+    }
+    // The form keeps its state here so the board's 60-second refresh can redraw it without losing what you picked
+    function netField(el) {
+      const k = el.dataset.net, n = S.net;
+      if (k === 'src') { if (n.src !== el.value) { n.src = el.value; renderDetail(); } return; }
+      if (k === 'other') n.other = el.value;
+      else if (k === 'win1') n.wins = el.value ? [el.value] : [];
+      else if (k === 'winm') n.wins = [...root.querySelectorAll('[data-net="winm"]:checked')].map(i => i.value);
+      else if (k === 'wintext') n.wins = el.value.trim() ? [el.value.trim()] : [];
+      else if (k === 'time') n.time = el.value;
+    }
+    function netAdd(r) {
+      const n = S.net, source = n.src === 'Other' ? n.other.trim() : n.src, winners = n.wins.map(w => String(w).trim()).filter(Boolean);
+      if (!source) { toast('Type the network’s name.'); return; }
+      if (!winners.length) { toast('Pick the winner first.'); return; }
+      EBNetCalls.add({ raceId: r.id, tab: tabOfId(r.id), source, winners, sim: S.sim, at: EBNetCalls.atFromTime(n.time || nowHM()),
+        raceName: areaOfId(r.id) ? (r.measure ? (r.id.startsWith('CA-P') ? `${r.place}: ${r.office}` : r.name) : `${r.place}: ${r.office}`) : r.name });
+      store.set('netsrc', n.src); n.wins = []; n.time = '';
+      toast(`${source} call logged`);
+      renderDetail(); if (S.tools === 'net') renderQueue();
+    }
+    // Stages the network's call as a board call (the usual "Publish call" confirmation still comes first)
+    function netPublish(r, id) {
+      const e = EBNetCalls.all(S.sim).find(x => x.id === id); if (!e) return;
+      if (areaOfId(r.id)) S.pending = { raceId: r.id, winners: e.winners, source: e.source };
+      else {
+        const c = (r.candidates.length ? r.candidates : r.preCandidates).find(x => x.name.toLowerCase() === e.winners[0].toLowerCase());
+        S.pending = { raceId: r.id, party: c && c.party in PNAME ? c.party : 'O', candidate: c ? c.name : e.winners[0], source: e.source };
+      }
+      renderDetail();
+    }
+    function netOverviewHtml() {
+      const list = EBNetCalls.all(S.sim);
+      return `<p class="eb-hint">Calls from other networks that you've logged on this device. They aren't on the public board. Open a race to log a new one.</p>
+        ${list.length ? list.map(e => `<div class="eb-netrow"><button type="button" class="eb-link" data-qopen="${esc(e.raceId)}" data-qtab="${esc(e.tab || tabOfId(e.raceId) || '')}">${esc(e.raceName || e.raceId)}</button>
+            <span class="s">${esc(e.source)}</span><span class="w">${esc(e.winners.join(', '))}</span><small>${fmtT(e.at)}</small>${netFlag(raceOf(e.raceId))(e)}
+            <span class="b"><button type="button" class="eb-btn" data-act="net-del" data-id="${esc(e.id)}" aria-label="Remove this entry">×</button></span></div>`).join('')
+          : '<div class="eb-empty">Nothing logged yet.</div>'}
+        ${list.length ? '<div class="eb-actions"><button type="button" class="eb-btn warn" data-act="net-clear">Clear all</button></div>' : ''}`;
+    }
     async function copy(text, msg) {
       try { await navigator.clipboard.writeText(text); toast(msg); }
       catch { prompt('Copy this:', text); }
@@ -1368,8 +1488,11 @@
         <button type="button" class="eb-btn" data-act="log-note">Log issue</button>
         <button type="button" class="eb-btn${S.tools === 'log' ? ' sel' : ''}" data-act="tools-log">Issue log</button>
         <button type="button" class="eb-btn${S.tools === 'quick' ? ' sel' : ''}" data-act="tools-quick">Quick count</button>
+        ${window.EBNetCalls ? `<button type="button" class="eb-btn${S.tools === 'net' ? ' sel' : ''}" data-act="tools-net">Network calls${EBNetCalls.all(S.sim).length ? ` <b>${EBNetCalls.all(S.sim).length}</b>` : ''}</button>` : ''}
+        ${window.EBCallGraphic ? '<button type="button" class="eb-btn" data-act="cg-manual">Manual graphic</button>' : ''}
         <button type="button" class="eb-btn${S.tools === 'feeds' ? ' sel' : ''}" data-act="tools-feeds">Feed check</button></div>`;
       if (S.tools === 'quick') return row + `<div class="eb-qtool eb-quick">${quickHtml()}</div>`;
+      if (S.tools === 'net' && window.EBNetCalls) return row + `<div class="eb-qtool">${netOverviewHtml()}</div>`;
       if (S.tools === 'alerts') return row + `<div class="eb-qtool">${alertsHtml()}</div>`;
       if (S.tools === 'log') return row + `<div class="eb-qtool">${logHtml()}</div>`;
       if (S.tools === 'feeds') return row + `<div class="eb-qtool">${feedsHtml()}</div>`;
