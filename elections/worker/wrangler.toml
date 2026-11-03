@@ -22,8 +22,8 @@ ELECTION_DATE = "2026-11-03"
 ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.media,https://www.ocscanner.media"
 
 # State feeds. States post test numbers in the weeks before an election, so nothing is downloaded or
-# shown before RESULTS_START (2 p.m. Pacific on Nov 3, an hour before the first polls close).
-RESULTS_START = "2026-11-03T22:00:00Z"
+# shown before RESULTS_START (3 p.m. Pacific on Nov 3, when the first polls close).
+RESULTS_START = "2026-11-03T23:00:00Z"
 # Which states to download: "all", "off", or a list like "AZ,GA,NC"
 STATE_FEEDS = "all"
 # How often each state is refreshed, at most
