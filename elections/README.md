@@ -434,6 +434,8 @@ stream key from X Live Studio (x.com/i/live-studio) into Settings → Stream.
 | `?secs=30` | Seconds per screen (default 22) |
 | `?scenes=senate,close,house` | Which screens, in order: `senate`, `house`, `governor`, `close`, `flips`, `oc` |
 | `?director=0` | Turn the auto-director off (plain rotation) |
+| `?slate=0` | Skip the pre-results countdown screen (shown until 3:00 p.m. PT on Nov 3; never in rehearsal) |
+| `?start=<time>` | Change when the countdown ends, e.g. `?start=2026-11-03T23:00:00Z` (for testing) |
 
 **Steering it live:** in OBS, right-click the source → **Interact**. → and ← change screens, Space pauses
 on the current screen, 1–6 jump to a screen, and A turns the auto-director on or off.

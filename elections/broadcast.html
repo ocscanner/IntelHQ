@@ -150,6 +150,21 @@
   .dots .auto{color:var(--accent);border-color:var(--accent)}
   .dots .auto.off{color:var(--muted);border-color:var(--line)}
   .simtag{position:absolute;right:40px;top:110px;font-family:var(--fh);font-weight:700;font-size:22px;color:var(--warn);letter-spacing:.1em}
+  /* pre-results countdown slate (hidden once results start, and in rehearsal) */
+  .slate{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(1100px 650px at 50% 35%,rgba(0,120,200,.22),transparent 65%),var(--bg)}
+  .slate[hidden]{display:none}
+  .slate img{width:150px;height:150px;border-radius:26px;margin-bottom:26px}
+  .slate .k{font-family:var(--fh);font-weight:700;font-size:40px;letter-spacing:.22em;color:var(--accent)}
+  .slate h1{font-family:var(--fh);font-weight:700;font-size:118px;line-height:1;margin:10px 0 8px;letter-spacing:.03em}
+  .slate .when{font-size:38px;color:var(--text2);letter-spacing:.06em}
+  .slate .cd{display:flex;gap:28px;margin:46px 0 40px}
+  .slate .cd div{min-width:200px;padding:22px 26px 16px;border:1px solid var(--line2);border-radius:18px;background:rgba(0,40,70,.35)}
+  .slate .cd b{display:block;font-family:var(--fm);font-size:112px;line-height:1}
+  .slate .cd span{display:block;font-size:26px;color:var(--muted);letter-spacing:.18em;text-transform:uppercase;margin-top:10px}
+  .slate .note{font-size:30px;color:var(--muted);letter-spacing:.05em}
+  .slate .note b{color:var(--text);font-weight:600}
+  .slate .now{position:absolute;bottom:44px;font-family:var(--fm);font-size:34px;color:var(--text2)}
 </style>
 </head>
 <body>
@@ -170,6 +185,15 @@
   <div class="src" id="src">Unofficial results · Vote counts from state election offices</div>
   <div class="ticker"><div class="lbl" id="tklbl">RESULTS</div><div class="tk"><div id="tk"></div></div></div>
   <div class="alert" id="alert"></div>
+  <div class="slate" id="slate" hidden>
+    <img src="broadcast-logo.png" alt="">
+    <div class="k">OC SCANNER</div>
+    <h1>ELECTION NIGHT 2026</h1>
+    <div class="when">Live results begin at 3:00 PM Pacific</div>
+    <div class="cd" id="slateCd"></div>
+    <div class="note">First polls close at <b>3:00 PM PT</b> · California polls close at <b>8:00 PM PT</b></div>
+    <div class="now" id="slateNow"></div>
+  </div>
 </div>
 <script>
 (function () {
@@ -617,6 +641,24 @@
   }
   function tick() { $('clock').textContent = new Date().toLocaleTimeString('en-US', { ...PT, hour: 'numeric', minute: '2-digit', second: '2-digit' }); }
   setInterval(tick, 1000); tick();
+
+  /* ── countdown slate before results start (3:00 p.m. PT, same minute as the results Worker) ── */
+  // ?start=<ISO time> overrides for testing; ?slate=0 turns it off; never shown in rehearsal.
+  const START = Date.parse(qs.get('start') || '2026-11-03T23:00:00Z');
+  const SLATE = !SIM && qs.get('slate') !== '0';
+  const pad2 = n => (n < 10 ? '0' : '') + n;
+  function slate() {
+    const ms = START - Date.now(), el = $('slate');
+    if (!SLATE || !(ms > 0)) { if (!el.hidden) el.hidden = true; return false; }
+    el.hidden = false;
+    const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60);
+    $('slateCd').innerHTML = [[pad2(h), 'Hours'], [pad2(m), 'Minutes'], [pad2(t % 60), 'Seconds']]
+      .map(p => `<div><b>${p[0]}</b><span>${p[1]}</span></div>`).join('');
+    $('slateNow').textContent = new Date().toLocaleTimeString('en-US', { ...PT, hour: 'numeric', minute: '2-digit' }) + ' PT';
+    return true;
+  }
+  const slateTimer = setInterval(() => { if (!slate()) { clearInterval(slateTimer); load(); } }, 1000);
+  slate();
 
   /* ── keys (OBS: Interact) ── */
   addEventListener('keydown', e => {
