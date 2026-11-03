@@ -149,28 +149,35 @@ test('Kansas: static pages; "D-Name" party prefix; ignored while the site still 
   assert.equal(before.units[0].status, 'not posted');
 });
 
-test('Kentucky: one Election Night Reporting page; the ticker and duplicate tables are skipped', async () => {
-  const tbl = (title, rows) => `<div class="results-tbl results-tbl-partisan"><div class="results-tbl-bar"><div class=results-tbl-title>${title}</div></div>
-    <div class="results-tbl-content"><div class="results-tbl-row results-tbl-header"><div class="results-tbl-col1 results-tbl-header-name">CANDIDATE NAME</div></div>
-    <div class="results-tbl-body">${rows.map(([n, p, a, t]) => `<div class=results-tbl-body-row><div class='results-tbl-row results-tbl-row-data'><div class="results-tbl-col1 results-tbl-row-candidate-name">${n}</div><div class="results-tbl-col2 results-tbl-row-candidate-party">${p}</div><div class="results-tbl-col3 results-tbl-row-candidate-absentee">${a}</div><div class="results-tbl-col4 results-tbl-row-candidate-total">${t}</div><div class="results-tbl-col5 results-tbl-row-candidate-percent">50%</div></div></div>`).join('')}</div>
-    <div class="results-tbl-row results-tbl-footer"><div class="results-tbl-col3 results-tbl-footer-label">Contest Total</div><div class="results-tbl-col4 results-tbl-footer-total">999</div></div></div></div>`;
-  const html = `<div>ALL RESULTS ARE UNOFFICIAL</div><div>November 3, 2026</div><div>2026 General Election</div>
-    <div class="tickerItem"><div class="tickerTitle">UNITED STATES SENATOR</div><div class="tickerRow"><div class="tickerCandidate">Andy BARR</div><div class="tickerTotal">1</div></div></div>
-    <div>STATEWIDE INFORMATION</div><div>Precincts</div><div>Participating: 3,189</div><div>Reporting: 1,595</div>
-    ${tbl('UNITED STATES SENATOR', [['Andy BARR', 'REP', '60,000', '700,000'], ['Charles BOOKER', 'DEM', '50,000', '500,000']])}
-    ${tbl('UNITED STATES SENATOR', [['Andy BARR', 'REP', '60,000', '700,000']])}
-    ${tbl('UNITED STATES REPRESENTATIVE in CONGRESS 3rd Congressional District', [['Morgan McGARVEY', 'DEM', '9,000', '120,000'], ['Maria RODRIQUEZ', 'REP', '5,000', '70,000']])}`;
-  const out = await run('KY', { 'https://vrsws.sos.ky.gov/liveresults/': html });
+test('Kentucky: election-night ticker at the top of liveresults?id=2 (Nov 3 layout); older table layout as fallback', async () => {
+  const URL = 'https://vrsws.sos.ky.gov/liveresults?id=2';
+  // Ticker markup copied from the live page on Nov 3 (0 votes then); votes made up
+  const item = (title, rows) => `<div class="tickerItem" style="margin-left: 0px;"> <div class="tickerTitle">${title}</div> ${rows.map(([p, n, t]) => `<div class="tickerRow"> <div class="tickerParty" partyid="2">${p}</div> <div class="tickerCandidate">${n}</div> <div class="tickerTotal">${t}</div> </div>`).join(' ')} </div>`;
+  const live = `<title>Election Night Reporting</title><div>2026 General Election</div><div id="ticker">
+    ${item('UNITED STATES SENATOR', [['REP', 'Andy BARR', '700,000'], ['DEM', 'Charles BOOKER', '500,000']])}
+    ${item('UNITED STATES REPRESENTATIVE in CONGRESS 3rd Congressional District', [['REP', 'Maria Teresa RODRIGUEZ', '70,000'], ['DEM', 'Morgan McGARVEY', '120,000']])}
+    ${item('UNITED STATES REPRESENTATIVE in CONGRESS 5th Congressional District', [['REP', 'Hal ROGERS', '150,000'], ['DEM', 'Ned PILLERSDORF', '40,000']])}
+    </div><div id="mapGuideTitle">Counties Finished Reporting: 60 / 120</div>`;
+  const out = await run('KY', { [URL]: live });
   const sen = res(out, 'KY-SEN');
   assert.deepEqual(tally(sen), [['Andy Barr', 'R', 700000], ['Charles Booker', 'D', 500000]]);
   assert.equal(sen.pctIn, 50);
-  const ky3 = res(out, 'KY-03');
-  assert.deepEqual(tally(ky3), [['Morgan McGarvey', 'D', 120000], ['Maria Rodriquez', 'R', 70000]]);
-  assert.equal(ky3.pctIn, null);
-  // Between elections: "under maintenance", or the primary
-  const maint = await run('KY', { 'https://vrsws.sos.ky.gov/liveresults/': '<h1>Notice: Under Maintenance</h1>' });
+  assert.equal(sen.pctLabel, 'counties finished');
+  assert.deepEqual(tally(res(out, 'KY-03')), [['Morgan McGarvey', 'D', 120000], ['Maria Rodriguez', 'R', 70000]]);
+  assert.deepEqual(tally(res(out, 'KY-05')), [['Hal Rogers', 'R', 150000], ['Ned Pillersdorf', 'D', 40000]]);
+  assert.equal(res(out, 'KY-05').pctIn, null);
+  // Older layout (May primary): .results-tbl blocks after "STATEWIDE INFORMATION"
+  const tbl = (title, rows) => `<div class="results-tbl"><div class=results-tbl-title>${title}</div>
+    ${rows.map(([n, p, t]) => `<div class='results-tbl-row results-tbl-row-data'><div class="results-tbl-row-candidate-name">${n}</div><div class="results-tbl-row-candidate-party">${p}</div><div class="results-tbl-row-candidate-total">${t}</div></div>`).join('')}
+    <div class="results-tbl-row results-tbl-footer">Contest Total</div></div>`;
+  const old = `<div>2026 General Election</div><div>STATEWIDE INFORMATION</div><div>Precincts</div><div>Participating: 3,189</div><div>Reporting: 1,595</div>
+    ${tbl('UNITED STATES SENATOR', [['Andy BARR', 'REP', '700,000'], ['Charles BOOKER', 'DEM', '500,000']])}`;
+  const out2 = await run('KY', { [URL]: old });
+  assert.equal(res(out2, 'KY-SEN').pctIn, 50);
+  const maint = await run('KY', { [URL]: '<h1>Notice: Under Maintenance</h1>' });
   assert.equal(maint.units[0].status, 'not posted');
 });
+
 
 test('North Dakota: statewide page blocks; waits for the 2026 general', async () => {
   const cand = (n, p, v, win = '') => `<div class="section group${win}"><div class="col display-results-box-d"><h2>${n} </h2></div><div class="display-results-row"><div class="display-results-box-e"><div class="${p}">${p}</div></div><h2 class="display-results-box-g">${v}</h2><h2 class="display-results-box-f">50%</h2></div></div><hr>`;

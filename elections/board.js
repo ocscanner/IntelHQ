@@ -1544,7 +1544,7 @@
       const P = S.paste;
       if (!P || !window.EBPaste) return renderQueue();
       if (!P.text.trim()) { P.results = null; return renderQueue(); }
-      if (!P.st) P.st = EBPaste.detectState(P.text) || '';
+      if (!P.st) P.st = EBPaste.detectState(P.text) || (EBPaste.guessState && EBPaste.guessState(P.text, pasteRaces)) || '';
       P.results = P.st ? EBPaste.read(P.text, pasteRaces(P.st)) : [];
       P.sel = Object.fromEntries(P.results.map(r => [r.id, r.status === 'ok']));
       P.pct = Object.fromEntries(P.results.map(r => [r.id, r.pctIn ?? '']));

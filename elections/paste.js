@@ -105,7 +105,19 @@
     return out;
   }
 
-  const api = { htmlToText, detectState, read, STATE_NAMES };
+  /** When the page never names its state (Kentucky's doesn't): the state whose candidates the page matches best. */
+  function guessState(text, racesOf) {
+    let best = null, n = 0;
+    for (const st of Object.keys(STATE_NAMES)) {
+      const races = racesOf(st);
+      if (!races.length) continue;
+      const k = read(text, races).reduce((s, r) => s + r.candidates.length, 0);
+      if (k > n) { best = st; n = k; }
+    }
+    return n >= 2 ? best : null;
+  }
+
+  const api = { htmlToText, detectState, guessState, read, STATE_NAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else g.EBPaste = api;
 })(typeof window !== 'undefined' ? window : globalThis);

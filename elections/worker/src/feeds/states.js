@@ -969,13 +969,36 @@ export function parseKY(html) {
   }
   return rows;
 }
+/* Election night (Nov 3): the live page is liveresults?id=2 (the old address with a trailing slash fails) and is ~15 MB,
+   but a ticker in its first ~100 KB lists every federal race: tickerTitle, then tickerParty / tickerCandidate /
+   tickerTotal per candidate; "Counties Finished Reporting: N / 120" just after it. */
+export function parseKYTicker(html) {
+  const all = String(html);
+  const cf = all.match(/Counties Finished Reporting:\s*(\d+)\s*\/\s*(\d+)/i);
+  const rows = [], seen = new Set();
+  for (const part of all.split(/class="tickerTitle"[^>]*>/i).slice(1)) {
+    const contest = stripTags(part.slice(0, part.search(/<\/div>/i)));
+    if (seen.has(contest)) continue;
+    seen.add(contest);
+    for (const row of part.split(/class="tickerRow"/i).slice(1)) {
+      const cell = k => stripTags(row.match(new RegExp(`class="ticker${k}"[^>]*>([\\s\\S]*?)<\\/div>`, 'i'))?.[1] || '');
+      const name = cell('Candidate'), votes = toNum(cell('Total'));
+      if (!name || votes == null) continue;
+      const statewide = /SENATOR|GOVERNOR/i.test(contest) && cf;
+      rows.push({ contest, name, party: cell('Party'), votes, rep: statewide ? +cf[1] : null, tot: statewide ? +cf[2] : null });
+    }
+  }
+  return rows;
+}
 add({
   st: 'KY', label: 'Kentucky State Board of Elections', confidence: 'unverified', format: 'Election Night Reporting page (HTML)',
   units: [{
     id: 'KY', requests: 1,
     async run(c) {
-      const html = await c.text('https://vrsws.sos.ky.gov/liveresults/', { allow404: true });
+      const html = await c.textHead('https://vrsws.sos.ky.gov/liveresults?id=2', 250000, { allow404: true });
       if (!html || !/2026 General Election|November 0?3, 2026/i.test(html)) return { notPosted: true };
+      const ticker = parseKYTicker(html);
+      if (ticker.length) return { results: collect('KY', c, ticker, { pctLabel: 'counties finished' }) };
       const rows = parseKY(html);
       if (!rows.length) return { notPosted: true };
       return { results: collect('KY', c, rows) };

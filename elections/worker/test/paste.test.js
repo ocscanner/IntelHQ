@@ -98,3 +98,25 @@ Precincts reporting: 38%`;
   assert.ok(gov.missing.length >= 1);
   assert.equal(P.detectState(text), 'MI');
 });
+
+test('Kentucky page (state never named; "REP Hal ROGERS" then the count on the next line)', () => {
+  const text = `Election Night Reporting
+2026 General Election
+UNITED STATES SENATOR
+REP Andy BARR
+700,000
+DEM Charles BOOKER
+500,000
+UNITED STATES REPRESENTATIVE in CONGRESS 5th Congressional District
+REP Hal ROGERS
+150,000
+DEM Ned PILLERSDORF
+40,000
+Counties Finished Reporting: 60 / 120`;
+  assert.equal(P.detectState(text), null);
+  const st = P.guessState(text, racesOf);
+  assert.equal(st, 'KY');
+  const out = P.read(text, racesOf(st));
+  assert.deepEqual(votes(out, 'KY-05'), { 'Ned Pillersdorf': 40000, 'Hal Rogers': 150000 });
+  assert.deepEqual(votes(out, 'KY-SEN'), { 'Charles Booker': 500000, 'Andy Barr': 700000 });
+});
