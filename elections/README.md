@@ -323,7 +323,7 @@ after results have started because it can't find November's election, paste the 
    with "[REHEARSAL, NOT REAL RESULTS]", and rehearsal desk calls are stored separately from real ones.
 2. Click **Desk sign-in** and enter your `DESK_TOKEN`. Practice a call and a withdrawal.
 3. Star the races you care about. **Chime on watched calls** plays a tone when one is called.
-4. Turn rehearsal off. The board should say "No results yet" and "State feeds start Nov 3, 2:00 PM".
+4. Turn rehearsal off. The board should say "No results yet" and "State feeds start Nov 3, 3:00 PM".
 5. Run the preview tool for each state on Nov 2 or the morning of Nov 3.
 
 ## Call queue (desk only)
@@ -467,7 +467,7 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 
 | Setting | Default | What it does |
 |---|---|---|
-| `RESULTS_START` | `2026-11-03T22:00:00Z` | No state downloads or state numbers before this time |
+| `RESULTS_START` | `2026-11-03T23:00:00Z` | No state downloads or state numbers before this time |
 | `STATE_FEEDS` | `all` | Which states to download, e.g. `"GA,NC,TX"`, or `"off"` |
 | `MIN_REFRESH_MINUTES` | `9` | How often each state is downloaded, at most |
 | `SUBREQUEST_BUDGET` | `45` | Downloads per 5-minute run; `500` on Workers Paid |

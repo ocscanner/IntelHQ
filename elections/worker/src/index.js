@@ -64,7 +64,7 @@ const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', '
 const countiesOn = env => /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
 const CACHE_SECONDS = 60;
 const LIVE_SECONDS = 30;   // /v1/live: short enough that calls show quickly, long enough that D1 is read about twice a minute per location
-const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T22:00:00Z');
+const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T23:00:00Z');
 
 export default {
   async fetch(request, env, ctx) {
