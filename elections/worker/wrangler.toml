@@ -26,8 +26,8 @@ ALLOWED_ORIGINS = "https://ocscanner.github.io,https://ocscanner.media,https://w
 RESULTS_START = "2026-11-03T23:00:00Z"
 # Which states to download: "all", "off", or a list like "AZ,GA,NC"
 STATE_FEEDS = "all"
-# How often each state is refreshed, at most
-MIN_REFRESH_MINUTES = "9"
+# How often each state is refreshed, at most (4 = every 5-minute run, Workers Paid)
+MIN_REFRESH_MINUTES = "4"
 # Downloads allowed per 5-minute run. Free plan: keep 45 (the limit is 50).
 # Workers Paid ($5/mo): raise to 500 so every state refreshes every run.
 SUBREQUEST_BUDGET = "500"
