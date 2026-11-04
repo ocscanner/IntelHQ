@@ -111,7 +111,9 @@
     for (const st of Object.keys(STATE_NAMES)) {
       const races = racesOf(st);
       if (!races.length) continue;
-      const k = read(text, races).reduce((s, r) => s + r.candidates.length, 0);
+      // A race read completely (every major candidate found) counts far more than stray last-name matches,
+      // so "Riley Moore / Ace Parsi" is West Virginia, not Maryland (Wes Moore, Cheryl Riley)
+      const k = read(text, races).reduce((s, r) => s + r.candidates.length + (r.status === 'ok' ? 10 : 0), 0);
       if (k > n) { best = st; n = k; }
     }
     return n >= 2 ? best : null;

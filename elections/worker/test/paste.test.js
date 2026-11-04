@@ -120,3 +120,15 @@ Counties Finished Reporting: 60 / 120`;
   assert.deepEqual(votes(out, 'KY-05'), { 'Ned Pillersdorf': 40000, 'Hal Rogers': 150000 });
   assert.deepEqual(votes(out, 'KY-SEN'), { 'Charles Booker': 500000, 'Andy Barr': 700000 });
 });
+
+test('State guess prefers the state where a race reads completely (Riley Moore / Ace Parsi is WV, not MD)', () => {
+  const text = `Riley Moore
+In
+72,548\t54.87%
+D
+Ace Parsi
+59,680\t45.13%`;
+  assert.equal(P.guessState(text, racesOf), 'WV');
+  const out = P.read(text, racesOf('WV'));
+  assert.deepEqual(votes(out, 'WV-02'), { 'Ace Parsi': 59680, 'Riley Moore': 72548 });
+});
