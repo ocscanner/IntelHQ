@@ -42,7 +42,7 @@ export function raceIdFor(name, st, ids, hint = {}) {
 }
 
 /* ── Candidate cleanup ── */
-const SKIP = /^(write[- ]?ins?|over ?votes?|under ?votes?|blank( ballots)?|total( votes)?|times cast|registered voters|scattering|none of these candidates|no candidate)\b/i;
+const SKIP = /^(write[- ]?ins?|over ?votes?|under ?votes?|blank( ballots)?|totals?( votes)?|times cast|registered voters|scattering|none of these candidates|no candidate)\b/i;
 export const isRealCandidate = name => !!String(name || '').trim() && !SKIP.test(String(name).trim());
 
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();

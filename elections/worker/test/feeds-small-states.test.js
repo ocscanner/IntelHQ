@@ -319,3 +319,10 @@ test('Indiana: % in comes from TOTAL_ALLPRECINCTSREPORTING over TOTAL_ALLPRECINC
   assert.equal(rows[0].tot, 5067);
   assert.equal(rows[0].district, '1');
 });
+
+test('A "Totals" row (Maryland\'s results tables) is not a candidate', async () => {
+  const { isRealCandidate } = await import('../src/feeds/util.js');
+  assert.equal(isRealCandidate('Totals'), false);
+  assert.equal(isRealCandidate('Total Votes'), false);
+  assert.equal(isRealCandidate('Totalini Jones'), true);
+});
