@@ -1033,7 +1033,7 @@
           ${r.call ? '<button type="button" class="eb-btn warn" data-act="retract">Withdraw call</button>' : ''}
           ${r.deskOverride ? `<button type="button" class="eb-btn" data-act="clear">${r.deskOverride === 'withdrawn' ? 'Undo withdrawal' : 'Remove desk call'}</button>` : ''}
           <button type="button" class="eb-btn" data-act="manual">${S.manualOpen === r.id ? 'Hide vote entry' : 'Enter vote counts'}</button>
-          <button type="button" class="eb-btn" data-act="quicktoggle">${store.get('quick', QUICK_DEFAULT).includes(r.id) ? 'Remove from Quick count' : 'Add to Quick count'}</button>
+          <button type="button" class="eb-btn" data-act="quicktoggle">${quickStored().includes(r.id) ? 'Remove from Quick count' : 'Add to Quick count'}</button>
         </div>
         ${S.manualOpen === r.id ? `<div data-r="manual">
           ${manual.map((c, i) => `<div class="eb-grid3"><input aria-label="Candidate ${i + 1} name" value="${esc(c.name)}" data-m="name"><input aria-label="Party" value="${esc(c.party)}" data-m="party" maxlength="3"><input aria-label="Votes" inputmode="numeric" value="${c.votes ?? ''}" data-m="votes"></div>`).join('')}
@@ -1110,7 +1110,7 @@
         case 'paste-toggle': S.paste = S.paste ? null : { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
         case 'paste-clear': S.paste = { st: '', text: '', results: null, sel: {}, pct: {} }; return renderQueue();
         case 'paste-save': return pasteSave();
-        case 'quick-reset': if (confirm('Reset Quick count to the default list of competitive races?')) { store.set('quick', QUICK_DEFAULT); renderQueue(); } return;
+        case 'quick-reset': if (confirm('Reset Quick count to the default list (every contested race in states without a working feed)?')) { store.set('quick', quickDefault()); renderQueue(); } return;
         case 'quicktoggle': return quickToggle(r.id);
         case 'alerts-on': return alertsOn();
         case 'alerts-off': return alertsOff();
@@ -1509,9 +1509,17 @@
     /* Quick count: one screen to type in counts for competitive races in states with no automatic feed.
        Starts with the Oct 31 list (ranked by competitiveness); add or remove races per device. Each row saves
        through the desk's vote entry (POST /v1/desk/result), so a feed or AP, when there is one, still wins. */
-    const QUICK_DEFAULT = ['MI-GOV', 'MI-SEN', 'MI-07', 'MI-08', 'MI-04', 'MI-10', 'NY-17', 'NY-22', 'NY-03', 'NY-04', 'NY-19',
+    const QUICK_FIRST = ['MI-GOV', 'MI-SEN', 'MI-07', 'MI-08', 'MI-04', 'MI-10', 'NY-17', 'NY-22', 'NY-03', 'NY-04', 'NY-19',
       'WI-GOV', 'WI-03', 'WI-01', 'NV-GOV', 'NV-03', 'ME-SEN', 'ME-GOV', 'ME-02', 'NH-SEN', 'NH-GOV', 'NH-01', 'NJ-07', 'IL-17'];
-    const quickIds = () => store.get('quick', QUICK_DEFAULT).filter(id => S.byId?.has(id));
+    // Every contested race in a state with no working automatic feed (or one that hasn't posted), so nothing needs adding by hand
+    const QUICK_STATES = new Set('AL AK DE HI IL KS KY ME MA MI MN MS MO MT NH NJ NY ND OK OR TN WA WV WI WY'.split(' '));
+    const quickDefault = () => [...new Set([...QUICK_FIRST, ...[...(S.byId?.values() || [])].filter(r => QUICK_STATES.has(r.state) && r.chamber !== 'local' && (r.preCandidates || []).length >= 2).map(r => r.id)])];
+    // One-time upgrade of a list saved on this device from the shorter default: keep what was there, add the rest
+    const quickStored = () => {
+      if (store.get('quickv', 0) < 3 && S.byId?.size) { store.set('quick', [...new Set([...store.get('quick', []), ...quickDefault()])]); store.set('quickv', 3); }
+      return store.get('quick', null) || quickDefault();
+    };
+    const quickIds = () => quickStored().filter(id => S.byId?.has(id));
     S.qdraft = S.qdraft || {};
     // The two candidates to type in, always in the same order (Democrat, then Republican) so the boxes never swap
     function quickCands(r) {
@@ -1629,7 +1637,7 @@
       await load(true);
     }
     const quickToggle = id => {
-      const ids = store.get('quick', QUICK_DEFAULT);
+      const ids = quickStored();
       store.set('quick', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
       toast(ids.includes(id) ? 'Removed from Quick count' : 'Added to Quick count');
       renderQueue(); renderDetail();
