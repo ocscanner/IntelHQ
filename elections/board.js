@@ -1532,7 +1532,11 @@
     function quickCands(r) {
       const pre = r.preCandidates || [];
       const by = p => pre.find(c => c.party === p);
-      return [by('D'), by('R')].filter(Boolean).concat(pre.filter(c => c.party !== 'D' && c.party !== 'R')).slice(0, 2);
+      const oth = pre.filter(c => c.party !== 'D' && c.party !== 'R');
+      const two = [by('D'), by('R')].filter(Boolean).concat(oth).slice(0, 2);
+      // A third box (an independent first, e.g. Bodnar in Montana) that can stay blank
+      const third = oth.find(c => c.party === 'I' && !two.includes(c)) || oth.find(c => !two.includes(c));
+      return third ? [...two, third] : two;
     }
     function quickHtml() {
       const CH = { governor: 0, senate: 1, house: 2 };
@@ -1626,10 +1630,10 @@
       const cs = quickCands(r);
       const num = v => v === '' || v == null ? null : Math.max(0, +v);
       const vs = cs.map((c, i) => num(d[`v${i}`] ?? (r.pctLabel === 'expected vote' ? r.candidates.find(x => x.name === c.name)?.votes : null)));
-      if (vs.some(v => v == null || !Number.isFinite(v))) { if (!quiet) toast(`${shortName(r)}: enter votes for both candidates`); return false; }
+      if (vs.slice(0, 2).some(v => v == null || !Number.isFinite(v))) { if (!quiet) toast(`${shortName(r)}: enter votes for both candidates`); return false; }
       const pct = num(d.pct ?? (r.pctLabel === 'expected vote' ? r.pctIn : null));
       try {
-        await deskApi('POST', 'result', { raceId: id, pctIn: pct, candidates: cs.map((c, i) => ({ name: c.name, party: c.party, votes: vs[i] })), sim: S.sim });
+        await deskApi('POST', 'result', { raceId: id, pctIn: pct, candidates: cs.map((c, i) => ({ name: c.name, party: c.party, votes: vs[i] ?? 0 })), sim: S.sim });
         delete S.qdraft[id];
         if (!quiet) toast(`${shortName(r)} saved${S.sim ? ' (rehearsal)' : ''}`);
         return true;
