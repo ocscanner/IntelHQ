@@ -8,7 +8,7 @@ import { normParty } from './parties.js';
  * @param {{calls:Map, results:Map}} desk      desk calls / manually entered results, keyed by race id
  */
 export function buildBoard(universe, feeds, desk, now = Date.now()) {
-  const races = universe.races.map(r => buildRace(r, feeds, desk));
+  const races = universe.races.map(r => buildRace(r, feeds, desk, now, universe.config.election));
   const summary = {};
   for (const ch of ['house', 'senate', 'governor']) summary[ch] = summarize(universe.config, ch, races.filter(r => r.chamber === ch));
   return {
@@ -20,7 +20,7 @@ export function buildBoard(universe, feeds, desk, now = Date.now()) {
   };
 }
 
-function buildRace(r, feeds, desk) {
+function buildRace(r, feeds, desk, now = Date.now(), election = null) {
   let data = null;
   for (const f of feeds) { const d = f.races.get(r.id); if (d) { data = d; break; } }
   const manual = desk.results.get(r.id);
@@ -41,6 +41,12 @@ function buildRace(r, feeds, desk) {
   } else if (!dc) {
     const w = candidates.find(c => c.winner);
     if (w) call = { party: w.party, candidate: w.name, source: data.source, at: data.callSeen || null, by: 'feed' };
+  }
+  // One name on the ballot (e.g. FL-10 Frost): states leave these out of their results files, so call it for him
+  // once polls are closing (7pm ET on election night) unless the desk has already acted on the race
+  if (!call && !dc && r.candidates.length === 1 && election && now >= Date.parse(election + 'T00:00:00Z') + 24 * 3600e3) {
+    const only = r.candidates[0];
+    call = { party: normParty(only.party), candidate: only.name, source: 'Unopposed', note: 'Only candidate on the ballot', at: null, by: 'rule' };
   }
   if (call && !call.candidate) {
     const match = candidates.find(c => c.party === call.party) || r.candidates.find(c => normParty(c.party) === call.party);

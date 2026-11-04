@@ -57,7 +57,7 @@ test('board: feed call, flip detection and seat math', () => {
     ['CA-45', { source: 'AP', candidates: [{ name: 'Chuong Vo', party: 'R', votes: 60, winner: true }, { name: 'Derek Tran', party: 'D', votes: 40 }], pctIn: 90 }],
     ['TX-SEN', { source: 'AP', candidates: [{ name: 'Ken Paxton', party: 'R', votes: 55 }, { name: 'James Talarico', party: 'D', votes: 45 }], pctIn: 40 }],
   ]) };
-  const b = buildBoard(universe, [feed], emptyDesk());
+  const b = buildBoard(universe, [feed], emptyDesk(), Date.parse('2026-11-03T20:00:00Z'));
   const ca = b.races.find(r => r.id === 'CA-45');
   assert.equal(ca.status, 'called');
   assert.equal(ca.flip, true);
@@ -108,6 +108,18 @@ test('board: hand-entered numbers win while a feed is all zeros; feed takes over
   ne = buildBoard(universe, [live], desk).races.find(r => r.id === 'NE-SEN');
   assert.equal(ne.source, 'IN SOS');
   assert.equal(ne.leader, 'R');
+});
+
+test('board: an unopposed race is called for its only candidate once polls close, unless the desk acted', () => {
+  const day = universe.config.election;
+  const before = Date.parse(day + 'T20:00:00Z'), after = Date.parse(day + 'T00:30:00Z') + 24 * 3600e3;
+  assert.equal(buildBoard(universe, [], emptyDesk(), before).races.find(r => r.id === 'FL-10').call, null);
+  const c = buildBoard(universe, [], emptyDesk(), after).races.find(r => r.id === 'FL-10').call;
+  assert.equal(c.candidate, 'Maxwell Frost');
+  assert.equal(c.party, 'D');
+  const desk = emptyDesk(); desk.calls.set('FL-10', { party: 'D', source: 'x', called_at: 1, retracted_at: 2 });
+  assert.equal(buildBoard(universe, [], desk, after).races.find(r => r.id === 'FL-10').call, null);
+  assert.equal(buildBoard(universe, [], emptyDesk(), after).races.find(r => r.id === 'FL-01').call, null);
 });
 
 test('simulation produces labeled, sane data over a full cycle', () => {
