@@ -63,7 +63,7 @@ elections/
 
 ## How updates work
 
-The Worker runs on a timer every 5 minutes. Each run downloads whichever state files are due
+The Worker runs on a timer every minute. Each run downloads whichever state files are due
 (each state at most every 9 minutes) and saves the numbers per race. The board only ever reads
 what's saved, refreshing every 60 seconds, so viewers never cause downloads from state servers.
 
@@ -471,7 +471,7 @@ Seats not on the ballot (the 65 Senate seats and 14 governorships) are set near 
 |---|---|---|
 | `RESULTS_START` | `2026-11-03T23:00:00Z` | No state downloads or state numbers before this time |
 | `STATE_FEEDS` | `all` | Which states to download, e.g. `"GA,NC,TX"`, or `"off"` |
-| `MIN_REFRESH_MINUTES` | `9` | How often each state is downloaded, at most |
+| `MIN_REFRESH_MINUTES` | `9` (set to 0.75 for election night) | How often each state is downloaded, at most |
 | `SUBREQUEST_BUDGET` | `45` | Downloads per 5-minute run; `500` on Workers Paid |
 | `COUNTY_FEEDS` | `off` | County-by-county downloads; `on` with Workers Paid |
 | `OC_ELECTION_FROM` | `24` | Orange County results file number to start looking from |

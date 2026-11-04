@@ -1,13 +1,13 @@
 /**
  * OC Scanner Election Wire — results Worker
  *
- * Every 5 minutes (cron) the Worker downloads whatever state files are due (each state about every
+ * Every minute (cron) the Worker downloads whatever state files are due (each state about every
  * 10 minutes) plus AP if licensed, and saves results per race. Viewers only ever read what's saved.
  *
- *  GET  /v1/board            all races + seat summaries (cached 60s per Cloudflare location)
+ *  GET  /v1/board            all races + seat summaries (cached 20s per Cloudflare location)
  *  GET  /v1/board?sim=1      same, with rehearsal (fake) results — always labeled SIM
  *  GET  /v1/feed             latest calls and retractions, newest first
- *  GET  /v1/live?local=OC    board + feed + local areas in ONE response, cached 30s per Cloudflare location.
+ *  GET  /v1/live?local=OC    board + feed + local areas in ONE response, cached 15s per Cloudflare location.
  *                            For the public site: one request per visitor per minute instead of five.
  *  GET  /v1/counties?race=GA-SEN   county-by-county results for a Senate or governor race
  *  GET  /v1/local?area=OC    Orange County local contests (cities, schools, districts, measures)
@@ -62,8 +62,8 @@ const AREAS = {
 // States whose free files include county-by-county counts (see feeds/states.js)
 const COUNTY_STATES = new Set(['AZ', 'CA', 'CO', 'FL', 'GA', 'IA', 'ID', 'MN', 'NC', 'PA', 'UT', 'VA']);
 const countiesOn = env => /^(on|true|1|yes)$/i.test(String(env.COUNTY_FEEDS || ''));
-const CACHE_SECONDS = 60;
-const LIVE_SECONDS = 30;   // /v1/live: short enough that calls show quickly, long enough that D1 is read about twice a minute per location
+const CACHE_SECONDS = 20;
+const LIVE_SECONDS = 15;   // /v1/live: short enough that calls show quickly, long enough that D1 is read about twice a minute per location
 const startOf = env => Date.parse(env.RESULTS_START || '2026-11-03T23:00:00Z');
 
 export default {
@@ -133,8 +133,9 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    // Every minute: watch DDHQ (and AP) for calls. Every 5 minutes: download state results.
-    if (event.cron === WATCH_CRON) ctx.waitUntil(watchRun(env));
+    // Every minute: watch DDHQ (and AP) for calls, and download whichever state files are due (each about every
+    // 45 seconds, so one pass a minute). The two run side by side; a slow state never holds up the call watcher.
+    if (event.cron === WATCH_CRON) { ctx.waitUntil(watchRun(env)); ctx.waitUntil(scheduledRun(env)); }
     else ctx.waitUntil(scheduledRun(env));
   },
 };

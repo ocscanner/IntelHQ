@@ -30,7 +30,7 @@ export function allUnits(env) {
  */
 export async function runIngest({ env, universe, store, fetchImpl = fetch, now = Date.now(), force = false, only = null, dryRun = false }) {
   const budget = Math.max(1, +(env.SUBREQUEST_BUDGET || 45));
-  const minGap = Math.max(1, +(env.MIN_REFRESH_MINUTES || 9)) * 60000;
+  const minGap = Math.max(0.5, +(env.MIN_REFRESH_MINUTES || 9)) * 60000;
   const ids = new Set(universe.races.map(r => r.id));
   const races = new Map(universe.races.map(r => [r.id, r]));
   let used = 0;

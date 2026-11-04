@@ -1799,7 +1799,7 @@
     load();
     let timer = null;
     if (opts.autoRefresh !== false) {
-      const every = (opts.refreshSeconds || 60) * 1000;
+      const every = (opts.refreshSeconds || 20) * 1000;
       timer = setInterval(() => { if (!document.hidden) load(); }, every);
       setInterval(() => { const a = $('ago'); if (a && !document.hidden && S.lastOk) a.textContent = `Updated ${ago(S.lastOk)}`; }, 5000);
     }
