@@ -250,6 +250,8 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 .eb-sw.eb-qbtn b{background:#e0a32b;color:#111;border-radius:999px;padding:0 6px;margin-left:4px;font-size:.8rem}
 .eb-queue h4 small{color:#e0a32b}
 .eb-qwatch{font-size:.78rem;color:var(--eb-muted);padding:0 14px 8px}
+.eb-qlist .qgroup{font-weight:800;font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;color:var(--eb-text2);padding:4px 0 0;border-bottom:1px solid var(--eb-line2)}
+.eb-qlist .qgroup small{margin-left:8px;font-weight:600;color:var(--eb-muted)}
 .eb-qlist{max-height:520px;overflow:auto;padding:0 10px 10px;display:grid;gap:8px}
 .eb-q{border:1px solid var(--eb-line2);border-left:4px solid var(--eb-lead);border-radius:8px;padding:8px 10px;background:var(--eb-bg2)}
 .eb-q.conflict{border-left-color:#e0a32b;background:color-mix(in srgb,#e0a32b 9%,var(--eb-bg2))}

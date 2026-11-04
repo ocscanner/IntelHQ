@@ -1367,9 +1367,16 @@
       const ddhq = w?.held ? `Watching Decision Desk HQ from ${fmtStart(w.resultsStart)}` : w?.ddhq?.ok ? `Decision Desk HQ checked ${ago(w.ddhq.checkedAt)}` : w?.ddhq?.ok === false ? `Decision Desk HQ check failed: ${w.ddhq.error}` : 'Decision Desk HQ: waiting for first check';
       const ap = w?.ap?.enabled ? (w.ap.ok === false ? ` · AP check failed: ${w.ap.error}` : ' · AP on') : ' · AP off (no X key)';
       const items = q?.items || [];
+      // Sections by race type, so a Senate call isn't buried among House races; urgency order is kept inside each
+      const GROUP = { senate: ['Senate', 0], governor: ['Governor', 1], house: ['House', 2], props: ['Ballot measures', 3], local: ['Local', 4], la: ['Local', 4] };
+      const gOf = i => GROUP[i.tab] || ['Couldn’t match to a race', 5];
+      const grouped = list => list.map((i, n) => [i, n]).sort((a, b) => gOf(a[0])[1] - gOf(b[0])[1] || a[1] - b[1]).map(x => x[0]);
+      const gCount = {}; for (const i of items) gCount[gOf(i)[0]] = (gCount[gOf(i)[0]] || 0) + 1;
+      let curGroup = null;
+      const head = i => { const g = gOf(i)[0]; if (g === curGroup) return ''; curGroup = g; return `<div class="qgroup">${g}<small>${gCount[g]}</small></div>`; };
       const body = !q ? `<div class="eb-empty">${esc(S.queueError || 'Loading the queue…')}</div>`
         : !items.length ? `<div class="eb-empty">Nothing waiting. Calls from Decision Desk HQ${w?.ap?.enabled ? ', AP' : ''} and races our counts say are decided show up here.</div>`
-        : items.slice(0, 40).map(i => {
+        : grouped(items).slice(0, 60).map(i => {
           const late = ageMin(i.at) >= 15 ? ' late2' : ageMin(i.at) >= 5 ? ' late' : '';
           const chip = i.type === 'conflict' ? `<span class="qchip conflict">Conflict · ${esc(i.sourceLabel)}</span>`
             : i.type === 'model' ? `<span class="qchip model ${i.confidence}">Model · ${i.confidence === 'high' ? 'High' : 'Medium'}</span>`
@@ -1382,13 +1389,13 @@
           const why = i.type === 'model' ? esc(i.reason) : i.type === 'unmatched' ? esc(i.note || '') : '';
           const confirming = S.qConfirm === i.key;
           const pubLabel = confirming ? 'Tap again to publish' : i.type === 'conflict' ? 'Switch the call' : i.type === 'model' ? 'Publish as OC Scanner' : `Publish (${i.sourceLabel})`;
-          return `<div class="eb-q ${i.type}${late}">
+          return head(i) + `<div class="eb-q ${i.type}${late}">
             <div class="qh">${chip}<span class="qage" title="${esc(new Date(i.at).toLocaleString())}">${ageTxt(i.at)}</span></div>
             ${i.raceId ? `<button type="button" class="qrace" data-qopen="${i.raceId}" data-qtab="${i.tab}">${esc(i.raceName)}</button>` : ''}
             <div class="qline">${line}</div>${why ? `<div class="qwhy">${why}</div>` : ''}
             <div class="qact">${i.raceId ? `<button type="button" class="eb-btn${confirming ? ' warn' : ''}" data-qpub="${esc(i.key)}">${pubLabel}</button>` : ''}<button type="button" class="eb-btn" data-qdis="${esc(i.key)}">Dismiss</button>${i.url ? `<a class="eb-btn" href="${esc(i.url)}" target="_blank" rel="noopener">Post</a>` : ''}</div>
           </div>`;
-        }).join('') + (items.length > 40 ? `<div class="eb-empty">${items.length - 40} more below the fold — work the top ones first.</div>` : '');
+        }).join('') + (items.length > 60 ? `<div class="eb-empty">${items.length - 60} more below the fold — work the top ones first.</div>` : '');
       const bulk = bulkGroups(items);
       const bulkHtml = bulk.filter(g => g.keys.length > 1).map(g => `<button type="button" class="eb-btn" data-qbulk="${g.id}">${esc(g.label)} (${g.keys.length})</button>`).join('');
       // Keep the reader's place: the list scrolls inside the panel and the page scrolls around it, and rebuilding
