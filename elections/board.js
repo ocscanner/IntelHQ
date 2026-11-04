@@ -1391,11 +1391,19 @@
         }).join('') + (items.length > 40 ? `<div class="eb-empty">${items.length - 40} more below the fold — work the top ones first.</div>` : '');
       const bulk = bulkGroups(items);
       const bulkHtml = bulk.filter(g => g.keys.length > 1).map(g => `<button type="button" class="eb-btn" data-qbulk="${g.id}">${esc(g.label)} (${g.keys.length})</button>`).join('');
+      // Keep the reader's place: the list scrolls inside the panel and the page scrolls around it, and rebuilding
+      // the panel would otherwise send both back to the top every time the queue refreshes or a button is tapped
+      const keep = { list: box.querySelector('.eb-qlist')?.scrollTop || 0, win: window.scrollY, h: box.offsetHeight };
+      box.style.minHeight = keep.h + 'px';
       box.innerHTML = `<h4>Call queue<small>${items.length ? `${queueCount()} waiting` : ''}</small></h4>
         ${bulkHtml ? `<div class="eb-qbulk">${bulkHtml}</div>` : ''}
         <div class="eb-qwatch">${esc(ddhq + ap)}${q?.simulation ? ' · <b>Rehearsal</b>' : ''} · <button type="button" class="eb-linkbtn" data-act="testwatch">Test DDHQ feed</button></div>
         ${toolsHtml()}
         <div class="eb-qlist">${body}</div>`;
+      const list = box.querySelector('.eb-qlist');
+      if (list) list.scrollTop = keep.list;
+      if (Math.abs(window.scrollY - keep.win) > 1) window.scrollTo(window.scrollX, keep.win);
+      requestAnimationFrame(() => { box.style.minHeight = ''; });
     }
 
     /* ── Desk tools: phone alerts and the issue log (IntelHQ desk only) ── */
@@ -1512,14 +1520,21 @@
       return [by('D'), by('R')].filter(Boolean).concat(pre.filter(c => c.party !== 'D' && c.party !== 'R')).slice(0, 2);
     }
     function quickHtml() {
-      const ids = quickIds();
+      const CH = { governor: 0, senate: 1, house: 2 };
+      const ids = quickIds().sort((a, b) => {
+        const x = S.byId.get(a), y = S.byId.get(b);
+        return (x.stateName || x.state).localeCompare(y.stateName || y.state) || (CH[x.chamber] ?? 3) - (CH[y.chamber] ?? 3) || (x.district || 0) - (y.district || 0);
+      });
+      let curState = null;
       const rows = ids.map(id => {
         const r = S.byId.get(id), cs = quickCands(r), d = S.qdraft[id] || {};
         const val = (k, v) => esc(d[k] ?? (v ?? ''));
         const feed = r.source && r.source !== 'OC Scanner desk' && !/desk/i.test(r.pctLabel || '') && r.pctLabel !== 'expected vote';
         const typed = r.pctLabel === 'expected vote';
         const status = r.call ? `Called: ${esc(last(r.call.candidate || ''))}` : feed ? `Feed: ${esc(r.source)}` : typed && r.updated ? `Saved ${ago(Date.parse(r.updated))}` : 'Not entered yet';
-        return `<div class="eb-qc" data-qc="${id}">
+        const head = r.state !== curState ? `<div class="qstate">${esc(r.stateName || r.state)}<small>${ids.filter(x => S.byId.get(x).state === r.state).length}</small></div>` : '';
+        curState = r.state;
+        return head + `<div class="eb-qc" data-qc="${id}">
           <div class="qch"><button type="button" class="eb-linkbtn qcname" data-qopen="${id}" data-qtab="${r.chamber}">${esc(shortName(r))}</button><span class="qcs${feed ? ' feed' : ''}">${status}</span><button type="button" class="eb-linkbtn" data-qcdel="${id}" title="Remove from Quick count" aria-label="Remove ${esc(shortName(r))} from Quick count">×</button></div>
           <div class="qcr"><label>% in <input type="number" inputmode="decimal" min="0" max="100" step="0.1" data-qcin="${id}" data-k="pct" value="${val('pct', typed ? r.pctIn : '')}"></label>
           ${cs.map((c, i) => `<label class="${c.party in PNAME ? c.party : 'O'}">${esc(last(c.name))} <input type="number" inputmode="numeric" min="0" step="1" data-qcin="${id}" data-k="v${i}" value="${val(`v${i}`, typed ? r.candidates.find(x => x.name === c.name)?.votes : '')}"></label>`).join('')}

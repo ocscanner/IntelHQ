@@ -290,6 +290,8 @@ html[data-theme="light"] .eb-map text{fill:#12222e;stroke:rgba(255,255,255,.6)}
 
 /* Quick count (desk): type-in counts for races with no feed */
 .eb-quick .eb-qc{padding:7px 0;border-top:1px solid var(--eb-line, rgba(127,127,127,.2))}
+.eb-quick .qstate{margin:10px 0 0;padding:4px 0;font-weight:800;font-size:.9rem;letter-spacing:.03em;text-transform:uppercase;color:var(--eb-text2);border-top:2px solid var(--eb-line2)}
+.eb-quick .qstate small{margin-left:8px;font-weight:600;color:var(--eb-muted)}
 .eb-quick .qch{display:flex;align-items:center;gap:8px}
 .eb-quick .qch .qcname{flex:1;text-align:left;font-weight:700;color:var(--eb-text);text-decoration:none}
 .eb-quick .qcs{font-size:.75rem;color:var(--eb-muted)}
