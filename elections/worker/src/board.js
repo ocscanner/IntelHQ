@@ -24,7 +24,9 @@ function buildRace(r, feeds, desk) {
   let data = null;
   for (const f of feeds) { const d = f.races.get(r.id); if (d) { data = d; break; } }
   const manual = desk.results.get(r.id);
-  if (!data && manual) data = { ...manual, source: 'Desk' };
+  // A feed that only returns zeros (the state hasn't posted yet) must not hide hand-entered results
+  const feedVotes = (data?.candidates || []).reduce((s, c) => s + (c.votes || 0), 0);
+  if (manual && (!data || feedVotes === 0)) data = { ...manual, source: 'Desk' };
 
   const candidates = (data?.candidates || []).map(c => ({ ...c, party: normParty(c.party) }));
   const total = candidates.reduce((s, c) => s + (c.votes || 0), 0);

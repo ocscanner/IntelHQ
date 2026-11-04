@@ -97,6 +97,19 @@ test('board: manual desk numbers fill in when no feed covers a race', () => {
   assert.equal(b.summary.senate.leading.I, 1);
 });
 
+test('board: hand-entered numbers win while a feed is all zeros; feed takes over once it has votes', () => {
+  const zeros = { name: 'IN', races: new Map([['NE-SEN', { source: 'IN SOS', candidates: [{ name: 'Dan Osborn', party: 'I', votes: 0 }, { name: 'Pete Ricketts', party: 'R', votes: 0 }] }]]) };
+  const live = { name: 'IN', races: new Map([['NE-SEN', { source: 'IN SOS', candidates: [{ name: 'Dan Osborn', party: 'I', votes: 10 }, { name: 'Pete Ricketts', party: 'R', votes: 90 }] }]]) };
+  const desk = emptyDesk();
+  desk.results.set('NE-SEN', { candidates: [{ name: 'Dan Osborn', party: 'I', votes: 300 }, { name: 'Pete Ricketts', party: 'R', votes: 200 }], pctIn: 50 });
+  let ne = buildBoard(universe, [zeros], desk).races.find(r => r.id === 'NE-SEN');
+  assert.equal(ne.source, 'Desk');
+  assert.equal(ne.leader, 'I');
+  ne = buildBoard(universe, [live], desk).races.find(r => r.id === 'NE-SEN');
+  assert.equal(ne.source, 'IN SOS');
+  assert.equal(ne.leader, 'R');
+});
+
 test('simulation produces labeled, sane data over a full cycle', () => {
   for (const minute of [5, 30, 60, 89]) {
     const s = simulate(universe.races, minute * 60000, 90);
