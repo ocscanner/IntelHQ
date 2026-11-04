@@ -308,3 +308,14 @@ test('Nevada: results app JSON (config → manifest → overview); "Last, First"
   assert.equal(blocked.units[0].status, 'error');
   assert.match(blocked.units[0].error, /blocked the Worker/);
 });
+
+test('Indiana: % in comes from TOTAL_ALLPRECINCTSREPORTING over TOTAL_ALLPRECINCTS (Nov 3 2026 file)', async () => {
+  const { parseIN } = await import('../src/feeds/states.js');
+  const rows = parseIN(
+    { Root: { JurisdictionsReporting: { TOTAL_ALLPRECINCTSREPORTING: '2928', TOTAL_ALLPRECINCTS: '5067' } } },
+    { Root: { StatewideSummary: { Race: [{ OFFICE_TITLE: 'US Representative', SubSortOrder: 'US Representative (1)', Candidates: { Candidate: [
+      { NAME_ON_BALLOT: 'Frank J. Mrvan', PARTY: 'Democratic', TOTAL: 47443 }, { NAME_ON_BALLOT: 'Barb Regnitz', PARTY: 'Republican', TOTAL: 21959 }] } }] } } });
+  assert.equal(rows[0].rep, 2928);
+  assert.equal(rows[0].tot, 5067);
+  assert.equal(rows[0].district, '1');
+});

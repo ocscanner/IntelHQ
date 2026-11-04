@@ -413,7 +413,7 @@ add({
 export function parseIN(elections, offcat) {
   const jr = elections?.Root?.JurisdictionsReporting || {};
   const tot = toNum(jr.TOTAL_ALLPRECINCTS);
-  const repKey = Object.keys(jr).find(k => /REPORT/i.test(k) && !/TOTAL_ALL/i.test(k));
+  const repKey = Object.keys(jr).find(k => /REPORTING/i.test(k));        // TOTAL_ALLPRECINCTSREPORTING (TOTAL_ALLPRECINCTS is the count of all precincts)
   const rep = repKey ? toNum(jr[repKey]) : null;
   const races = [].concat(offcat?.Root?.StatewideSummary?.Race || []);
   const rows = [];
