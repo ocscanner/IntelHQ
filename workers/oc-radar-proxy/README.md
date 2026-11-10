@@ -1,10 +1,14 @@
 # oc-radar-proxy
 
-Source copy of the live Cloudflare Worker `oc-radar-proxy` (https://oc-radar-proxy.ocscannernews.workers.dev), saved Nov 10, 2026 as part of P02.
+Source of the Cloudflare Worker `oc-radar-proxy` (https://oc-radar-proxy.ocscannernews.workers.dev).
 
-Until now its code lived only in the Cloudflare dashboard (edited with the quick editor; last saved Aug 29, 2026). `src/index.js` matches the live script: same SHA-256 over its non-whitespace characters (`70fccff0…74fb2b`). Indentation was restored by hand, so the bytes differ only in whitespace.
+- **v9** was copied from the Cloudflare dashboard on Nov 10, 2026 (commit `a4939a9`, matches the live script).
+- **v10** (Nov 10, 2026) adds the P02 security fixes:
+  - Only OC Scanner's own sites may call it (`ALLOWED_ORIGINS`); other websites get 403.
+  - `/rss` only fetches feeds from `FEED_HOSTS`. **Adding a news feed to IntelHQ or the public site? Add its host there too**, or that feed comes back empty.
+  - `/ai-digest` ignores headlines and `force` sent by callers. The digest is made 3 times a day by the cron schedule and stored in KV (`DIGEST_KV`), so visitors never cause paid Claude calls and can't change what it says.
 
-**Nothing here deploys automatically.** No Workers Build is attached to this folder. Running `npx wrangler deploy` from it would replace the live Worker.
+Deploy: `npx wrangler deploy` from this folder. Tests: `node --test test/proxy.test.mjs`.
 
 ## Routes
 
@@ -16,22 +20,17 @@ Until now its code lived only in the Cloudflare dashboard (edited with the quick
 | `/mil` | GET | Military aircraft worldwide (adsb.lol → airplanes.live) | 15 s | IntelHQ military map |
 | `/airports?codes=` | GET | FAA NAS delay status, up to 10 airports | 120 s | IntelHQ traffic |
 | `/launches` | GET | Launch Library 2 upcoming launches, cached 45 min in memory | 300 s | Public site Space page, ticker |
-| `/rss?url=` | GET | Fetches **any** URL and returns its body as `{contents}` | 120 s | Both sites (news feeds) |
-| `/ai-digest` | POST | Claude news digest; serves an in-memory copy, generates when empty or on `force:true` (once per 10 min per isolate) | no-cache | Both sites |
+| `/rss?url=` | GET | Fetches an approved feed (`FEED_HOSTS`) and returns its body as `{contents}` | 120 s | Both sites (news feeds) |
+| `/ai-digest` | POST | The scheduled Claude news digest from KV (body ignored) | no-cache | Both sites |
 | anything else | GET | Status page listing the routes | — | — |
 
-## Settings on the live Worker
+## Settings
 
 - Secrets: `ANTHROPIC_API_KEY`. (`SPACEDEVS_KEY` is read if present but is not set.)
-- Cron triggers: **none.** The `scheduled()` digest never runs. Each fresh Worker instance generates a digest on its first `/ai-digest` call instead.
-- CORS: `Access-Control-Allow-Origin: *`. There is no `ALLOWED_ORIGINS` setting.
+- Cron: 16:00, 22:00, 05:00 UTC (digest). KV: `DIGEST_KV`, key `digest`.
+- Routes without an Origin header (opening the address directly): only `/`, `/flights`, `/tle`, `/tfr`, `/mil`, `/airports`, `/launches`.
 - Custom domains / routes: none. Only `oc-radar-proxy.ocscannernews.workers.dev`.
-
-## Known issues (see admin/infrastructure-audit.md)
-
-1. Open to every website, and `/ai-digest` spends the Anthropic key. Anyone can send `force:true` and trigger paid calls.
-2. `/rss` will fetch any address on the internet.
-3. In-memory caches reset whenever Cloudflare starts a new instance.
+- In-memory caches (TLE, launches) still reset when Cloudflare starts a new instance.
 
 ## Adding adsb.fi (not done; production change)
 

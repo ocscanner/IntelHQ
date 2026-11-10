@@ -1,5 +1,13 @@
 /**
- * OC Scanner Intel HQ — Proxy Worker v9
+ * OC Scanner Intel HQ — Proxy Worker v10
+ *
+ * v10 (Nov 10, 2026, P02 security fixes):
+ *  - Only OC Scanner's own sites may call it (ALLOWED_ORIGINS). Other websites get 403.
+ *  - /rss only fetches feeds from FEED_HOSTS (the feeds both sites use), not any address.
+ *  - /ai-digest no longer uses headlines or "force" sent by the caller. The digest is made
+ *    on a schedule (cron 3x/day) from server-collected headlines and kept in KV, so every
+ *    Worker instance serves the same copy and visitors never cause paid Claude calls.
+ *
  * /flights — ADS-B flight data
  * /tle?group=NAME — CelesTrak TLE proxy
  * /tfr — FAA TFR list (scrapes tfr.faa.gov HTML)
@@ -33,11 +41,60 @@ const LAUNCH_URL = 'https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list
 let LAUNCH_CACHE = { data: null, t: 0 };
 const LAUNCH_TTL_MS = 45 * 60 * 1000; // 45 min fresh
 
+// Access-Control-Allow-Origin is added per request in fetch() (only for allowed origins).
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Expose-Headers': 'X-Source, X-TLE-Cache',
+  'Vary': 'Origin',
 };
+
+// ── Who may call this Worker ──
+// Exact origins, plus patterns for preview copies. Add hq/admin addresses here as they go live.
+const ALLOWED_ORIGINS = new Set([
+  'https://ocscanner.media',
+  'https://www.ocscanner.media',
+  'https://ocscanner.github.io',
+  'https://intelhq.ocscannernews.workers.dev',
+  'https://ocscanner-media.pages.dev',
+  'https://hq.ocscanner.media',
+  'https://hq-test.ocscanner.media',
+  'https://admin.ocscanner.media',
+  'https://staging-admin.ocscanner.media',
+]);
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/[a-z0-9-]+\.ocscanner-media\.pages\.dev$/,           // Pages previews
+  /^https:\/\/[a-z0-9-]+-intelhq\.ocscannernews\.workers\.dev$/,   // intelhq preview versions
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,                     // local testing
+];
+function originAllowed(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin) || ALLOWED_ORIGIN_PATTERNS.some(re => re.test(origin));
+}
+// Routes that may be opened directly (no Origin header, e.g. typing the address in a browser).
+// /rss and /ai-digest always need an allowed origin.
+const OPEN_WITHOUT_ORIGIN = new Set(['/', '/flights', '/tle', '/tfr', '/mil', '/airports', '/launches']);
+
+// ── Feeds /rss may fetch (hosts used by IntelHQ and ocscanner.media, Nov 10, 2026) ──
+// A new feed on either site needs its host added here, or /rss answers 403 for it.
+const FEED_HOSTS = new Set([
+  'abc7.com', 'breakingdefense.com', 'feeds.npr.org', 'foreignpolicy.com', 'freebeacon.com',
+  'inciweb.nwcg.gov', 'insiderwire.com', 'justthenews.com', 'ktla.com', 'laist.com',
+  'media-cdn.factba.se', 'moxie.foxnews.com', 'news.usni.org', 'nypost.com', 'rss.politico.com',
+  'rss.upi.com', 'spaceflightnow.com', 'thefederalist.com', 'thehill.com', 'voiceofoc.org',
+  'warontherocks.com', 'www.aljazeera.com', 'www.breitbart.com', 'www.cbp.gov', 'www.dailywire.com',
+  'www.defense.gov', 'www.defensenews.com', 'www.defenseone.com', 'www.dhs.gov', 'www.fire.ca.gov',
+  'www.ice.gov', 'www.latimes.com', 'www.militarytimes.com', 'www.nasa.gov', 'www.nationalreview.com',
+  'www.navalnews.com', 'www.ocregister.com', 'www.pacom.mil', 'www.realclearpolitics.com', 'www.space.com',
+  'www.stripes.com', 'www.twz.com', 'www.war.gov', 'www.washingtonexaminer.com', 'www.washingtontimes.com',
+  'query2.finance.yahoo.com', 'rollcall.com',
+]);
+function feedAllowed(feedUrl) {
+  try {
+    const u = new URL(feedUrl);
+    return (u.protocol === 'https:' || u.protocol === 'http:') && FEED_HOSTS.has(u.hostname.toLowerCase());
+  } catch (e) { return false; }
+}
 
 function jsonResp(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -46,12 +103,22 @@ function jsonResp(data, status = 200, extra = {}) {
   });
 }
 
-// ── AI digest server-side cache ──
-// Persists across requests on the same Worker isolate.
-// Generation is driven by Cron Triggers (see scheduled() below) at fixed times,
-// so cost is fully decoupled from visitor traffic. TTL is a safety fallback only.
-const DIGEST_TTL_MS = 9 * 60 * 60 * 1000; // 9h fallback (cron fires ~3x/day)
-let DIGEST_CACHE = { text: null, timestamp: 0 };
+// ── AI digest storage ──
+// The cron job writes the digest to KV (binding DIGEST_KV, key "digest"), so every Worker
+// instance serves the same copy. DIGEST_CACHE is a short in-memory copy to save KV reads.
+const DIGEST_KEY = 'digest';
+const DIGEST_MEMORY_MS = 5 * 60 * 1000; // re-read KV at most every 5 min per instance
+let DIGEST_CACHE = { text: null, timestamp: 0, readAt: 0 };
+let DIGEST_SEEDING = null; // one first-ever generation at a time, per instance
+
+async function readDigest(env) {
+  if (DIGEST_CACHE.text && Date.now() - DIGEST_CACHE.readAt < DIGEST_MEMORY_MS) return DIGEST_CACHE;
+  if (env.DIGEST_KV) {
+    const stored = await env.DIGEST_KV.get(DIGEST_KEY, 'json');
+    if (stored && stored.text) DIGEST_CACHE = { text: stored.text, timestamp: stored.timestamp, readAt: Date.now() };
+  }
+  return DIGEST_CACHE;
+}
 
 // Feeds the cron job pulls headlines from when generating the scheduled digest.
 const DIGEST_FEEDS = [
@@ -130,8 +197,11 @@ End with a brief note on OC-specific relevance, or state none was detected.`,
   }
 
   const aiData = await aiResp.json();
-  const digest = aiData.content?.[0]?.text || 'Digest unavailable.';
-  DIGEST_CACHE = { text: digest, timestamp: Date.now() };
+  const digest = aiData.content?.[0]?.text;
+  if (!digest) throw new Error('Claude returned no text');
+  const record = { text: digest, timestamp: Date.now() };
+  DIGEST_CACHE = { ...record, readAt: Date.now() };
+  if (env.DIGEST_KV) await env.DIGEST_KV.put(DIGEST_KEY, JSON.stringify(record));
   return digest;
 }
 
@@ -196,13 +266,10 @@ function parseTFRHtml(html) {
   return tfrs;
 }
 
-export default {
+// The route handlers. The exported fetch() at the bottom checks the caller first.
+const ROUTES = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS });
-    }
 
     // ── /flights ──
     if (url.pathname === '/flights') {
@@ -467,6 +534,12 @@ export default {
       if (!feedUrl) {
         return jsonResp({ error: 'Missing url param', contents: '' }, 400);
       }
+      if (!feedAllowed(feedUrl)) {
+        let host = '';
+        try { host = new URL(feedUrl).hostname; } catch (e) {}
+        console.log(`[rss] blocked feed host: ${host || 'invalid url'}`);
+        return jsonResp({ error: 'Feed not on the allowed list', contents: '' }, 403);
+      }
       try {
         const resp = await fetch(feedUrl, {
           headers: {
@@ -488,80 +561,45 @@ export default {
       }
     }
 
-    // ── /ai-digest ── (POST { headlines: string[] })
+    // ── /ai-digest ── (POST; any body is ignored)
+    // Serves the scheduled digest from KV. Callers can no longer send headlines or force a
+    // new one: the digest is generated only by the cron schedule (08:00, 14:00, 21:00 PT),
+    // or once if none has ever been stored (first run after deploy).
     if (url.pathname === '/ai-digest') {
       if (request.method !== 'POST') {
-        return jsonResp({ error: 'Use POST with JSON body { headlines: [...] }' }, 405);
+        return jsonResp({ error: 'Use POST' }, 405);
       }
-
       try {
-        const body = await request.json();
-        const headlines = Array.isArray(body.headlines) ? body.headlines : [];
-        const force = body.force === true;
-
-        if (!env.ANTHROPIC_API_KEY) {
-          return jsonResp({ error: 'ANTHROPIC_API_KEY not configured on Worker' }, 500);
-        }
-
-        const age = Date.now() - DIGEST_CACHE.timestamp;
-
-        // ── Normal request: serve the cached digest (generated by cron). ──
-        // Browsers never trigger paid generation on a normal load — only the
-        // cron schedule or a manual force-refresh does.
-        if (!force && DIGEST_CACHE.text) {
-          return jsonResp({
-            digest: DIGEST_CACHE.text,
-            timestamp: new Date(DIGEST_CACHE.timestamp).toISOString(),
-            cached: true,
-            ageMinutes: Math.round(age / 60000),
-          }, 200, { 'Cache-Control': 'no-cache' });
-        }
-
-        // ── Manual force-refresh: rate-limited to once per 10 min ──
-        if (force && DIGEST_CACHE.text && age < 10 * 60 * 1000) {
-          return jsonResp({
-            digest: DIGEST_CACHE.text,
-            timestamp: new Date(DIGEST_CACHE.timestamp).toISOString(),
-            cached: true,
-            rateLimited: true,
-            ageMinutes: Math.round(age / 60000),
-          }, 200, { 'Cache-Control': 'no-cache' });
-        }
-
-        // ── Generate: only reached on force-refresh, or when cache is empty ──
-        // (e.g. before the first cron run after a deploy). Use provided
-        // headlines if present, otherwise collect them server-side.
-        const useHeadlines = headlines.length >= 3 ? headlines : await collectHeadlines();
-        if (useHeadlines.length < 3) {
-          return jsonResp({ error: 'Not enough headlines to generate digest' }, 400);
-        }
-
-        try {
-          const digest = await generateDigest(useHeadlines, env);
-          return jsonResp({ digest, timestamp: new Date().toISOString(), cached: false }, 200, {
-            'Cache-Control': 'no-cache',
-          });
-        } catch (genErr) {
-          // If generation fails but we have a cached copy, serve it rather than erroring
-          if (DIGEST_CACHE.text) {
-            return jsonResp({
-              digest: DIGEST_CACHE.text,
-              timestamp: new Date(DIGEST_CACHE.timestamp).toISOString(),
-              cached: true,
-              note: 'served stale cache (generation failed)',
-            }, 200, { 'Cache-Control': 'no-cache' });
+        let d = await readDigest(env);
+        if (!d.text && env.ANTHROPIC_API_KEY && env.DIGEST_KV) {
+          // Nothing stored anywhere yet: make the first one (once per instance at a time).
+          if (!DIGEST_SEEDING) {
+            DIGEST_SEEDING = (async () => {
+              const headlines = await collectHeadlines();
+              if (headlines.length >= 3) await generateDigest(headlines, env);
+            })().finally(() => { DIGEST_SEEDING = null; });
           }
-          return jsonResp({ error: genErr.message }, 502);
+          try { await DIGEST_SEEDING; } catch (e) { console.log('[digest] first generation failed:', e.message); }
+          d = DIGEST_CACHE;
         }
-
+        if (!d.text) {
+          return jsonResp({ error: 'Digest not ready yet' }, 503, { 'Cache-Control': 'no-cache' });
+        }
+        return jsonResp({
+          digest: d.text,
+          timestamp: new Date(d.timestamp).toISOString(),
+          cached: true,
+          ageMinutes: Math.round((Date.now() - d.timestamp) / 60000),
+        }, 200, { 'Cache-Control': 'no-cache' });
       } catch (err) {
-        return jsonResp({ error: err.message }, 500);
+        console.log('[digest] error:', err.message);
+        return jsonResp({ error: 'Digest unavailable' }, 500);
       }
     }
 
     // ── default ──
     return jsonResp({
-      status: 'OC Scanner Proxy v9',
+      status: 'OC Scanner Proxy v10',
       endpoints: {
         flights: '/flights?lat=XX&lon=XX&dist=XX',
         tle: '/tle?group=stations|starlink|weather|gps|visual',
@@ -569,13 +607,10 @@ export default {
         mil: '/mil',
         airports: '/airports?codes=LAX,SNA',
         launches: '/launches (cached upcoming launches; site filters to CA/TX/FL)',
-        rss: '/rss?url=ENCODED_FEED_URL',
-        'ai-digest': 'POST /ai-digest { "headlines": [...] } (served from cache; generated by cron 3x/day)',
+        rss: '/rss?url=ENCODED_FEED_URL (approved feeds only; OC Scanner sites only)',
+        'ai-digest': 'POST /ai-digest (OC Scanner sites only; scheduled digest)',
       },
       digestSchedule: '08:00, 14:00, 21:00 America/Los_Angeles',
-      digestAge: DIGEST_CACHE.timestamp
-        ? Math.round((Date.now() - DIGEST_CACHE.timestamp) / 60000) + ' min'
-        : 'none yet',
       launchCache: LAUNCH_CACHE.t
         ? Math.round((Date.now() - LAUNCH_CACHE.t) / 60000) + ' min'
         : 'none yet',
@@ -584,8 +619,7 @@ export default {
 
   // ── Cron Triggers ──
   // Generates the digest at fixed times so cost is independent of traffic.
-  // Configured in wrangler / dashboard for: 8am, 2pm, 9pm PT.
-  // (Cron runs in UTC; the dashboard cron expressions handle the conversion.)
+  // wrangler.toml crons: 16:00, 22:00 and 05:00 UTC = 8am, 2pm, 9pm PST (an hour later in PDT).
   async scheduled(event, env, ctx) {
     ctx.waitUntil((async () => {
       try {
@@ -600,5 +634,40 @@ export default {
         console.log('[cron] Digest generation failed:', e.message);
       }
     })());
+  },
+};
+
+// ── Entry point: check who is calling, then run the route and add CORS for allowed sites ──
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const origin = request.headers.get('Origin');
+    const allowed = originAllowed(origin);
+
+    if (origin && !allowed) {
+      return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+        status: 403, headers: { 'Content-Type': 'application/json', 'Vary': 'Origin' },
+      });
+    }
+    if (!origin && !OPEN_WITHOUT_ORIGIN.has(url.pathname)) {
+      return new Response(JSON.stringify({ error: 'This route is only for OC Scanner sites' }), {
+        status: 403, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Origin': origin } });
+    }
+
+    const resp = await ROUTES.fetch(request, env, ctx);
+    if (!allowed) return resp;
+    const out = new Response(resp.body, resp);
+    out.headers.set('Access-Control-Allow-Origin', origin);
+    out.headers.set('Vary', 'Origin');
+    return out;
+  },
+
+  async scheduled(event, env, ctx) {
+    return ROUTES.scheduled(event, env, ctx);
   },
 };

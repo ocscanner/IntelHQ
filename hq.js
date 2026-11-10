@@ -627,8 +627,6 @@ function matchKW(text,kws){const t=text.toLowerCase();return kws.some(k=>t.inclu
    Returns the raw feed text (XML), or '' on total failure. */
 const FEED_PROXIES = [
   u => `https://oc-radar-proxy.ocscannernews.workers.dev/rss?url=${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
 ];
 
 async function proxyFetchText(url){
@@ -637,8 +635,8 @@ async function proxyFetchText(url){
     try{
       const r = await fetch(proxied, { signal:(()=>{const c=new AbortController();setTimeout(()=>c.abort(),9000);return c.signal;})() });
       if(!r.ok) continue;
-      // worker + allorigins return JSON {contents}; corsproxy returns raw text
-      if(proxied.includes('/rss?') || proxied.includes('allorigins')){
+      // the worker returns JSON {contents}
+      if(proxied.includes('/rss?')){
         const j = await r.json();
         const text = j.contents || '';
         if(text && text.length > 40) return text;
@@ -1191,7 +1189,7 @@ async function loadMarketTicker() {
     }
   } catch(e) {}
 
-  // Stocks — fetch each symbol via Yahoo Finance v8 through corsproxy
+  // Stocks — fetch each symbol via Yahoo Finance v8 through the radar proxy
   const stockResults = await Promise.allSettled(
     STOCK_SYMBOLS.map(async sym => {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;

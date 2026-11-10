@@ -1,17 +1,20 @@
-# oc-radar-proxy — mirrors the live Worker as of Nov 10, 2026 (dashboard version, last saved Aug 29, 2026).
-# This file is NOT connected to any automatic build. Committing it changes nothing in production.
-# Deploying from here (npx wrangler deploy) WOULD replace the live Worker — only do that on purpose.
+# oc-radar-proxy — source of truth for the live Worker (v10, Nov 10, 2026).
+# Deploy: `npx wrangler deploy` from this folder (secrets are kept; values never live in the repo).
 
 name = "oc-radar-proxy"
 main = "src/index.js"
 compatibility_date = "2026-05-30"
 workers_dev = true
 
-# Live Worker has NO cron triggers, even though the code's scheduled() handler and
-# comments describe digests at 08:00, 14:00 and 21:00 PT. Kept off here to match production.
-# [triggers]
-# crons = ["0 16 * * *", "0 22 * * *", "0 5 * * *"]   # 8am, 2pm, 9pm PST (UTC)
+# AI digest schedule: 8am, 2pm, 9pm Pacific Standard Time (an hour later during daylight time).
+[triggers]
+crons = ["0 16 * * *", "0 22 * * *", "0 5 * * *"]
 
-# Secrets (set with `npx wrangler secret put NAME`; values are never stored in the repo):
-#   ANTHROPIC_API_KEY   — set on the live Worker; used by /ai-digest and scheduled()
-#   SPACEDEVS_KEY       — optional, NOT set on the live Worker; raises Launch Library limits
+# Shared digest store, so every Worker instance serves the same digest.
+[[kv_namespaces]]
+binding = "DIGEST_KV"
+id = "REPLACE_WITH_KV_ID"
+
+# Secrets (set with `npx wrangler secret put NAME`):
+#   ANTHROPIC_API_KEY   — required for the digest
+#   SPACEDEVS_KEY       — optional, not set; raises Launch Library limits
