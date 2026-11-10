@@ -27,15 +27,15 @@ RESULTS_START = "2026-11-03T23:00:00Z"
 # Which states to download: "all", "off", or a list like "AZ,GA,NC"
 STATE_FEEDS = "all"
 # How often each state is refreshed, at most (4 = every 5-minute run, Workers Paid)
-MIN_REFRESH_MINUTES = "0.75"
+MIN_REFRESH_MINUTES = "9"
 # Downloads allowed per 5-minute run. Free plan: keep 45 (the limit is 50).
 # Workers Paid ($5/mo): raise to 500 so every state refreshes every run.
-SUBREQUEST_BUDGET = "500"
+SUBREQUEST_BUDGET = "45"
 
 # County-by-county results for Senate and governor races (the county map). The county files are
 # large (up to a few MB each), more than the free plan's 10 ms of computing time per run can read,
 # so leave this "off" on the free plan. With Workers Paid: set "on" (and SUBREQUEST_BUDGET "500").
-COUNTY_FEEDS = "on"
+COUNTY_FEEDS = "off"
 # Orange County Registrar results file: the election number to start looking from (Nov 2026 ≈ 24)
 OC_ELECTION_FROM = "24"
 
