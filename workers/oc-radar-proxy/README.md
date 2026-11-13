@@ -8,7 +8,8 @@ Source of the Cloudflare Worker `oc-radar-proxy` (https://oc-radar-proxy.ocscann
   - `/rss` only fetches feeds from `FEED_HOSTS`. **Adding a news feed to IntelHQ or the public site? Add its host there too**, or that feed comes back empty.
   - `/ai-digest` ignores headlines and `force` sent by callers. The digest is made 3 times a day by the cron schedule and stored in KV (`DIGEST_KV`), so visitors never cause paid Claude calls and can't change what it says.
 
-Deploy: `npx wrangler deploy` from this folder. Tests: `node --test test/proxy.test.mjs`.
+Deployed Nov 12, 2026 (version `9b5c2b16`) by pasting `src/index.js` into the dashboard editor; KV binding and cron were set in the dashboard to match `wrangler.toml`.
+Deploy later changes: `npx wrangler deploy` from this folder, or paste into the dashboard editor. Tests: `node --test test/proxy.test.mjs`.
 
 ## Routes
 
@@ -27,7 +28,7 @@ Deploy: `npx wrangler deploy` from this folder. Tests: `node --test test/proxy.t
 ## Settings
 
 - Secrets: `ANTHROPIC_API_KEY`. (`SPACEDEVS_KEY` is read if present but is not set.)
-- Cron: 16:00, 22:00, 05:00 UTC (digest). KV: `DIGEST_KV`, key `digest`.
+- Cron: `0 5,16,22 * * *` (one trigger; 05:00, 16:00, 22:00 UTC). KV: `DIGEST_KV`, key `digest`.
 - Routes without an Origin header (opening the address directly): only `/`, `/flights`, `/tle`, `/tfr`, `/mil`, `/airports`, `/launches`.
 - Custom domains / routes: none. Only `oc-radar-proxy.ocscannernews.workers.dev`.
 - In-memory caches (TLE, launches) still reset when Cloudflare starts a new instance.

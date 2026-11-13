@@ -8,7 +8,7 @@ workers_dev = true
 
 # AI digest schedule: 8am, 2pm, 9pm Pacific Standard Time (an hour later during daylight time).
 [triggers]
-crons = ["0 16 * * *", "0 22 * * *", "0 5 * * *"]
+crons = ["0 5,16,22 * * *"]   # 05:00, 16:00, 22:00 UTC
 
 # Shared digest store, so every Worker instance serves the same digest.
 [[kv_namespaces]]
