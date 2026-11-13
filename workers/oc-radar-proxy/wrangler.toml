@@ -13,7 +13,7 @@ crons = ["0 16 * * *", "0 22 * * *", "0 5 * * *"]
 # Shared digest store, so every Worker instance serves the same digest.
 [[kv_namespaces]]
 binding = "DIGEST_KV"
-id = "REPLACE_WITH_KV_ID"
+id = "f095fba0832344e8826d8f33f22f212e"
 
 # Secrets (set with `npx wrangler secret put NAME`):
 #   ANTHROPIC_API_KEY   — required for the digest
