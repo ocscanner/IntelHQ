@@ -78,7 +78,7 @@ const OPEN_WITHOUT_ORIGIN = new Set(['/', '/flights', '/tle', '/tfr', '/mil', '/
 // ── Feeds /rss may fetch (hosts used by IntelHQ and ocscanner.media, Nov 10, 2026) ──
 // A new feed on either site needs its host added here, or /rss answers 403 for it.
 const FEED_HOSTS = new Set([
-  'abc7.com', 'breakingdefense.com', 'feeds.npr.org', 'foreignpolicy.com', 'freebeacon.com',
+  'abc7.com', 'www.kadoa.com', 'breakingdefense.com', 'feeds.npr.org', 'foreignpolicy.com', 'freebeacon.com',
   'inciweb.nwcg.gov', 'insiderwire.com', 'justthenews.com', 'ktla.com', 'laist.com',
   'media-cdn.factba.se', 'moxie.foxnews.com', 'news.usni.org', 'nypost.com', 'rss.politico.com',
   'rss.upi.com', 'spaceflightnow.com', 'thefederalist.com', 'thehill.com', 'voiceofoc.org',
