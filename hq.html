@@ -30,6 +30,7 @@
 <link rel="stylesheet" href="hq.css?v=20261028b">
 <link rel="stylesheet" href="newsroom.css?v=20261028b">
 <link rel="stylesheet" href="elections/board.css?v=20261103i">
+<link rel="stylesheet" href="briefing.css?v=20261118a">
 </head>
 <body>
 
@@ -131,7 +132,8 @@
 
 <div id="nav">
   <button class="ntab" data-p="newsroom">🗂 Newsroom</button>
-  <button class="ntab active" data-p="streams">🎥 Streams</button>
+  <button class="ntab active" data-p="briefing">Briefing</button>
+  <button class="ntab" data-p="streams">🎥 Streams</button>
   <button class="ntab" data-p="traffic">✈ Flights & Traffic</button>
   <button class="ntab" data-p="radar">📡 Radar</button>
   <button class="ntab" data-p="space">🚀 Space</button>
@@ -169,7 +171,10 @@
 </div>
 
 <!-- ══════════════════ STREAMS ══════════════════ -->
-<div id="panel-streams" class="panel active">
+<!-- ══════════════════ BRIEFING (first screen; built by briefing.js) ══════════════════ -->
+<div id="panel-briefing" class="panel active" aria-live="polite"><p style="color:var(--muted)">Loading the briefing…</p></div>
+
+<div id="panel-streams" class="panel">
 
   <div class="gbar" id="gbar"></div>
   <div id="sg"></div>
@@ -1430,7 +1435,9 @@
 </div>
 
 <script src="newsroom.js?v=20261028b"></script>
-<script src="hq.js?v=20261118a"></script>
+<script src="income/income-core.js?v=1"></script>
+<script src="briefing.js?v=20261118a"></script>
+<script src="hq.js?v=20261118b"></script>
 <script src="elections/paste.js?v=20261103i"></script>
 <script src="elections/netcalls.js?v=20261103i"></script>
 <script src="elections/callgraphic.js?v=20261103i"></script>

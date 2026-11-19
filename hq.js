@@ -453,6 +453,7 @@ async function loadNWS(){
   try{
     const r=await fetch('https://api.weather.gov/alerts/active?area=CA');
     const d=await r.json();
+    if (window.ocsFeed) window.ocsFeed('nwsAll', d.features||[]);   // Briefing (briefing.js)
     const feats=(d.features||[]).filter(f=>{
       const z=f.properties.affectedZones||[];
       return z.some(z=>z.includes('CAZ')&&['040','041','042','043','044','045'].some(n=>z.includes(n)));
@@ -503,6 +504,7 @@ async function loadLocalNews(){
     }catch(e){}
   }
   items.sort((a,b)=>new Date(b.pub)-new Date(a.pub));
+  if (window.ocsFeed) window.ocsFeed('local', items);   // Briefing headlines
   offerNewsroomDiscovery(items,'Orange County');
   if(!items.length){el.innerHTML='<div class="loader">Unable to load feeds.</div>';return;}
   el.innerHTML='';
@@ -1255,6 +1257,7 @@ async function loadTicker() {
 
   items.sort((a, b) => b.pub - a.pub);
   if (!items.length) return;
+  if (window.ocsFeed) window.ocsFeed('ticker', items);   // Briefing headlines
   offerNewsroomDiscovery(items.map(it=>({...it,topic:/OC Register/i.test(it.src)?'Orange County':'Other'})),'Other');
 
   // Build ticker — duplicate items for seamless loop
@@ -2041,6 +2044,7 @@ async function loadLaunches() {
       .sort((a, b) => new Date(a.net) - new Date(b.net));
 
     if (!launches.length) throw new Error('No upcoming launches');
+    if (window.ocsFeed) window.ocsFeed('launches', launches);   // Briefing "next launch"
 
     // Hero - next launch
     const next = launches[0];
@@ -2825,6 +2829,7 @@ function activateTab(pid){
   tab.classList.add('active');
   panel.classList.add('active');
   if (typeof syncGroupNav === 'function') syncGroupNav(pid);
+  if (typeof window.onTabActivated === 'function') window.onTabActivated(pid); // sidebar + Briefing (briefing.js)
   if (pid === 'newsroom' && typeof initNewsroom === 'function') {
     initNewsroom();
   }
@@ -2896,6 +2901,7 @@ document.querySelectorAll('.ntab').forEach(t=>{
 
 /* ── GROUP NAV (dropdowns) ── */
 const TAB_GROUP = {
+  briefing:'briefing',
   newsroom:'desk',
   streams:'ops', traffic:'ops', radar:'ops', firecams:'ops', storm:'ops',
   space:'intel', military:'intel', osint:'intel', intel:'intel',
@@ -2943,7 +2949,7 @@ function syncGroupNav(pid){
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','storm','osint','intel','status','income'];
+  const valid = ['briefing','liveries','newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','storm','osint','intel','status','income'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);
