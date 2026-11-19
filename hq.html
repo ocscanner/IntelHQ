@@ -115,6 +115,12 @@
       <button class="ngitem" data-p="liveries">✈ Special Liveries</button>
     </div>
   </div>
+  <div class="ngroup" data-g="business">
+    <button class="ngbtn" onclick="toggleGroup('business')">💼 Business <span class="ngcaret">▾</span></button>
+    <div class="ngmenu" id="ngmenu-business">
+      <button class="ngitem" data-p="income">💵 Income</button>
+    </div>
+  </div>
   <div class="ngroup" data-g="system">
     <button class="ngbtn" onclick="toggleGroup('system')">📶 System <span class="ngcaret">▾</span></button>
     <div class="ngmenu" id="ngmenu-system">
@@ -139,6 +145,7 @@
   <button class="ntab" data-p="osint">🔍 OSINT</button>
   <button class="ntab" data-p="intel">🚨 Intel <span class="nbadge" id="alert-badge" style="display:none">!</span></button>
   <button class="ntab" data-p="status">📶 Status</button>
+  <button class="ntab" data-p="income">💵 Income</button>
 </div>
 
 <!-- PERSISTENT NEWS TICKER (shows on all pages) -->
@@ -1365,6 +1372,13 @@
   <iframe id="liveries-frame" title="Special livery tracker" data-src="liveries/?v=1" style="display:block;width:100%;height:calc(100vh - 220px);min-height:560px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2)"></iframe>
 </div>
 
+<!-- ══════════════════ INCOME (P08) ══════════════════ -->
+<!-- Kept on this device only (income/ page, localStorage); loads the first time the tab opens. -->
+<div id="panel-income" class="panel">
+  <div class="sh"><h2>💵 Income</h2><span style="font-family:var(--fm);font-size:.7rem;color:var(--muted)">Payouts, donations, sponsors, merch · stored on this device only</span><a class="rbtn" href="income/" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none">⤢ Full screen</a></div>
+  <iframe id="income-frame" title="Income" data-src="income/?v=1" style="display:block;width:100%;height:calc(100vh - 220px);min-height:620px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2)"></iframe>
+</div>
+
 <!-- ══════════════════ STATUS ══════════════════ -->
 <div id="panel-status" class="panel">
   <div class="sh"><h2>📶 System Status</h2><span class="ltag">LIVE</span><span id="status-updated" style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-left:6px"></span><button class="rbtn" onclick="renderStatusPanel()">↺ Refresh</button></div>
@@ -1416,7 +1430,7 @@
 </div>
 
 <script src="newsroom.js?v=20261028b"></script>
-<script src="hq.js?v=20261110a"></script>
+<script src="hq.js?v=20261118a"></script>
 <script src="elections/paste.js?v=20261103i"></script>
 <script src="elections/netcalls.js?v=20261103i"></script>
 <script src="elections/callgraphic.js?v=20261103i"></script>

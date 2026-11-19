@@ -1,0 +1,22 @@
+name: Income tests
+
+# Runs the Income page's math tests (income/income-core.js) whenever the income folder changes.
+on:
+  push:
+    paths: ['income/**', '.github/workflows/income-tests.yml']
+  pull_request:
+    paths: ['income/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test income/test/*.test.js

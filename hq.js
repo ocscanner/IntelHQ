@@ -2847,6 +2847,10 @@ function activateTab(pid){
     const sf = document.getElementById('storm-frame');
     if (sf && !sf.src) sf.src = sf.dataset.src;
   }
+  if (pid === 'income') {
+    const inf = document.getElementById('income-frame');
+    if (inf && !inf.src) inf.src = inf.dataset.src;
+  }
   if (pid === 'liveries') {
     const lf = document.getElementById('liveries-frame');
     if (lf && !lf.src) lf.src = lf.dataset.src;
@@ -2898,6 +2902,7 @@ const TAB_GROUP = {
   news:'news', weather:'news',
   elections:'elections',
   status:'system',
+  income:'business',
 };
 function toggleGroup(g){
   const grp = document.querySelector(`.ngroup[data-g="${g}"]`);
@@ -2938,7 +2943,7 @@ function syncGroupNav(pid){
 // Open the tab specified in the URL hash (from portal quick-launch links)
 function openHashTab(){
   const hash = (location.hash || '').replace('#','');
-  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','storm','osint','intel','status'];
+  const valid = ['newsroom','streams','news','traffic','radar','space','military','elections','weather','firecams','storm','osint','intel','status','income'];
   if (valid.includes(hash)) activateTab(hash);
 }
 window.addEventListener('hashchange', openHashTab);
