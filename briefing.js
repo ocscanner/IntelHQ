@@ -371,7 +371,8 @@
         buttons: [['copy', 'Copy alert text', true], ['go:newsroom:discovery', 'Draft in Newsroom'], ['go:storm', 'Storm Index']],
       });
     }
-    if (B.storm && B.storm.status !== 'ok') {
+    // Only when the stations themselves are elevated; an alert alone is already listed above.
+    if (B.storm && B.storm.status !== 'ok' && (B.storm.crit || B.storm.warn)) {
       const s = B.storm;
       out.push({
         key: 'storm:' + s.status + ':' + new Date().toDateString(),
@@ -381,7 +382,10 @@
         buttons: [['go:storm', 'Storm Index', true], ['go:firecams', 'Fire Cams']],
       });
     }
-    for (const f of (B.fires || []).filter((x) => x.found && Date.now() - new Date(x.found).getTime() < 12 * 3600e3)) {
+    // New fires worth acting on: anything in Orange County, or 50+ acres elsewhere in SoCal, found in the last 12 h.
+    // Smaller ones still count under Conditions.
+    const notable = (x) => /orange/i.test(x.county || '') || (x.acres || 0) >= 50;
+    for (const f of (B.fires || []).filter((x) => x.found && Date.now() - new Date(x.found).getTime() < 12 * 3600e3 && notable(x))) {
       out.push({
         key: 'fire:' + f.name + ':' + f.found,
         tone: 'red',
@@ -408,7 +412,7 @@
   function buildTimeline() {
     const ev = [];
     for (const f of ocAlerts()) ev.push({ at: f.properties.sent || f.properties.effective, kind: 'ALERT', tone: isCritAlert(f.properties) ? 'red' : 'amber', text: `${f.properties.event} issued by ${f.properties.senderName || 'NWS'}` });
-    for (const f of B.fires || []) if (f.found) ev.push({ at: f.found, kind: 'FIRE', tone: 'red', text: `${f.name}${f.county ? ' (' + f.county + ')' : ''} reported${f.acres ? ', ' + fmt(f.acres) + ' acres' : ''}` });
+    for (const f of B.fires || []) if (f.found) ev.push({ at: f.found, kind: 'FIRE', tone: /orange/i.test(f.county || '') || (f.acres || 0) >= 50 ? 'red' : 'amber', text: `${f.name}${f.county ? ' (' + f.county + ')' : ''} reported${f.acres ? ', ' + fmt(f.acres) + ' acres' : ''}` });
     for (const h of store.get('ocs-briefing-storm', []).slice(0, 5)) ev.push({ at: h.at, kind: 'STORM INDEX', tone: h.status === 'crit' ? 'red' : h.status === 'warn' ? 'amber' : 'green', text: `County status ${h.status === 'crit' ? 'Critical' : h.status === 'warn' ? 'Elevated' : 'back to Normal'}` });
     for (const it of headlines().slice(0, 8)) if (it.pub) ev.push({ at: it.pub, kind: 'HEADLINE', tone: 'blue', text: `${it.title} (${it.src})`, link: it.link });
     const nr = newsroomState();
