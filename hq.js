@@ -387,7 +387,7 @@ function wxUseMyLocation(){
 
 async function loadWeather(){
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&hourly=relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=7`);
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,weather_code&hourly=relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`);
     const d=await r.json();const c=d.current;
     const t=Math.round(c.temperature_2m),f=Math.round(c.apparent_temperature),h=c.relative_humidity_2m,w=Math.round(c.wind_speed_10m),vis=c.visibility?(c.visibility/1000).toFixed(1)+' mi':'--',desc=WX[c.weather_code]||'Unknown';
     document.getElementById('sb-wx').textContent=t+'°F · '+desc.split(' ')[0];
