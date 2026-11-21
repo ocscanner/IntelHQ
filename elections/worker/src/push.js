@@ -57,7 +57,7 @@ export async function vapidKeys(db) {
 }
 
 /** VAPID "Authorization" header for one push service (a signed token valid for 12 hours). */
-export async function vapidAuth(endpoint, keys, now = Date.now(), subject = 'https://ocscanner.github.io/IntelHQ/') {
+export async function vapidAuth(endpoint, keys, now = Date.now(), subject = 'https://hq.ocscanner.media/') {
   const aud = new URL(endpoint).origin;
   const header = b64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const claims = b64u(enc.encode(JSON.stringify({ aud, exp: Math.floor(now / 1000) + 12 * 3600, sub: subject })));
@@ -182,7 +182,7 @@ export function fold(alerts) {
     out.push({
       type, title: `${g.length} ${noun}`, tag: `fold-${type}`,
       body: g.slice(0, 4).map(a => a.short || a.title).join(' · ') + (g.length > 4 ? ` · +${g.length - 4} more` : ''),
-      url: 'https://ocscanner.github.io/IntelHQ/hq.html#elections',
+      url: 'https://hq.ocscanner.media/hq.html#elections',
     });
   }
   return out;

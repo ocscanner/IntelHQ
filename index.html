@@ -8,13 +8,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
 <!-- PWA Manifest -->
-<link rel="manifest" href="/IntelHQ/manifest.json">
+<link rel="manifest" href="manifest.json">
 
 <!-- iOS home-screen support -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Intel HQ">
-<link rel="apple-touch-icon" href="/IntelHQ/assets/oc-scanner-logo.png">
+<link rel="apple-touch-icon" href="assets/oc-scanner-logo.png">
 
 <!-- Android / Chrome theme color -->
 <meta name="theme-color" content="#0a0e1a">
@@ -278,7 +278,7 @@ loadStats();setInterval(loadStats,60000);
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/IntelHQ/sw.js')
+        .register('sw.js')
         .then(reg => {
           console.log('[SW] Registered:', reg.scope);
           reg.onupdatefound = () => {

@@ -171,7 +171,7 @@ async function afterWatch(env, out, now, fetchImpl) {
   const alerts = items.map(alertFor).filter(Boolean);
   return alerts.length ? notify(db, alerts, { fetchImpl, now }) : { sent: 0 };
 }
-const DESK_URL = 'https://ocscanner.github.io/IntelHQ/hq.html';
+const DESK_URL = 'https://hq.ocscanner.media/hq.html';
 const raceUrl = id => id ? `${DESK_URL}?race=${encodeURIComponent(id)}#elections` : `${DESK_URL}#elections`;
 const whoOf = i => i.winners?.length && /^(yes|no)$/i.test(i.winners[0]) ? (/^yes$/i.test(i.winners[0]) ? 'it passes' : 'it fails')
   : `${i.winners?.length > 1 ? i.winners.join(', ') : i.candidate}${i.party ? ` (${i.party})` : ''}`;
@@ -671,7 +671,7 @@ async function purge() {
 }
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
-  const allowed = (env.ALLOWED_ORIGINS || 'https://ocscanner.github.io,https://ocscanner.media,https://www.ocscanner.media').split(',').map(s => s.trim());
+  const allowed = (env.ALLOWED_ORIGINS || 'https://hq.ocscanner.media,https://ocscanner.github.io,https://ocscanner.media,https://www.ocscanner.media').split(',').map(s => s.trim());
   const ok = allowed.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || /\.pages\.dev$/.test(origin);
   return {
     'Access-Control-Allow-Origin': ok ? origin : '*',
