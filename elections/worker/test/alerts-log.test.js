@@ -116,7 +116,7 @@ test('push: each device gets only what it chose, encrypted for it, signed, and r
   assert.deepEqual((await listSubs(db)).find(s => s.label === 'iPhone').prefs, { calls: true, conflicts: false, model: true, feeds: true });
   const { got, fetchImpl } = pushServer();
   const r = await notify(db, [
-    { type: 'calls', title: 'Decision Desk HQ: Kentucky Senate', body: 'Projects Andy Barr (R).', url: 'https://ocscanner.github.io/IntelHQ/hq.html?race=KY-SEN#elections', tag: 'DDHQ|1' },
+    { type: 'calls', title: 'Decision Desk HQ: Kentucky Senate', body: 'Projects Andy Barr (R).', url: 'https://hq.ocscanner.media/hq.html?race=KY-SEN#elections', tag: 'DDHQ|1' },
     { type: 'conflicts', title: 'Conflict: Arizona 6th', body: 'x', tag: 'DDHQ|2' },
   ], { fetchImpl });
   assert.equal(r.sent, 2);
@@ -125,7 +125,7 @@ test('push: each device gets only what it chose, encrypted for it, signed, and r
   assert.equal(toLaptop.length, 1);
   const msg = phone.decrypt(toPhone[0].init.body);
   assert.equal(msg.title, 'Decision Desk HQ: Kentucky Senate');
-  assert.equal(msg.url, 'https://ocscanner.github.io/IntelHQ/hq.html?race=KY-SEN#elections');
+  assert.equal(msg.url, 'https://hq.ocscanner.media/hq.html?race=KY-SEN#elections');
   assert.equal(laptop.decrypt(toLaptop[0].init.body).title, 'Conflict: Arizona 6th');
   const h = toPhone[0].init.headers;
   assert.equal(h['Content-Encoding'], 'aes128gcm');

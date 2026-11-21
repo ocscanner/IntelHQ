@@ -1,17 +1,19 @@
 // OC Scanner · Intel HQ — Service Worker
 // Bump CACHE_VERSION any time you deploy updates to force a cache refresh
-const CACHE_VERSION = 'inthq-v10-radar';
+const CACHE_VERSION = 'inthq-v11-hq';
 
+// Paths are relative to this file, so the same code works at hq.ocscanner.media/
+// and at the old ocscanner.github.io/IntelHQ/ address.
 const STATIC_ASSETS = [
-  '/IntelHQ/',
-  '/IntelHQ/index.html',
-  '/IntelHQ/hq.html',
-  '/IntelHQ/hq.css',
-  '/IntelHQ/hq.js',
-  '/IntelHQ/newsroom.css',
-  '/IntelHQ/newsroom.js',
-  '/IntelHQ/manifest.json',
-  '/IntelHQ/assets/oc-scanner-logo.png',
+  './',
+  './index.html',
+  './hq.html',
+  './hq.css',
+  './hq.js',
+  './newsroom.css',
+  './newsroom.js',
+  './manifest.json',
+  './assets/oc-scanner-logo.png',
 ];
 
 // ── Install: cache all static assets ──────────────────────────────────────────
@@ -61,13 +63,19 @@ self.addEventListener('fetch', event => {
   // adsb.lol call looked like success and a worker outage looked like "no data".
   if (liveDataHosts.some(h => url.hostname.includes(h))) return;
 
+  // The page's sign-in check (hq.css?signin=…) must reach the network untouched and is never cached
+  if (url.origin === self.location.origin && url.searchParams.has('signin')) return;
+
   // For same-origin requests: try network first, fall back to cache
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          // Cache a fresh copy on success
-          if (response && response.status === 200) {
+          // Behind Cloudflare Access, an expired sign-in answers with a redirect to the
+          // login page. Hand that straight to the browser and never cache it, so the
+          // sign-in page can't be saved as if it were IntelHQ.
+          // Cache a fresh copy only for a real, same-site 200.
+          if (response && response.status === 200 && response.type === 'basic' && !response.redirected) {
             const clone = response.clone();
             caches.open(CACHE_VERSION).then(cache => cache.put(event.request, clone));
           }
@@ -93,19 +101,20 @@ self.addEventListener('push', event => {
     body: m.body || '',
     tag: m.tag || undefined,
     renotify: !!m.tag,
-    icon: '/IntelHQ/assets/oc-scanner-logo.png',
-    badge: '/IntelHQ/assets/oc-scanner-logo.png',
-    data: { url: m.url || '/IntelHQ/hq.html#elections' },
+    icon: 'assets/oc-scanner-logo.png',
+    badge: 'assets/oc-scanner-logo.png',
+    data: { url: m.url || new URL('hq.html#elections', self.registration.scope).href },
   }));
 });
 
 // Tapping an alert opens (or brings forward) IntelHQ on that race
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || '/IntelHQ/hq.html#elections', self.location.origin).href;
+  const url = new URL(event.notification.data?.url || 'hq.html#elections', self.registration.scope).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const hq = wins.find(w => w.url.includes('/IntelHQ/hq.html')) || wins.find(w => w.url.includes('/IntelHQ/'));
+    const scope = self.registration.scope;
+    const hq = wins.find(w => w.url.startsWith(scope) && w.url.includes('hq.html')) || wins.find(w => w.url.startsWith(scope));
     if (hq) {
       try { await hq.focus(); } catch {}
       try { return await hq.navigate(url); } catch {}
