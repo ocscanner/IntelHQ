@@ -122,6 +122,15 @@ dialog .df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:
 .errors{color:var(--crit);font-size:.92rem;margin:0;padding-left:18px}
 .mapgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 
+.xa-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:12px}
+.xa-chart svg{width:100%;height:auto;display:block}
+.xa-chart .v{fill:var(--accent)} .xa-chart .v.cur{fill:var(--live)} .xa-chart .goal{stroke:var(--warn);stroke-dasharray:5 4;stroke-width:1.5}
+.xa-chart text{fill:var(--muted);font-family:var(--f-data);font-size:11px}
+.xa-settings{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.xa-settings input{width:110px}
+.xa-tbl td,.xa-tbl th{white-space:nowrap}
+.xa-flag{font-family:var(--f-data);font-size:.72rem;color:var(--muted)}
+.xa-ok{color:var(--live)} .xa-bad{color:var(--warn)}
 @media (max-width: 760px){
   body{font-size:16px}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -165,6 +174,7 @@ dialog .df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:
     <button role="tab" data-view="overview" aria-selected="true">Overview</button>
     <button role="tab" data-view="payouts" aria-selected="false">Payout periods</button>
     <button role="tab" data-view="entries" aria-selected="false">Entries</button>
+    <button role="tab" data-view="x" aria-selected="false">X analytics</button>
     <button role="tab" data-view="backup" aria-selected="false">Imports &amp; backup</button>
   </nav>
 
@@ -206,6 +216,16 @@ dialog .df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:
   </section>
 
   <!-- IMPORTS & BACKUP -->
+  <!-- X ANALYTICS (x-app.js) -->
+  <section id="view-x" role="tabpanel" hidden>
+    <div class="xa-bar">
+      <p class="muted" style="margin:0;flex:1 1 320px;font-size:.92rem">X pays every two weeks for <strong>verified</strong> (Premium) views of your original posts in the Home timeline. This view learns your own rate from past payouts, so every dollar figure is an estimate. The date chips above don't apply here.</p>
+      <div class="actions"><button id="xa-import" type="button" class="primary">⇪ Import X analytics</button><input type="file" id="xa-file" accept=".csv,text/csv" multiple hidden></div>
+    </div>
+    <p class="note warn" id="xa-msg" hidden></p>
+    <div id="xa-body"></div>
+  </section>
+
   <section id="view-backup" role="tabpanel" hidden>
     <div class="grid2">
       <div class="card">
@@ -298,6 +318,16 @@ dialog .df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:
   </div>
 </dialog>
 
+<!-- X ANALYTICS IMPORT -->
+<dialog id="dlg-xa" aria-labelledby="dlg-xa-title">
+  <div class="dh"><h2 id="dlg-xa-title">Import X analytics</h2><button type="button" class="small" data-close>✕</button></div>
+  <div class="db">
+    <p class="muted" style="margin:0">From x.com/i/account_analytics on a computer: Overview → Export, once with the Verified filter on and once with it off. Check each file is marked right, then Save. Days already saved are replaced by the newer file.</p>
+    <div class="scroll" id="xa-files"></div>
+  </div>
+  <div class="df"><span style="flex:1"></span><button type="button" data-close>Cancel</button><button type="button" class="primary" id="xa-save">Save</button></div>
+</dialog>
+
 <!-- RESTORE -->
 <dialog id="dlg-restore" aria-labelledby="dlg-restore-title">
   <div class="dh"><h2 id="dlg-restore-title">Restore from backup</h2><button type="button" class="small" data-close>✕</button></div>
@@ -306,6 +336,8 @@ dialog .df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:
 </dialog>
 
 <script src="income-core.js?v=1"></script>
-<script src="app.js?v=1"></script>
+<script src="x-core.js?v=1"></script>
+<script src="app.js?v=2"></script>
+<script src="x-app.js?v=1"></script>
 </body>
 </html>

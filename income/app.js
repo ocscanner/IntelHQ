@@ -31,6 +31,7 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
       $('#storage-error').hidden = true;
+      window.dispatchEvent(new Event('ocs-income-changed')); // X analytics view (x-app.js) re-reads payouts
       if (!persistAsked && navigator.storage && navigator.storage.persist) {
         persistAsked = true;
         navigator.storage.persist().catch(() => {});
@@ -548,7 +549,8 @@
   $('#btn-export-all').addEventListener('click', () => exportCSV(null));
 
   $('#btn-backup').addEventListener('click', () => {
-    const payload = { app: 'ocs-income', version: 1, exportedAt: nowIso(), entries: data.entries, batches: data.batches, destinations: data.destinations, history: data.history };
+    const payload = { app: 'ocs-income', version: 1, exportedAt: nowIso(), entries: data.entries, batches: data.batches, destinations: data.destinations, history: data.history,
+      xAnalytics: window.XApp ? window.XApp.exportData() : undefined };
     download(`ocscanner-income-backup-${C.todayPacific()}.json`, JSON.stringify(payload, null, 1), 'application/json');
     data.lastBackup = nowIso();
     log('backup', `Backup file with ${data.entries.length} entries`);
@@ -589,8 +591,9 @@
     pendingRestore = { plan, d };
     $('#restore-summary').innerHTML = `Backup from <strong>${esc(d.exportedAt ? new Date(d.exportedAt).toLocaleString('en-US') : 'unknown date')}</strong>: ${d.entries.length} entries.<br>
       ${plan.add.length} new · ${plan.update.length} newer than this device’s copy · ${plan.same} already here${plan.bad ? ` · ${plan.bad} unreadable (skipped)` : ''}.<br>
+      ${d.xAnalytics && d.xAnalytics.days ? `X analytics: ${Object.keys(d.xAnalytics.days).length} days (merged; days already here are replaced by the backup's).<br>` : ''}
       <span class="muted">Restore adds and updates; it never deletes entries already on this device.</span>`;
-    $('#btn-restore-go').hidden = !(plan.add.length || plan.update.length);
+    $('#btn-restore-go').hidden = !(plan.add.length || plan.update.length || (d.xAnalytics && d.xAnalytics.days));
     $('#dlg-restore').showModal();
   });
   $('#btn-restore-go').addEventListener('click', () => {
@@ -606,7 +609,8 @@
     for (const h of d.history || []) if (h && h.at && !hSet.has(hKey(h))) data.history.push(h);
     data.history.sort((a, b) => b.at.localeCompare(a.at));
     if (data.history.length > HISTORY_CAP) data.history.length = HISTORY_CAP;
-    log('restore', `${plan.add.length} added, ${plan.update.length} updated from a backup`);
+    if (d.xAnalytics && window.XApp) window.XApp.importData(d.xAnalytics);
+    log('restore', `${plan.add.length} added, ${plan.update.length} updated from a backup${d.xAnalytics && d.xAnalytics.days ? ', plus X analytics' : ''}`);
     save();
     pendingRestore = null;
     $('#dlg-restore').close();

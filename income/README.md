@@ -40,3 +40,19 @@ P05, so there is no server copy anyone could reach. The page's Content-Security-
 Goes live with IntelHQ when the branch is merged to `main` (GitHub Pages and the `intelhq` Worker).
 No Worker, database, secret or Cloudflare setting is involved. Roll back with `git revert` of the
 merge; saved income on each device is untouched by a rollback (and comes back if it's re-merged).
+
+## X analytics (Nov 21, 2026)
+Income → **X analytics**. Pairs X's account analytics with the X payouts in Income to learn what a payout is
+worth per 1,000 **verified** views, then shows this period's pace, a per-payout goal, the 90-day
+eligibility count, and which posting habits get more verified views. Math in `x-core.js`, page in `x-app.js`.
+
+- Import: x.com/i/account_analytics → Overview → Export, once with the Verified filter on and once off.
+  The importer reads X's columns (Date, Impressions, … Create Post, Video views, Media views) and detects
+  the Verified file (file name, or blank video/media columns); the dialog lets you correct it.
+- Stored on this device (`ocs-xanalytics-v1`) and included in the Income backup file.
+- Payout windows: Revenue Sharing entries carry their period. Original Content Rewards entries only have a
+  pay date, so the window is the 14 days ending `lag` days before it (default 8, the best fit to the
+  Sep–Nov 2026 payouts; changeable in Settings).
+- Rate = median $ per 1,000 verified views over the last N complete payouts (default 6). Estimates only:
+  X pays on unique Premium Home-timeline views of original posts, which the export doesn't separate out.
+- Never commit real analytics exports to this public repo; tests use made-up data.
