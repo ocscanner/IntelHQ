@@ -58,10 +58,10 @@ test('mergeDays keeps all and verified side by side; a newer import replaces a d
 
 test('payout windows: Revenue Sharing uses its period; Original Content Rewards is derived from the pay date', () => {
   const rs = C.normalizeEntry({ date: '2026-09-12', source: 'x_ads', kind: 'revenue', net: 63540, periodStart: '2026-08-29', periodEnd: '2026-09-11' });
-  assert.deepEqual(X.windowFor(rs, 8), { from: '2026-08-29', to: '2026-09-11', derived: false });
+  assert.deepEqual(X.windowFor(rs, 3), { from: '2026-08-29', to: '2026-09-11', derived: false });
   const ocr = C.normalizeEntry({ date: '2026-11-20', source: 'x_ads', kind: 'revenue', net: 53732 });
-  // 14 days ending 8 days before Nov 20: Oct 29 .. Nov 11 (same window as the analysis)
-  assert.deepEqual(X.windowFor(ocr, 8), { from: '2026-10-29', to: '2026-11-11', derived: true });
+  // Friday Nov 20 payday → the 14 days ending Tuesday Nov 17
+  assert.deepEqual(X.windowFor(ocr, 3), { from: '2026-11-04', to: '2026-11-17', derived: true });
 });
 
 function fixture() {
@@ -86,7 +86,7 @@ function fixture() {
 
 test('payoutRows and rate', () => {
   const { days, entries } = fixture();
-  const rows = X.payoutRows(entries, days, 8);
+  const rows = X.payoutRows(entries, days, 3);
   assert.equal(rows.length, 4);
   assert.equal(rows[0].id, 'a');
   assert.equal(rows[0].verifiedImpressions, 700000);
@@ -106,28 +106,29 @@ test('payoutRows and rate', () => {
 
 test('currentPeriod pace and goal', () => {
   const { days, entries } = fixture();
-  const rows = X.payoutRows(entries, days, 8);
+  const rows = X.payoutRows(entries, days, 3);
   const r = X.rate(rows, 6);
-  // Newest window ends Nov 11 → current window Nov 12..Nov 25; data through Nov 21 = 10 days
+  // Newest window ends Tue Nov 17 → current window Nov 18..Dec 1, paid Fri Dec 4; data through Nov 21 = 4 days
   const cp = X.currentPeriod(rows, days, '2026-11-21', r, 50000);
-  assert.equal(cp.from, '2026-11-12');
-  assert.equal(cp.to, '2026-11-25');
-  assert.equal(cp.elapsed, 10);
-  assert.equal(cp.verifiedSoFar, 500000);
+  assert.equal(cp.from, '2026-11-18');
+  assert.equal(cp.to, '2026-12-01');
+  assert.equal(cp.payday, '2026-12-04');
+  assert.equal(cp.elapsed, 4);
+  assert.equal(cp.verifiedSoFar, 200000);
   assert.equal(cp.projected, 700000);
   assert.equal(cp.projectedCents, 42000);
-  // $500 at $0.60/1k = 833,333 impressions; 333,333 left over 4 days
+  // $500 at $0.60/1k = 833,333 impressions; 633,333 left over 10 days
   assert.equal(cp.goalImpressions, 833333);
-  assert.equal(cp.neededPerDay, 83333);
+  assert.equal(cp.neededPerDay, 63333);
   assert.equal(cp.onTrack, false);
   // Today's partial day (0 verified so far) doesn't count toward the pace
   const d2 = X.mergeDays(days, X.parseOverview(C.parseCSV(exportCsv('2026-11-21', 1, true, () => 0)), 'Verified.csv')).days;
   const cp2 = X.currentPeriod(rows, d2, '2026-11-21', r, 50000);
-  assert.equal(cp2.elapsed, 9);
-  assert.equal(cp2.verifiedSoFar, 450000);
+  assert.equal(cp2.elapsed, 3);
+  assert.equal(cp2.verifiedSoFar, 150000);
   assert.equal(cp2.projected, 700000);
   // Far past the newest window: steps forward in 14-day blocks
-  assert.equal(X.currentPeriod(rows, days, '2026-12-01', r, 0).from, '2026-11-26');
+  assert.equal(X.currentPeriod(rows, days, '2026-12-05', r, 0).from, '2026-12-02');
 });
 
 test('eligibility and drivers', () => {

@@ -106,20 +106,21 @@
   }
 
   // The earning window for an X payout entry from the Income tab.
-  // Entries with a payout period (Revenue Sharing) use it. Entries without one (Original Content Rewards
-  // lists only the pay date) use the 14 days ending `lagDays` before the pay date.
-  function windowFor(entry, lagDays) {
+  // Entries with a payout period (Revenue Sharing) use it. Original Content Rewards lists only the pay date:
+  // payday is a Friday and the window is the 14 days ending the Tuesday before it (Christian, Nov 21, 2026),
+  // i.e. ending `endBefore` = 3 days before payday.
+  function windowFor(entry, endBefore) {
     if (entry.periodStart && entry.periodEnd) return { from: entry.periodStart, to: entry.periodEnd, derived: false };
-    const to = addDays(entry.date, -(lagDays + 1));
+    const to = addDays(entry.date, -endBefore);
     return { from: addDays(to, -(PAYOUT_DAYS - 1)), to, derived: true };
   }
 
   function isXPayout(e) { return e && e.kind === 'revenue' && e.source === 'x_ads'; }
 
   // One row per X payout, newest first: window, verified and all impressions, $ per 1,000 verified.
-  function payoutRows(entries, days, lagDays) {
+  function payoutRows(entries, days, endBefore) {
     const rows = entries.filter(isXPayout).map((e) => {
-      const w = windowFor(e, lagDays);
+      const w = windowFor(e, endBefore);
       const len = daysBetween(w.from, w.to);
       const vi = sumRange(days, w.from, w.to, 'verified', 'impressions');
       const ai = sumRange(days, w.from, w.to, 'all', 'impressions');
@@ -158,7 +159,7 @@
   }
 
   // The window being earned now: the one right after the newest payout's window, in 14-day steps up to
-  // today. Pace = verified impressions so far, projected over the full 14 days.
+  // today. Its payday is the Friday 3 days after it ends. Pace = verified impressions so far, projected over the full 14 days.
   function currentPeriod(rows, days, today, r, goalCents) {
     if (!rows.length) return null;
     let from = addDays(rows[0].to, 1);
@@ -171,7 +172,7 @@
     const elapsed = lastData ? daysBetween(from, lastData) : 0;
     const remaining = PAYOUT_DAYS - elapsed;
     const projected = elapsed ? Math.round(sofar.total / elapsed * PAYOUT_DAYS) : null;
-    const out = { from, to, elapsed, remaining, lastData, verifiedSoFar: sofar.total, projected };
+    const out = { from, to, payday: addDays(to, 3), elapsed, remaining, lastData, verifiedSoFar: sofar.total, projected };
     if (r && r.perK) {
       out.projectedCents = projected === null ? null : Math.round(projected / 1000 * r.perK * 100);
       if (goalCents) {

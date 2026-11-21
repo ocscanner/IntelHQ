@@ -16,9 +16,15 @@
   const money = (cents, o) => C.formatMoney(cents, o);
   const perK = (v) => (v === null || v === undefined ? '–' : '$' + v.toFixed(2));
 
-  const empty = () => ({ version: 1, days: {}, imports: [], settings: { goalCents: 50000, lag: 8, rateN: 6 } });
+  const empty = () => ({ version: 1, days: {}, imports: [], settings: { goalCents: 50000, endBefore: 3, rateN: 6 } });
   function load() {
-    try { const d = JSON.parse(localStorage.getItem(KEY)); return d ? Object.assign(empty(), d, { settings: Object.assign(empty().settings, d.settings || {}) }) : empty(); }
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY));
+      if (!d) return empty();
+      const settings = Object.assign(empty().settings, d.settings || {});
+      delete settings.lag; // replaced by endBefore (window ends the Tuesday before a Friday payday)
+      return Object.assign(empty(), d, { settings });
+    }
     catch (e) { return empty(); }
   }
   let data = load();
@@ -39,7 +45,7 @@
     const hasAll = dayKeys.some((d) => data.days[d].all), hasVer = dayKeys.some((d) => data.days[d].verified);
     const entries = incomeEntries();
     const s = data.settings;
-    const rows = X.payoutRows(entries, data.days, s.lag);
+    const rows = X.payoutRows(entries, data.days, s.endBefore);
     const r = X.rate(rows, s.rateN);
     const today = C.todayPacific();
     const cp = X.currentPeriod(rows, data.days, today, r, s.goalCents);
@@ -69,7 +75,7 @@
     cards.push(`<div class="kpi"><div class="lbl">Your rate</div><div class="val num">${r ? perK(r.perK) : '–'}</div>
       <div class="sub">${r ? `per 1,000 verified views · last ${r.basedOn} payouts ranged ${perK(r.low)}–${perK(r.high)}` : 'needs payouts and the Verified export'}</div></div>`);
     if (cp) {
-      cards.push(`<div class="kpi"><div class="lbl">This period · ${esc(fd(cp.from))}–${esc(fd(cp.to))}</div><div class="val num">${cp.projectedCents !== null && cp.projectedCents !== undefined ? '~' + money(cp.projectedCents, { whole: true }) : '–'}</div>
+      cards.push(`<div class="kpi"><div class="lbl">This period · ${esc(fd(cp.from))}–${esc(fd(cp.to))} · paid Fri ${esc(fd(cp.payday))}</div><div class="val num">${cp.projectedCents !== null && cp.projectedCents !== undefined ? '~' + money(cp.projectedCents, { whole: true }) : '–'}</div>
         <div class="sub">${short(cp.verifiedSoFar)} verified views in ${cp.elapsed} of 14 days · on pace for ${short(cp.projected)}</div></div>`);
       cards.push(`<div class="kpi"><div class="lbl">Goal per payout</div><div class="val num">${money(s.goalCents, { whole: true })}</div>
         <div class="sub">${cp.goalImpressions ? `needs ${short(cp.goalImpressions)} verified views (${short(cp.goalPerDay)}/day). ${cp.remaining > 0 ? `<span class="${cp.onTrack ? 'xa-ok' : 'xa-bad'}">${cp.onTrack ? 'On track' : `Need ${short(cp.neededPerDay)}/day for the last ${cp.remaining} days`}</span>` : ''}` : 'set below'}</div></div>`);
@@ -105,7 +111,7 @@
 
     // Payout table
     const table = rows.length ? `<div class="card" style="margin-top:12px"><h2>Payouts vs. verified views</h2>
-      <p class="muted" style="margin:0 0 8px;font-size:.9rem">Revenue Sharing payouts use the period X listed. Original Content Rewards lists only the pay date, so its window is estimated (*) as the 14 days ending ${s.lag} days before payday, the gap that best matched your history.</p>
+      <p class="muted" style="margin:0 0 8px;font-size:.9rem">Revenue Sharing payouts use the period X listed. Original Content Rewards lists only the pay date (a Friday); its window (*) is the 14 days ending the Tuesday before payday.</p>
       <div class="scroll"><table class="tbl xa-tbl"><thead><tr><th>Paid</th><th>Window</th><th class="r">Payout</th><th class="r">Verified views</th><th class="r hide-sm">Verified %</th><th class="r">Per 1K</th><th class="r hide-sm">Posts</th><th class="r hide-sm">New follows</th></tr></thead><tbody>${
         rows.map((x) => `<tr><td class="num">${esc(fd(x.paidOn, true))}<br><span class="xa-flag">${x.program === 'Revenue Sharing' ? 'Revenue Sharing' : 'Content Rewards'}</span></td>
           <td class="num">${esc(fd(x.from))}–${esc(fd(x.to))}${x.derived ? ' *' : ''}</td>
@@ -131,7 +137,7 @@
       <div class="card"><h2>Settings</h2><div class="xa-settings">
         <label>Goal per payout ($)<input id="xa-goal" inputmode="decimal" value="${(s.goalCents / 100).toFixed(0)}"></label>
         <label>Rate from last … payouts<input id="xa-n" type="number" min="1" max="30" value="${s.rateN}"></label>
-        <label>Payday lag (days)<input id="xa-lag" type="number" min="0" max="20" value="${s.lag}"><span class="hint">Content Rewards only</span></label>
+        <label>Window ends … days before payday<input id="xa-lag" type="number" min="0" max="20" value="${s.endBefore}"><span class="hint">3 = the Tuesday before a Friday payday</span></label>
       </div></div>
       <div class="card"><h2>Imported analytics</h2>
         <p style="margin:0 0 6px">${dayKeys.length} days, ${esc(fd(dayKeys[0], true))} – ${esc(fd(lastDay, true))}. All viewers: ${hasAll ? '<span class="xa-ok">✓</span>' : '<span class="xa-bad">missing</span>'} · Verified: ${hasVer ? '<span class="xa-ok">✓</span>' : '<span class="xa-bad">missing</span>'}</p>
@@ -145,7 +151,7 @@
     const num = (id) => $(id, body);
     num('#xa-goal').addEventListener('change', (e) => { const c = C.parseAmount(e.target.value); if (c !== null && c >= 0) { data.settings.goalCents = c; save(); render(); } });
     num('#xa-n').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 1 && v <= 30) { data.settings.rateN = v; save(); render(); } });
-    num('#xa-lag').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 0 && v <= 20) { data.settings.lag = v; save(); render(); } });
+    num('#xa-lag').addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 0 && v <= 20) { data.settings.endBefore = v; save(); render(); } });
     num('#xa-clear').addEventListener('click', (e) => {
       const b = e.currentTarget;
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to delete'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Delete X analytics'; }, 4000); return; }

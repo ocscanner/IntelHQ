@@ -51,8 +51,8 @@ eligibility count, and which posting habits get more verified views. Math in `x-
   the Verified file (file name, or blank video/media columns); the dialog lets you correct it.
 - Stored on this device (`ocs-xanalytics-v1`) and included in the Income backup file.
 - Payout windows: Revenue Sharing entries carry their period. Original Content Rewards entries only have a
-  pay date, so the window is the 14 days ending `lag` days before it (default 8, the best fit to the
-  Sep–Nov 2026 payouts; changeable in Settings).
+  pay date (always a Friday); the window is the 14 days ending the Tuesday before it (`endBefore` = 3 days,
+  Christian, Nov 21, 2026; changeable in Settings).
 - Rate = median $ per 1,000 verified views over the last N complete payouts (default 6). Estimates only:
   X pays on unique Premium Home-timeline views of original posts, which the export doesn't separate out.
 - Never commit real analytics exports to this public repo; tests use made-up data.
