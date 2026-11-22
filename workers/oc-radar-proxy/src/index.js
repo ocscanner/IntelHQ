@@ -1,5 +1,9 @@
 /**
- * OC Scanner Intel HQ — Proxy Worker v10
+ * OC Scanner Intel HQ — Proxy Worker v11
+ *
+ * v11 (Nov 21, 2026): /flights uses adsb.lol only (the other sources refuse Cloudflare), retries
+ *  once, and serves the last good answer (up to 3 min old) when adsb.lol hiccups, instead of an
+ *  empty radar. Answers under 8 s old are shared between tabs.
  *
  * v10 (Nov 10, 2026, P02 security fixes):
  *  - Only OC Scanner's own sites may call it (ALLOWED_ORIGINS). Other websites get 403.
@@ -30,6 +34,11 @@ const TLE_URLS = {
 // TLEs stay accurate for hours, so serving a cached copy is fine (and often
 // necessary when CelesTrak returns 502/429 under repeated requests).
 const TLE_CACHE = {}; // { group: { text, t } }
+
+// Flights: last good adsb.lol answer per area (rounded lat/lon + radius), per Worker instance.
+const FLIGHTS_CACHE = new Map(); // key -> { text, t, source }
+const FLIGHTS_FRESH_MS = 8 * 1000;        // share one upstream call between tabs refreshing together
+const FLIGHTS_STALE_MS = 3 * 60 * 1000;   // serve a copy this old when adsb.lol hiccups
 const TLE_TTL_MS = 6 * 60 * 60 * 1000; // 6h fresh (TLEs stay accurate for days)
 
 // Launches cache — Launch Library 2 rate-limits anonymous requests (~15/hr per
@@ -272,58 +281,48 @@ const ROUTES = {
     const url = new URL(request.url);
 
     // ── /flights ──
+    // adsb.lol is the only ADS-B source that still answers Cloudflare Workers (checked Nov 21, 2026:
+    // airplanes.live, adsb.one and adsb.fi all answer 403). When adsb.lol hiccups, serve this
+    // instance's last good answer for the same area (up to FLIGHTS_STALE_MS old) instead of an empty
+    // radar; X-Source says "adsb.lol (cached Ns)" so the page can tell.
     if (url.pathname === '/flights') {
       const lat = parseFloat(url.searchParams.get('lat') || '33.832721');
       const lon = parseFloat(url.searchParams.get('lon') || '-118.02252');
       const dist = parseInt(url.searchParams.get('dist') || '25');
+      const key = `${lat.toFixed(2)},${lon.toFixed(2)},${dist}`;
+      const now = Date.now();
+      const send = (text, source, ageMs) => new Response(text, {
+        status: 200,
+        headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
+          'X-Source': ageMs ? `${source} (cached ${Math.round(ageMs / 1000)}s)` : source },
+      });
 
-      const apis = [
-        `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${dist}`,
-        `https://api.airplanes.live/v2/point/${lat}/${lon}/${dist}`,
-        `https://api.adsb.one/v2/point/${lat}/${lon}/${dist}`,
-      ];
+      // Many open tabs refresh together: reuse an answer under FLIGHTS_FRESH_MS old
+      const hit = FLIGHTS_CACHE.get(key);
+      if (hit && now - hit.t < FLIGHTS_FRESH_MS) return send(hit.text, hit.source, now - hit.t);
 
-      let emptyFallback = null; // remember a valid-but-empty response as last resort
-      for (const api of apis) {
+      const api = `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${dist}`;
+      let emptyText = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const resp = await fetch(api, {
             headers: { 'User-Agent': 'OCScannerIntelHQ/1.0', 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(attempt ? 6000 : 4000),
           });
           if (!resp.ok) continue;
           const text = await resp.text();
-          if (!text.includes('"ac"') && !text.includes('"states"')) continue;
-          if (text.toLowerCase().includes('rate limit')) continue;
-
-          // Count aircraft — if a source returns an empty list, don't stop here.
-          // Another source may have coverage for this area. Keep the empty one
-          // as a fallback and try the rest before giving up.
-          let acCount = 0;
-          try {
-            const j = JSON.parse(text);
-            acCount = Array.isArray(j.ac) ? j.ac.length
-              : Array.isArray(j.states) ? j.states.length : 0;
-          } catch(e) { /* if it won't parse, treat as usable text below */ }
-
-          if (acCount === 0) {
-            if (!emptyFallback) emptyFallback = text; // stash first valid-empty
-            continue; // try next source
-          }
-
-          return new Response(text, {
-            status: 200,
-            headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Source': new URL(api).hostname },
-          });
-        } catch(e) { continue; }
+          let ac = null;
+          try { const j = JSON.parse(text); ac = Array.isArray(j.ac) ? j.ac.length : null; } catch (e) {}
+          if (ac === null) continue;          // not an aircraft list (error page, rate-limit text)
+          if (ac === 0) { emptyText = text; continue; } // empty: try once more before believing it
+          FLIGHTS_CACHE.set(key, { text, t: Date.now(), source: 'adsb.lol' });
+          if (FLIGHTS_CACHE.size > 50) FLIGHTS_CACHE.delete(FLIGHTS_CACHE.keys().next().value);
+          return send(text, 'adsb.lol');
+        } catch (e) { /* timeout or network error: retry once */ }
       }
-      // Every source was empty (or failed). Return the empty payload if we got
-      // one — that's an honest "no aircraft" — otherwise a clear error.
-      if (emptyFallback) {
-        return new Response(emptyFallback, {
-          status: 200,
-          headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Source': 'all-empty' },
-        });
-      }
+      // adsb.lol failed or was empty twice: last good answer for this area, if recent enough
+      if (hit && now - hit.t < FLIGHTS_STALE_MS) return send(hit.text, hit.source, now - hit.t);
+      if (emptyText) return send(emptyText, 'adsb.lol');
       return jsonResp({ ac: [], msg: 'All APIs unavailable' });
     }
 
