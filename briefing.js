@@ -358,6 +358,7 @@
   function isDismissed(key) { const t = dismissed[key]; return t && Date.now() - t < 6 * 3600e3; }
 
   // ── What needs you ────────────────────────────────────────────────────────
+  const whenText = (p) => (window.WxCard ? window.WxCard.timingText(p) : (p.ends || p.expires ? 'until ' + dayClock(p.ends || p.expires) : ''));
   function buildActions() {
     const out = [];
     for (const f of ocAlerts()) {
@@ -367,8 +368,9 @@
         key: 'nws:' + (p.id || f.id),
         tone: crit ? 'red' : 'amber',
         title: p.event,
-        detail: `${(p.areaDesc || '').split(';').slice(0, 3).join(', ')}${p.expires ? ' · until ' + dayClock(p.expires) : ''} · ${p.senderName || 'NWS'}`,
-        copy: `${p.event} for ${(p.areaDesc || 'Orange County area').split(';').map((s) => s.trim()).join(', ')}${p.expires ? ', until ' + dayClock(p.expires) : ''}. ${p.headline ? p.headline + '. ' : ''}Source: ${p.senderName || 'National Weather Service'}.`,
+        // NWS "expires" is when the message expires, not the hazard: use onset/ends (wxcard.js).
+        detail: `${(p.areaDesc || '').split(';').slice(0, 3).join(', ')}${whenText(p) ? ' · ' + whenText(p) : ''} · ${p.senderName || 'NWS'}`,
+        copy: `${p.event} for ${(p.areaDesc || 'Orange County area').split(';').map((s) => s.trim()).join(', ')}${whenText(p) ? ', ' + whenText(p) : ''}. ${p.headline ? p.headline + '. ' : ''}Source: ${p.senderName || 'National Weather Service'}.`,
         card: { kind: 'alert', feature: f },
         buttons: [['image', 'Post image', true], ['copy', 'Copy alert text'], ['go:newsroom:discovery', 'Draft in Newsroom'], ['go:storm', 'Storm Index']],
       });

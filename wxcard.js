@@ -57,6 +57,22 @@
 
   const TZ = 'America/Los_Angeles';
   const dayClock = (t) => new Date(t).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: TZ });
+  const dateClock = (t) => new Date(t).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: TZ });
+  // When the hazard itself runs. NWS "expires" is only when the message expires (often hours
+  // before the event even starts), so "ends" wins; "onset" is shown when it is still ahead.
+  function alertTiming(p, now) {
+    const t = now === undefined ? Date.now() : now;
+    const end = p.ends || p.expires || null;
+    const start = p.onset && new Date(p.onset).getTime() > t + 15 * 60e3 ? p.onset : null;
+    return { start, end };
+  }
+  function timingText(p, now) {
+    const { start, end } = alertTiming(p, now);
+    if (start && end) return `from ${dateClock(start)} until ${dateClock(end)}`;
+    if (start) return `starting ${dateClock(start)}`;
+    if (end) return `until ${dateClock(end)}`;
+    return '';
+  }
   const clock = (t) => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TZ });
 
   // "Orange County Coastal Areas; Orange County Inland Areas; …" → short list for captions.
@@ -72,13 +88,13 @@
   }
 
   // Caption for X (≤ 280 characters). Facts only from the NWS alert; nothing added or reworded.
-  function alertCaption(p, tags) {
-    const until = p.expires || p.ends;
-    const head = `${p.event} for ${shortAreas(p.areaDesc, 3)}${until ? ' until ' + dayClock(until) : ''}.`;
+  function alertCaption(p, tags, now) {
+    const when = timingText(p, now);
+    const head = `${p.event} for ${shortAreas(p.areaDesc, 3)}${when ? ' ' + when : ''}.`;
     const src = `Source: ${office(p.senderName)}`;
     const tail = tags === undefined ? '#OCWeather' : tags;
     let text = [head, src, tail].filter(Boolean).join('\n');
-    if (text.length > 280) text = [`${p.event} for ${shortAreas(p.areaDesc, 1)}${until ? ' until ' + dayClock(until) : ''}.`, src, tail].filter(Boolean).join('\n');
+    if (text.length > 280) text = [`${p.event} for ${shortAreas(p.areaDesc, 1)}${when ? ' ' + when : ''}.`, src, tail].filter(Boolean).join('\n');
     return text.slice(0, 280);
   }
   function fireCaption(f) {
@@ -133,7 +149,7 @@
     return [w, s, e, n];
   }
 
-  const pure = { W, H, HAZARD_COLORS, hazardColor, warningType, textOn, shortAreas, office, alertCaption, fireCaption, stormCaption, fitView, bboxOf, clampBbox, lon2x, lat2y, OC_BBOX };
+  const pure = { W, H, alertTiming, timingText, dateClock, HAZARD_COLORS, hazardColor, warningType, textOn, shortAreas, office, alertCaption, fireCaption, stormCaption, fitView, bboxOf, clampBbox, lon2x, lat2y, OC_BBOX };
 
   // Node (tests) stops here.
   if (typeof document === 'undefined') { if (typeof module !== 'undefined') module.exports = pure; return; }
@@ -393,15 +409,15 @@
     if (type === 'fire') chips = st.slice().sort((a, b) => (b.gust || 0) - (a.gust || 0)).slice(0, 4).map((s) => ({ label: s.name, value: `${s.gust ? 'Gust ' + Math.round(s.gust) : 'Wind ' + Math.round(s.wind || 0)} mph · ${s.rh !== null && s.rh !== undefined ? Math.round(s.rh) + '% RH' : 'RH —'}` }));
     else if (type === 'wind') chips = st.slice().sort((a, b) => (b.gust || 0) - (a.gust || 0)).slice(0, 4).map((s) => ({ label: s.name, value: s.gust ? `Gusts ${Math.round(s.gust)} mph` : `Wind ${Math.round(s.wind || 0)} mph` }));
     else if (type === 'heat') chips = st.slice().sort((a, b) => (b.temp || 0) - (a.temp || 0)).slice(0, 4).map((s) => ({ label: s.name, value: s.temp !== null && s.temp !== undefined ? `${Math.round(s.temp)}°F now` : '—' }));
-    const until = p.expires || p.ends;
+    const { start, end } = alertTiming(p);
     const res = await render({
       color, tag: p.event, kicker: 'Weather alert', title: p.event,
-      subtitle: until ? 'Until ' + dayClock(until) : (p.severity || ''),
+      subtitle: start ? 'Starts ' + dateClock(start) : end ? 'Until ' + dateClock(end) : (p.severity || ''),
       bbox, shapes, radar: type === 'rain' || type === 'other' || type === 'wind' || type === 'fire',
-      facts: [['Areas', shortAreas(p.areaDesc, 4)], ['Until', until ? dayClock(until) : ''], ['Issued by', office(p.senderName)]],
+      facts: [['Areas', shortAreas(p.areaDesc, 4)], ['Starts', start ? dateClock(start) : ''], ['Until', end ? dateClock(end) : ''], ['Issued by', office(p.senderName)]],
       chips: chips.map((c) => Object.assign({ color }, c)),
     });
-    return Object.assign(res, { caption: alertCaption(p), filename: `ocscanner-${slug(p.event)}-${stamp()}.png`, alt: `${p.event} for ${shortAreas(p.areaDesc, 6)}${until ? ' until ' + dayClock(until) : ''}. Map of the warning area.` });
+    return Object.assign(res, { caption: alertCaption(p), filename: `ocscanner-${slug(p.event)}-${stamp()}.png`, alt: `${p.event} for ${shortAreas(p.areaDesc, 6)} ${timingText(p)}. Map of the warning area.` });
   }
 
   async function fireCard(f) {

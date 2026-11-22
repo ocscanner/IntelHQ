@@ -35,7 +35,7 @@ test('captions use only the alert facts and fit on X', () => {
     expires: '2026-11-22T02:00:00Z', senderName: 'NWS San Diego CA',
   };
   const c = C.alertCaption(p);
-  assert.match(c, /^Red Flag Warning for Santa Ana Mountains and Foothills, Orange County Inland Areas until Sat 6:00 PM\./);
+  assert.match(c, /^Red Flag Warning for Santa Ana Mountains and Foothills, Orange County Inland Areas until Sat, Nov 21, 6:00 PM\./);
   assert.match(c, /Source: NWS San Diego CA/);
   assert.ok(c.length <= 280);
   const long = Object.assign({}, p, { areaDesc: Array.from({ length: 30 }, (_, i) => 'Very Long Zone Name Number ' + i).join('; ') });
@@ -72,4 +72,17 @@ test('bbox helpers', () => {
   assert.deepEqual(C.clampBbox(null), C.OC_BBOX);
   const far = C.clampBbox([-125, 30, -100, 45]);                // clipped to SoCal
   assert.ok(far[0] >= -120.7 && far[2] <= -114.1);
+});
+
+test('timing uses onset/ends, not the message expiry', () => {
+  const now = new Date('2026-11-21T13:00:00-08:00').getTime();
+  const watch = { event: 'Coastal Flood Watch', areaDesc: 'Orange County Coastal', senderName: 'NWS San Diego CA',
+    onset: '2026-11-24T04:00:00-08:00', expires: '2026-11-21T21:00:00-08:00', ends: '2026-11-26T13:00:00-08:00' };
+  assert.equal(C.timingText(watch, now), 'from Tue, Nov 24, 4:00 AM until Thu, Nov 26, 1:00 PM');
+  assert.match(C.alertCaption(watch, undefined, now), /^Coastal Flood Watch for Orange County Coastal from Tue, Nov 24, 4:00 AM until Thu, Nov 26, 1:00 PM\./);
+  const running = Object.assign({}, watch, { onset: '2026-11-21T10:00:00-08:00' });
+  assert.equal(C.timingText(running, now), 'until Thu, Nov 26, 1:00 PM');
+  const noEnds = { onset: '2026-11-21T10:00:00-08:00', expires: '2026-11-21T21:00:00-08:00' };
+  assert.equal(C.timingText(noEnds, now), 'until Sat, Nov 21, 9:00 PM');
+  assert.equal(C.timingText({}, now), '');
 });
