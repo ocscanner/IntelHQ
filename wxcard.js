@@ -358,7 +358,7 @@
     ctx.textBaseline = 'middle';
     ctx.font = `700 28px ${F.head}`; ctx.fillStyle = BRAND.navy; ctx.fillText('ocscanner.media', 28, H - FOOT / 2 + 2);
     ctx.font = `600 21px ${F.body}`; ctx.fillStyle = '#3c4d5e';
-    const credit = spec.credit || 'Radar: NOAA/NWS via Iowa Environmental Mesonet · Map: Esri';
+    const credit = spec.credit || (spec.radar === false ? 'Alert: National Weather Service · Map: Esri' : 'Radar: NOAA/NWS via Iowa Environmental Mesonet · Map: Esri');
     ctx.textAlign = 'right';
     ctx.fillText(`${credit} · Made ${dayClock(Date.now())} PT`, W - 28, H - FOOT / 2 + 2);
     ctx.textAlign = 'left';
