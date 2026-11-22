@@ -19,6 +19,7 @@ test('warning types pick the right template', () => {
   assert.equal(C.warningType('Severe Thunderstorm Warning'), 'rain');
   assert.equal(C.warningType('Dense Fog Advisory'), 'fog');
   assert.equal(C.warningType('High Surf Advisory'), 'coast');
+  assert.equal(C.warningType('Coastal Flood Advisory'), 'coast');
   assert.equal(C.warningType('Air Quality Alert'), 'other');
 });
 

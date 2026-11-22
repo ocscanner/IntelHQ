@@ -26,7 +26,7 @@
     'Extreme Heat Warning': '#C71585', 'Excessive Heat Watch': '#800000', 'Extreme Heat Watch': '#800000',
     'Heat Advisory': '#FF7F50', 'Dense Fog Advisory': '#708090', 'Dense Smoke Advisory': '#F0E68C',
     'High Surf Warning': '#228B22', 'High Surf Advisory': '#BA55D3', 'Beach Hazards Statement': '#40E0D0',
-    'Rip Current Statement': '#40E0D0', 'Coastal Flood Warning': '#228B22', 'Coastal Flood Advisory': '#7CFC00',
+    'Rip Current Statement': '#40E0D0', 'Coastal Flood Warning': '#228B22', 'Coastal Flood Advisory': '#7CFC00', 'Coastal Flood Watch': '#66CDAA', 'Coastal Flood Statement': '#6B8E23',
     'Tsunami Warning': '#FD6347', 'Tsunami Advisory': '#D2691E', 'Winter Storm Warning': '#FF69B4',
     'Winter Weather Advisory': '#7B68EE', 'Frost Advisory': '#6495ED', 'Freeze Warning': '#483D8B',
     'Air Quality Alert': '#808080', 'Special Weather Statement': '#FFE4B5', 'Lake Wind Advisory': '#D2B48C',
@@ -41,9 +41,9 @@
     if (/red flag|fire weather|fire warning/.test(e)) return 'fire';
     if (/wind|dust/.test(e)) return 'wind';
     if (/heat/.test(e)) return 'heat';
+    if (/surf|rip current|beach|coastal|tsunami|marine|small craft|gale/.test(e)) return 'coast';   // before "flood": Coastal Flood …
     if (/flood|thunderstorm|tornado|rain|winter|snow/.test(e)) return 'rain';
     if (/fog|smoke/.test(e)) return 'fog';
-    if (/surf|rip current|beach|coastal|tsunami|marine|small craft|gale/.test(e)) return 'coast';
     return 'other';
   }
 
@@ -308,8 +308,8 @@
           const cx = pxL + 26 + (i % 2) * 262, cy = y + Math.floor(i / 2) * 66;
           ctx.fillStyle = 'rgba(255,255,255,.07)'; roundRect(ctx, cx, cy, 246, 56, 8); ctx.fill();
           ctx.fillStyle = c.color || color; ctx.fillRect(cx, cy, 5, 56);
-          ctx.font = `600 19px ${F.body}`; ctx.fillStyle = '#b8cddb'; ctx.fillText(c.label, cx + 16, cy + 6);
-          ctx.font = `700 26px ${F.body}`; ctx.fillStyle = '#fff'; ctx.fillText(c.value, cx + 16, cy + 26);
+          ctx.font = fitText(ctx, c.label, 222, 19, 600, F.body); ctx.fillStyle = '#b8cddb'; ctx.fillText(c.label, cx + 16, cy + 6);
+          ctx.font = fitText(ctx, c.value, 222, 26, 700, F.body); ctx.fillStyle = '#fff'; ctx.fillText(c.value, cx + 16, cy + 26);
         });
       }
     }
@@ -390,7 +390,7 @@
     const bbox = bboxOf(shapes) || OC_BBOX;
     const st = (ctx && ctx.stations || []).filter((s) => s.ok && s.status !== 'off');
     let chips = [];
-    if (type === 'fire') chips = st.slice().sort((a, b) => (b.gust || 0) - (a.gust || 0)).slice(0, 4).map((s) => ({ label: s.name, value: `${s.gust ? 'G ' + Math.round(s.gust) : Math.round(s.wind || 0)} mph · ${s.rh !== null && s.rh !== undefined ? Math.round(s.rh) + '% RH' : 'RH —'}` }));
+    if (type === 'fire') chips = st.slice().sort((a, b) => (b.gust || 0) - (a.gust || 0)).slice(0, 4).map((s) => ({ label: s.name, value: `${s.gust ? 'Gust ' + Math.round(s.gust) : 'Wind ' + Math.round(s.wind || 0)} mph · ${s.rh !== null && s.rh !== undefined ? Math.round(s.rh) + '% RH' : 'RH —'}` }));
     else if (type === 'wind') chips = st.slice().sort((a, b) => (b.gust || 0) - (a.gust || 0)).slice(0, 4).map((s) => ({ label: s.name, value: s.gust ? `Gusts ${Math.round(s.gust)} mph` : `Wind ${Math.round(s.wind || 0)} mph` }));
     else if (type === 'heat') chips = st.slice().sort((a, b) => (b.temp || 0) - (a.temp || 0)).slice(0, 4).map((s) => ({ label: s.name, value: s.temp !== null && s.temp !== undefined ? `${Math.round(s.temp)}°F now` : '—' }));
     const until = p.expires || p.ends;
@@ -427,13 +427,13 @@
     const STC = { crit: '#ff3b30', warn: '#ffb700', ok: '#00c46a', off: '#6b7b88' };
     const pts = (stations || []).filter((x) => x.lon !== undefined && x.lat !== undefined && x.lon !== null).map((x) => ({
       lon: x.lon, lat: x.lat, color: STC[x.status] || STC.off,
-      label: x.status === 'crit' || x.status === 'warn' ? `${x.gust ? 'G' + Math.round(x.gust) : Math.round(x.wind || 0)} mph${x.rh !== null && x.rh !== undefined ? ' · ' + Math.round(x.rh) + '%' : ''}` : '',
+      label: x.status === 'crit' || x.status === 'warn' ? `${x.gust ? 'gust ' + Math.round(x.gust) : 'wind ' + Math.round(x.wind || 0)} mph${x.rh !== null && x.rh !== undefined ? ' · ' + Math.round(x.rh) + '% RH' : ''}` : '',
     }));
     const res = await render({
       color, tag: label, kicker: 'Storm Index', title: `Orange County conditions: ${label}`,
       subtitle: `${s.crit} critical · ${s.warn} elevated of ${s.total} stations`,
       bbox: [-118.3, 33.15, -116.95, 34.12], radar: true, points: pts,
-      facts: [['Peak gust', s.peak && s.peak.gust ? `${Math.round(s.peak.gust)} mph at ${s.peak.name}` : ''], ['Rule', 'Gusts 30+ / 45+ mph or humidity ≤20% / ≤15%']],
+      facts: [['Peak gust', s.peak && s.peak.gust ? `${Math.round(s.peak.gust)} mph at ${s.peak.name}` : ''], ['Stations', `${s.crit} critical · ${s.warn} elevated · ${s.total - s.crit - s.warn} normal or no report`]],
       credit: 'Stations & radar: NOAA/NWS/FAA via Iowa Environmental Mesonet · Map: Esri',
     });
     return Object.assign(res, { caption: stormCaption(s), filename: `ocscanner-storm-index-${stamp()}.png`, alt: `Orange County Storm Index map: ${label}.` });
