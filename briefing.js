@@ -260,7 +260,7 @@
       B.stations = STATIONS.map(([id, name]) => {
         const x = m.get(id);
         const age = x && x.utc_valid ? Math.round((Date.now() - new Date(x.utc_valid).getTime()) / 60000) : null;
-        const s = { id, name, ok: !!x, age, wind: x ? kt2mph(x.sknt) : null, gust: x ? kt2mph(x.gust) : null, dir: x ? x.drct : null, rh: x ? x.relh : null, temp: x ? x.tmpf : null };
+        const s = { id, name, ok: !!x, age, lat: x ? x.lat : null, lon: x ? x.lon : null, wind: x ? kt2mph(x.sknt) : null, gust: x ? kt2mph(x.gust) : null, dir: x ? x.drct : null, rh: x ? x.relh : null, temp: x ? x.tmpf : null };
         s.status = classify(s);
         return s;
       });
@@ -300,7 +300,8 @@
     try {
       const j = await getJSON(url);
       const now = Date.now();
-      B.fires = (j.features || []).map((f) => f.attributes || {}).map((a) => ({
+      B.fires = (j.features || []).map((f) => Object.assign({}, f.attributes || {}, { _x: f.geometry ? f.geometry.x : null, _y: f.geometry ? f.geometry.y : null })).map((a) => ({
+        lon: a._x, lat: a._y,
         name: a.IncidentName || 'Unnamed fire', acres: a.IncidentSize, pct: a.PercentContained, county: a.POOCounty || '',
         found: a.FireDiscoveryDateTime ? new Date(a.FireDiscoveryDateTime).toISOString() : null,
       })).filter((f) => (f.acres || 0) >= 10 || (f.found && now - new Date(f.found).getTime() < 12 * 3600e3))
@@ -368,7 +369,8 @@
         title: p.event,
         detail: `${(p.areaDesc || '').split(';').slice(0, 3).join(', ')}${p.expires ? ' · until ' + dayClock(p.expires) : ''} · ${p.senderName || 'NWS'}`,
         copy: `${p.event} for ${(p.areaDesc || 'Orange County area').split(';').map((s) => s.trim()).join(', ')}${p.expires ? ', until ' + dayClock(p.expires) : ''}. ${p.headline ? p.headline + '. ' : ''}Source: ${p.senderName || 'National Weather Service'}.`,
-        buttons: [['copy', 'Copy alert text', true], ['go:newsroom:discovery', 'Draft in Newsroom'], ['go:storm', 'Storm Index']],
+        card: { kind: 'alert', feature: f },
+        buttons: [['image', 'Post image', true], ['copy', 'Copy alert text'], ['go:newsroom:discovery', 'Draft in Newsroom'], ['go:storm', 'Storm Index']],
       });
     }
     // Only when the stations themselves are elevated; an alert alone is already listed above.
@@ -379,7 +381,8 @@
         tone: s.status === 'crit' ? 'red' : 'amber',
         title: `Storm Index: ${s.status === 'crit' ? 'Critical' : 'Elevated'}`,
         detail: `${s.crit} critical, ${s.warn} elevated of ${STATIONS.length} stations${s.peak ? ` · peak gust ${fmt(s.peak.gust)} mph at ${s.peak.name}` : ''}`,
-        buttons: [['go:storm', 'Storm Index', true], ['go:firecams', 'Fire Cams']],
+        card: { kind: 'storm' },
+        buttons: [['image', 'Post image', true], ['go:storm', 'Storm Index'], ['go:firecams', 'Fire Cams']],
       });
     }
     // New fires worth acting on: anything in Orange County, or 50+ acres elsewhere in SoCal, found in the last 12 h.
@@ -392,7 +395,8 @@
         title: `New fire: ${f.name}`,
         detail: `${f.acres ? fmt(f.acres) + ' acres' : 'size not reported'} · ${f.pct !== null && f.pct !== undefined ? fmt(f.pct) + '% contained' : 'containment not reported'}${f.county ? ' · ' + f.county + ' County' : ''} · reported ${ago(f.found)}`,
         copy: `${f.name} fire${f.county ? ', ' + f.county + ' County' : ''}: ${f.acres ? fmt(f.acres) + ' acres' : 'size not yet reported'}, ${f.pct !== null && f.pct !== undefined ? fmt(f.pct) + '% contained' : 'containment not yet reported'}. Source: NIFC incident data.`,
-        buttons: [['go:firecams', 'Fire Cams', true], ['copy', 'Copy details'], ['go:newsroom:discovery', 'Draft in Newsroom']],
+        card: { kind: 'fire', fire: f },
+        buttons: [['image', 'Post image', true], ['go:firecams', 'Fire Cams'], ['copy', 'Copy details'], ['go:newsroom:discovery', 'Draft in Newsroom']],
       });
     }
     const nr = newsroomState();
@@ -452,6 +456,137 @@
     return { now, before, pct: C.pctChange(now, before), money: C.formatMoney };
   }
 
+  // ── Branded images for quick posts (wxcard.js) ───────────────────────────
+  // Made automatically for each alert, new fire and Storm Index item while the Briefing is open,
+  // one at a time, and remade after 10 minutes so the radar stays current. Kept in memory only.
+  const CARD_TTL = 10 * 60e3;
+  const cards = new Map();            // action key → { state, blob, url, caption, filename, alt, at, radarOk }
+  const cardQueue = [];
+  let cardBusy = false;
+  function cardFresh(c) { return c && (c.state === 'making' || (c.at && Date.now() - c.at < CARD_TTL)); }
+  function ensureCard(a, force) {
+    if (!window.WxCard) return;
+    const c = cards.get(a.key);
+    if (!force && cardFresh(c)) return;
+    if (cardQueue.some((q) => q.key === a.key)) return;
+    cardQueue.push(a);
+    if (!c) cards.set(a.key, { state: 'making' });
+    else c.state = 'making';
+    pumpCards();
+  }
+  async function pumpCards() {
+    if (cardBusy) return;
+    const a = cardQueue.shift();
+    if (!a) return;
+    cardBusy = true;
+    const prev = cards.get(a.key) || {};
+    try {
+      let out;
+      if (a.card.kind === 'alert') out = await window.WxCard.alertCard(a.card.feature, { stations: B.stations || [] });
+      else if (a.card.kind === 'fire') out = await window.WxCard.fireCard(a.card.fire);
+      else out = await window.WxCard.stormCard(B.storm || { status: 'ok', crit: 0, warn: 0 }, B.stations || []);
+      if (!out || !out.blob) throw new Error('no image');
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      // Keep a caption you've already edited when the image is remade.
+      cards.set(a.key, Object.assign({ state: 'ready', at: Date.now(), url: URL.createObjectURL(out.blob) }, out,
+        prev.captionEdited ? { caption: prev.caption, captionEdited: true } : {}));
+    } catch (e) {
+      cards.set(a.key, Object.assign({}, prev, { state: prev.url ? 'ready' : 'failed', error: e.message, at: prev.at || Date.now() - CARD_TTL + 60e3 }));
+    }
+    cardBusy = false;
+    if (briefingVisible()) render();
+    refreshModal(a.key);
+    pumpCards();
+  }
+  function thumbHTML(a, i) {
+    const c = cards.get(a.key);
+    const inner = c && c.url ? `<img src="${esc(c.url)}" alt="">` : `<span>${c && c.state === 'failed' ? 'Image failed · retry' : 'Making image…'}</span>`;
+    return `<button type="button" class="bf-thumb${c && c.url ? '' : ' wait'}" data-act="image" data-i="${i}" aria-label="Open post image for ${esc(a.title)}">${inner}</button>`;
+  }
+
+  // Preview dialog: Share (phone share sheet), Save, Copy caption, Make a new one.
+  let modalKey = null;
+  function modalEl() {
+    let m = document.getElementById('wxc-modal');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id = 'wxc-modal'; m.className = 'wxc-modal'; m.hidden = true;
+    m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'wxc-title');
+    m.innerHTML = `<div class="wxc-box">
+      <div class="wxc-top"><h3 id="wxc-title">Post image</h3><button type="button" class="bf-x" data-wxc="close" aria-label="Close">×</button></div>
+      <div class="wxc-img"></div>
+      <label class="wxc-lbl" for="wxc-caption">Caption <small>(edit before posting)</small></label>
+      <textarea id="wxc-caption" rows="4" maxlength="400"></textarea>
+      <div class="wxc-count"></div>
+      <div class="wxc-btns">
+        <button type="button" class="bf-btn primary" data-wxc="share">Share image</button>
+        <button type="button" class="bf-btn" data-wxc="save">Save image</button>
+        <button type="button" class="bf-btn" data-wxc="copy">Copy caption</button>
+        <button type="button" class="bf-btn" data-wxc="remake">Make a new one</button>
+      </div>
+      <p class="wxc-tip">On iPhone: <strong>Copy caption</strong>, then <strong>Share image</strong> → X, and paste the caption. Check the details against the NWS alert before posting.</p>
+    </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', onModalClick);
+    m.querySelector('#wxc-caption').addEventListener('input', (e) => {
+      const c = cards.get(modalKey); if (c) { c.caption = e.target.value; c.captionEdited = true; }
+      updateCount();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) closeCard(); });
+    return m;
+  }
+  function updateCount() {
+    const m = modalEl(); const n = m.querySelector('#wxc-caption').value.length;
+    const el = m.querySelector('.wxc-count'); el.textContent = n + ' / 280'; el.classList.toggle('over', n > 280);
+  }
+  let lastFocus = null;
+  function openCard(a) {
+    const m = modalEl();
+    modalKey = a.key;
+    m.dataset.title = a.title;
+    lastFocus = document.activeElement;
+    m.hidden = false;
+    if (!cardFresh(cards.get(a.key))) ensureCard(a);
+    refreshModal(a.key);
+    m.querySelector('[data-wxc="close"]').focus();
+  }
+  function closeCard() { const m = modalEl(); m.hidden = true; modalKey = null; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  function refreshModal(key) {
+    const m = document.getElementById('wxc-modal');
+    if (!m || m.hidden || key !== modalKey) return;
+    const c = cards.get(key) || {};
+    m.querySelector('#wxc-title').textContent = 'Post image · ' + (m.dataset.title || '');
+    m.querySelector('.wxc-img').innerHTML = c.url ? `<img src="${esc(c.url)}" alt="${esc(c.alt || '')}">${c.radarOk === false ? '<p class="wxc-warn">Radar didn\'t load for this image. Make a new one in a minute.</p>' : ''}${c.state === 'making' ? '<p class="wxc-note">Making a fresh one…</p>' : ''}`
+      : `<p class="wxc-note">${c.state === 'failed' ? 'The image couldn\'t be made (' + esc(c.error || 'error') + '). Try Make a new one.' : 'Making the image…'}</p>`;
+    const ta = m.querySelector('#wxc-caption');
+    if (document.activeElement !== ta) ta.value = c.caption || '';
+    updateCount();
+    const ready = !!c.blob;
+    m.querySelectorAll('[data-wxc="share"],[data-wxc="save"]').forEach((b) => { b.disabled = !ready; });
+    const canShare = ready && navigator.canShare && navigator.canShare({ files: [new File([c.blob], c.filename, { type: 'image/png' })] });
+    m.querySelector('[data-wxc="share"]').hidden = ready && !canShare;
+  }
+  async function onModalClick(e) {
+    const m = modalEl();
+    if (e.target === m) { closeCard(); return; }
+    const b = e.target.closest('[data-wxc]');
+    if (!b) return;
+    const c = cards.get(modalKey) || {};
+    const act = b.dataset.wxc;
+    const flash = (t) => { const o = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = o; }, 1600); };
+    if (act === 'close') closeCard();
+    else if (act === 'copy') { try { await navigator.clipboard.writeText(m.querySelector('#wxc-caption').value); flash('Copied ✓'); } catch (err) { flash('Copy failed'); } }
+    else if (act === 'save' && c.blob) {
+      const link = document.createElement('a'); link.href = c.url; link.download = c.filename; document.body.appendChild(link); link.click(); link.remove(); flash('Saved ✓');
+    } else if (act === 'share' && c.blob) {
+      try { await navigator.share({ files: [new File([c.blob], c.filename, { type: 'image/png' })] }); }
+      catch (err) { if (err && err.name !== 'AbortError') flash('Share failed'); }
+    } else if (act === 'remake') {
+      const a = lastActions.find((x) => x.key === modalKey);
+      if (a) { ensureCard(a, true); refreshModal(modalKey); }
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   function briefingVisible() { const p = $('#panel-briefing'); return !!(p && p.classList.contains('active')); }
   const TONE = { red: 'var(--danger)', amber: 'var(--warn)', blue: 'var(--accent)', green: 'var(--accent3)' };
@@ -462,6 +597,7 @@
     if (!el || !briefingVisible()) return;
     const actions = buildActions();
     lastActions = actions;
+    actions.forEach((a) => { if (a.card) ensureCard(a); });
     const tl = buildTimeline();
     const urgent = actions.filter((a) => a.tone === 'red').length;
     const routine = actions.length - urgent;
@@ -495,6 +631,7 @@
             ${actions.length ? actions.map((a, i) => `
               <div class="bf-act ${a.tone}">
                 <span class="bf-dot" style="background:${TONE[a.tone]}"></span>
+                ${a.card ? thumbHTML(a, i) : ''}
                 <div class="bf-act-txt"><strong>${esc(a.title)}</strong><span>${esc(a.detail)}</span></div>
                 <div class="bf-act-btns">${a.buttons.map(([act, label, primary]) => `<button type="button" class="bf-btn${primary ? ' primary' : ''}" data-act="${esc(act)}" data-i="${i}">${esc(label)}</button>`).join('')}
                   <button type="button" class="bf-x" data-dismiss="${i}" aria-label="Hide “${esc(a.title)}” for 6 hours" title="Hide for 6 hours">×</button></div>
@@ -536,7 +673,7 @@
           </section>
         </div>
       </div>
-      <p class="bf-foot">Conditions ${esc(storeAt(B.loaded.nwsAll))} · stations ${B.stations ? 'live' : 'loading'} · fires ${B.fires ? 'live' : 'loading'}. Nothing here posts anything; Copy and Draft only prepare text for you to check.</p>
+      <p class="bf-foot">Conditions ${esc(storeAt(B.loaded.nwsAll))} · stations ${B.stations ? 'live' : 'loading'} · fires ${B.fires ? 'live' : 'loading'}. Nothing here posts anything; images, Copy and Draft only prepare things for you to check and post.</p>
     </div>`;
   }
   function countdown(net) {
@@ -559,6 +696,7 @@
     if (act.startsWith('go:')) { const k = act.slice(3); if (k.startsWith('newsroom:')) window.__nrView = k.split(':')[1]; go(k); return; }
     if (act === 'newstory') { go('newsroom:overview'); if (typeof window.focusNewsroomCapture === 'function') window.focusNewsroomCapture(); return; }
     if (act === 'seen') { lastCheck = new Date().toISOString(); lastCheckKnown = true; store.set('ocs-briefing-lastcheck', lastCheck); render(); return; }
+    if (act === 'image') { const a = lastActions[+b.dataset.i]; if (a && a.card) openCard(a); return; }
     if (act === 'copy') {
       const a = lastActions[+b.dataset.i];
       if (!a || !a.copy) return;
